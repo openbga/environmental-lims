@@ -5,7 +5,7 @@
   ],
   "title": "Enter results",
   "purpose": "Enter awaiting results or new revisions of entered/returned work in a page-sized grid, then submit saved entries from the batch page.",
-  "summary": "Enter results for the tests in this batch that are awaiting entry, entered or returned, a page at a time. Saving does not submit them for review.",
+  "summary": "Enter results for the tests in this batch that are awaiting entry, entered or returned, a page at a time. Tests set up as calculated take readings. Saving does not submit anything for review.",
   "tasks": [
     {
       "title": "Enter results",
@@ -13,6 +13,14 @@
         "Optionally set [[Default analysis start]] for every row that has no time of its own.",
         "Type each result as read, a number or ND, and check its reporting limit and dilution.",
         "Save the rows on this page. Submit them for review from the batch page."
+      ]
+    },
+    {
+      "title": "Enter readings for a calculated test",
+      "steps": [
+        "A row that says Calculated shows its readings with their units. Type each reading as read at the bench.",
+        "For the dilution calculation, check [[Reporting limit before dilution]] and the [[Dilution]].",
+        "If the calculated value will fall below the reporting limit applied, add a qualifier or tick [[Report as ND]]. Then save the rows."
       ]
     },
     {
@@ -30,9 +38,9 @@
   ],
   "good_to_know": [
     "If any row has an error, nothing on the page is saved. Your typed values are kept so you can fix them.",
-    "A row is skipped only when its result, reporting limit and analysis start are all blank. Clear a prefilled limit to skip a row.",
-    "Zero is a detected value. Use ND for a non-detect.",
-    "A detected value below its reporting limit needs a qualifier, or enter ND where appropriate.",
+    "A row you did not touch is skipped, even though the page filled in a reporting limit. A row you started, for example with a qualifier or a changed limit, must have its result.",
+    "A test set up as calculated takes readings, not a final result. If its calculation was added, removed or replaced after you opened the page, saving is refused and you reload.",
+    "Zero is a detected value; use ND for a non-detect. A value below its reporting limit needs a qualifier. For a calculated value, add one or tick [[Report as ND]].",
     "Only this page is saved. Save before changing page, or what you typed is lost."
   ],
   "sections": [
@@ -92,7 +100,7 @@
         },
         {
           "label": "Current",
-          "description": "Latest supplied numeric value, or ND with its applied reporting-limit threshold, and current status. New fields are not populated from it."
+          "description": "Latest supplied numeric value, or ND with its applied reporting-limit threshold, and current status; a value worked from readings is marked calculated. New fields are not populated from it."
         },
         {
           "label": "Soil basis",
@@ -112,15 +120,27 @@
         },
         {
           "label": "Result",
-          "description": "Number or ND as observed. To skip a row, leave Result, Reporting limit and its row Analysis start all blank; a prefilled limit makes the row an attempted entry."
+          "description": "Number or ND as observed, for a test that takes a typed result. To skip a row, leave it untouched. The reporting limit and the dilution of 1 that the page filled in do not count as typed. Anything else typed or chosen in the row (a changed limit or dilution, qualifiers, a reason, an analysis start, a prepared aliquot, soil details) makes it an entry, and an entry with no result is an error (Result is required)."
+        },
+        {
+          "label": "Result or readings",
+          "description": "The column heading when any row on the page is calculated. A row of a calculated test shows Calculated: followed by the calculation and its version, one box for each reading with its unit, and Report as ND, instead of the Result box. Other rows keep the Result box."
+        },
+        {
+          "label": "Readings",
+          "description": "Typed as read, exactly, with no rounding. Dilution calculation: Instrument reading (a number, or ND) in the unit of the test, and Reporting limit before dilution, offered from the catalog limit. Solids by weight: Dried residue with its filter or dish and Filter or dish alone (g or mg, matching the calculation) and Sample volume (mL). Each must be a number; weights cannot be negative, volume and the limit before dilution must be greater than zero."
+        },
+        {
+          "label": "Report as ND",
+          "description": "Only on rows of a calculated test. Tick it to report a calculated value as ND when the value is below the reporting limit applied; it is refused when the value is not below the limit. The readings and the calculated value stay on record either way."
         },
         {
           "label": "Reporting limit",
-          "description": "Applied limit for this observation. Initially the current method limit if configured; check and edit as needed. With browser scripting, entering a positive whole-number dilution multiplies that base limit until you manually edit the limit. Fractional dilution does not auto-calculate it."
+          "description": "Applied limit for this observation. Initially the current method limit if configured; check and edit as needed. With browser scripting, entering a positive whole-number dilution multiplies that base limit until you manually edit the limit. Fractional dilution does not auto-calculate it. For the dilution calculation the cell shows Calculated: limit before dilution × dilution instead of a box: the limit is worked out from Reporting limit before dilution and the dilution. For solids calculations the limit is still typed."
         },
         {
           "label": "Dilution",
-          "description": "Initially 1. Record the actual positive factor."
+          "description": "Initially 1. Record the actual positive factor. For a solids calculation the cell shows Not used: no dilution factor is applied and it is saved as 1."
         },
         {
           "label": "Qualifiers",
@@ -155,6 +175,14 @@
       ]
     },
     {
+      "title": "Calculated rows",
+      "paragraphs": [
+        "An administrator can set a calculation rule for a test under QC configuration. For that test, manual entry takes readings and a typed final result is refused. File imports are unchanged: they supply final values and get no worksheet.",
+        "Calculations available: Reading times dilution factor (result = instrument reading × dilution factor; reporting limit applied = limit before dilution × dilution factor; a reading of ND gives ND at that limit) and Solids by weight with the balance in grams or milligrams (mg/L = (dried residue with its filter or dish − filter or dish alone) × 1,000,000 ÷ mL for grams, × 1,000 for milligrams). The solids calculations apply no dilution factor and no blank correction.",
+        "The value is carried at full precision and rounded once, at the end, by the laboratory's rule for that test. A calculated value below the reporting limit applied needs a qualifier to be reported, or Report as ND. Saving keeps a worksheet with the revision: the calculation and version, every reading as typed, the value before rounding and the rounding applied. The result page shows it."
+      ]
+    },
+    {
       "title": "Saving and errors",
       "items": [
         {
@@ -167,11 +195,11 @@
         },
         {
           "label": "Row errors",
-          "description": "If any submitted row is invalid, nothing in this save is committed. Errors link to affected rows and preserve typed values. A row is skipped only when its Result, Reporting limit and row Analysis start are all blank. Clear an initial method limit as well as the result to skip that row."
+          "description": "If any submitted row is invalid, nothing in this save is committed. Errors link to affected rows and preserve typed values. A row is skipped only when nothing is typed or chosen in it; a row that was started but has no result or readings is an error, never dropped. Reading errors appear beside the reading; a calculated row reports every problem it has together."
         },
         {
           "label": "Changed rows",
-          "description": "If a submitted result is no longer an eligible current result of this batch, nothing is saved. Reload, check current rows and enter again; do not assume unsaved values survive reload."
+          "description": "If a submitted result is no longer an eligible current result of this batch, nothing is saved. Reload, check current rows and enter again; do not assume unsaved values survive reload. The same applies when a calculation rule was added or deactivated, or its calculation replaced, after you opened the page: saving is refused with the reason, and you reload. A change to the rounding alone applies from your next save."
         },
         {
           "label": "Preparation time needed",
@@ -200,6 +228,11 @@
     "analytical/tests/test_lists.py",
     "analytical/tests/test_observation_metadata.py",
     "analytical/tests/test_timezone.py",
-    "analytical/tests/test_views.py"
+    "analytical/tests/test_views.py",
+    "analytical/calculations.py",
+    "analytical/worksheets.py",
+    "analytical/templates/analytical/_revision_value.html",
+    "analytical/tests/test_calculations.py",
+    "analytical/tests/test_calculation_pages.py"
   ]
 }

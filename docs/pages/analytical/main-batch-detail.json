@@ -170,7 +170,7 @@
         },
         {
           "label": "Result",
-          "description": "Latest numeric observation as supplied, or ND with the applied reporting-limit threshold; soil weight basis is also shown. A non-detect is not represented as zero."
+          "description": "Latest numeric observation as supplied, or ND with the applied reporting-limit threshold; soil weight basis is also shown. A non-detect is not represented as zero. A result worked from readings is marked calculated; its worksheet is on the result page."
         },
         {
           "label": "Unit",
@@ -363,6 +363,7 @@
     "analytical/tests/test_batch_equipment.py",
     "laboratory/templates/laboratory/batch_context.html",
     "laboratory/selectors.py",
-    "laboratory/permissions.py"
+    "laboratory/permissions.py",
+    "analytical/templates/analytical/_revision_value.html"
   ]
 }

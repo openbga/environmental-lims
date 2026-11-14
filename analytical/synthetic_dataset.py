@@ -12,6 +12,7 @@ from decimal import Decimal
 from catalog.models import Analyte, Method, TestDefinition
 
 from .models import (
+    CalculationRule,
     HoldingTimeRule,
     PreparationRequirement,
     PreservationRule,
@@ -41,6 +42,8 @@ QUALIFIERS = [
 # hold: (hours, warning hours) per matrix group. qc: type -> (active, min per batch, every N)
 # analyte_hold: analyte -> (hours, warning hours), a limit of its own that replaces the method's.
 # limits: lcs/ccv/ms recovery (lower, upper) percent; rpd upper percent.
+# calculation: (calculation key, rounding fields) for every test of the method: manual results
+# are then worked from readings. The rounding is as invented as every other value here.
 # Catalog descriptors for the invented methods and analytes (set when a row is first created).
 TECHNIQUES = {
     "DEMO-METALS-AQ": "icp_ms",
@@ -134,6 +137,17 @@ METHODS = [
         "title": "Total suspended solids, aqueous (synthetic demonstration)",
         "analytes": [("Total suspended solids", "", {m: ("mg/L", "5.0") for m in AQUEOUS})],
         "hold": {m: (24 * 7, 24) for m in AQUEOUS},
+        "calculation": (
+            "residue_g",
+            {
+                "rounding_method": "half_even",
+                "rounding_mode": "decimal_places",
+                "rounding_digits": 0,
+                "threshold": Decimal("1000"),
+                "upper_rounding_mode": "significant_figures",
+                "upper_rounding_digits": 3,
+            },
+        ),
         "qc": {
             "method_blank": (True, 1, 20),
             "lcs": (False, 1, 20),
@@ -197,6 +211,7 @@ def seed_synthetic_dataset():
         "qualifiers": 0,
         "preservation_rules": 0,
         "preparation_requirements": 0,
+        "calculation_rules": 0,
     }
 
     def make(model, lookup, defaults, key):
@@ -257,6 +272,14 @@ def seed_synthetic_dataset():
                         },
                         {"lower": lower, "upper": upper, "basis": BASIS},
                         "limits",
+                    )
+                if "calculation" in spec:
+                    calculation, rounding = spec["calculation"]
+                    make(
+                        CalculationRule,
+                        {"definition": definition},
+                        {"calculation": calculation, **rounding, "basis": BASIS},
+                        "calculation_rules",
                     )
         for matrix, (hours, warn) in spec["hold"].items():
             make(

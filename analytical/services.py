@@ -6,10 +6,9 @@ Lock order: method policy row, batch, requested tests, results, then samples.
 """
 
 from datetime import timedelta
-from decimal import Decimal
 
 from django.conf import settings
-from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.exceptions import NON_FIELD_ERRORS, PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -20,7 +19,7 @@ from core.audit import record_event
 from core.concurrency import check_original_state
 from receipt.models import RequestedTest, Sample, SampleStorage, Subcontract
 
-from . import holding
+from . import holding, worksheets
 from .models import (
     Batch,
     PreparedTest,
@@ -34,7 +33,7 @@ from .models import (
     ResultKind,
     ResultRevision,
 )
-from .parsing import parse_decimal, parse_result_text
+from .parsing import parse_decimal, parse_dilution, parse_result_text
 from .preparation import (
     batch_definition_ids,
     batch_sample_ids,
@@ -856,15 +855,7 @@ def clean_entry(
     except ValidationError as exc:
         fail("reporting_limit_applied", exc)
     try:
-        dilution = parse_decimal(dilution_factor, "Dilution factor")
-        if (
-            dilution <= 0
-            or dilution != dilution.quantize(Decimal("0.0001"))
-            or dilution.adjusted() >= 10
-        ):
-            raise ValidationError(
-                "Dilution factor must be greater than zero, with at most 4 decimal places."
-            )
+        dilution = parse_dilution(dilution_factor)
     except ValidationError as exc:
         fail("dilution_factor", exc)
     if unit is not None and unit.strip() != definition.unit:
@@ -943,8 +934,15 @@ def enter_result_locked(
     prepared_aliquot_id=None,
     source=ResultRevision.Source.MANUAL,
     source_detail="",
+    readings=None,
+    report_nd=False,
+    calculation_token=None,
 ):
-    """Create the next revision of a locked result. Caller holds the transaction and lock."""
+    """Create the next revision of a locked result. Caller holds the transaction and lock.
+
+    Where the test has an active calculation rule, a manual entry is worked from `readings`
+    (see worksheets.py) and a typed result is refused. A file import always supplies final
+    values, kept with their source, and is never recalculated."""
     batch = result.batch
     if batch is None:
         raise ValidationError("This test is not assigned to a batch.")
@@ -964,21 +962,66 @@ def enter_result_locked(
         raise ValidationError({"reason": "Give the reason for the correction or reanalysis."})
     if latest and latest.status == "draft" and not reason:
         reason = "Entry revised before submission."
-    cleaned = clean_entry(
-        definition=definition,
-        sample=sample,
-        batch=batch,
-        supplied_text=supplied_text,
-        reporting_limit_applied=reporting_limit_applied,
-        dilution_factor=dilution_factor,
-        analysis_started_at=analysis_started_at,
-        qualifier_codes=qualifier_codes,
-        unit=unit,
-        result_basis=result_basis,
-        percent_solids=percent_solids,
-        solids_reference=solids_reference,
-        prepared_aliquot_id=prepared_aliquot_id,
-    )
+    worked, calculation_errors = None, {}
+    # The rule is read under the method policy lock taken with the batch; save_config takes
+    # the same lock, so a rule cannot change between this read and the write below.
+    rule = worksheets.active_rule(definition.pk) if source == ResultRevision.Source.MANUAL else None
+    if rule is None and (readings or report_nd or calculation_token):
+        raise ValidationError(
+            "This test has no active calculation, so it takes a final result, not readings. "
+            "Reload the page."
+        )
+    if rule is not None:
+        typed = bool((supplied_text or "").strip())
+        try:
+            worked = worksheets.work(
+                rule=rule,
+                definition=definition,
+                readings=readings,
+                dilution_factor=dilution_factor,
+                reporting_limit_applied=reporting_limit_applied,
+                report_nd=report_nd,
+                has_qualifier=any(c and c.strip() for c in qualifier_codes),
+                expected=calculation_token,
+            )
+            supplied_text, reporting_limit_applied = worked.supplied_text, worked.limit_text
+        except ValidationError as exc:
+            calculation_errors = exc.message_dict
+        if typed and NON_FIELD_ERRORS not in calculation_errors:
+            # (A rule that cannot be worked at all has already said so; one message is enough.)
+            calculation_errors["supplied_text"] = [
+                "This test is calculated from readings. Enter the readings; a typed result is "
+                "not accepted."
+            ]
+        if calculation_errors:
+            # Stand-ins, so the times, qualifiers and preparation are still checked in the same
+            # pass. Nothing is saved: the calculation errors are raised below.
+            supplied_text = "ND"
+            if worksheets.sets_limit(rule):
+                reporting_limit_applied = "1"
+    try:
+        cleaned = clean_entry(
+            definition=definition,
+            sample=sample,
+            batch=batch,
+            supplied_text=supplied_text,
+            reporting_limit_applied=reporting_limit_applied,
+            dilution_factor=dilution_factor,
+            analysis_started_at=analysis_started_at,
+            qualifier_codes=qualifier_codes,
+            unit=unit,
+            result_basis=result_basis,
+            percent_solids=percent_solids,
+            solids_reference=solids_reference,
+            prepared_aliquot_id=prepared_aliquot_id,
+        )
+    except ValidationError as exc:
+        if not calculation_errors:
+            raise
+        # The calculation's wording wins for a field both report (dilution, limit).
+        raise ValidationError({**exc.message_dict, **calculation_errors}) from None
+    if calculation_errors:
+        raise ValidationError(calculation_errors)
     holding_status, evaluation = holding.evaluate_for_entry(
         method=definition.method,
         matrix=definition.matrix,
@@ -1019,11 +1062,13 @@ def enter_result_locked(
         comments=comments,
         holding_status=holding_status,
         holding_evaluation=evaluation,
-        source=source,
+        source=ResultRevision.Source.CALCULATED if worked is not None else source,
         source_detail=source_detail,
         entered_by=actor,
         correction_reason=reason,
     )
+    if worked is not None:
+        worksheets.record(revision, worked)
     before = {"status": result.status, "latest_number": result.latest_number}
     result.status, result.latest_number = Result.Status.DRAFT, revision.number
     result.save(update_fields=["status", "latest_number"])
@@ -1048,8 +1093,9 @@ def enter_result_locked(
             "qualifiers": [q["code"] for q in revision.qualifiers],
             "analysis_started_at": revision.analysis_started_at.isoformat(),
             "holding_status": holding_status,
-            "source": source,
+            "source": revision.source,
             "source_detail": source_detail,
+            **({"worksheet": worked.audit()} if worked is not None else {}),
         },
         reason=reason,
     )
