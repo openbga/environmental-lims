@@ -69,7 +69,11 @@ reset, verification and MFA mechanisms; lab roles and record authorization remai
 policy. Use CSRF protection, secure sessions, HTTPS and explicit trusted hosts/origins.
 
 Store Decimal values with declared scale/precision, original supplied text, units, qualifiers,
-limits and method version as distinct data. Precision and rounding rules need product policy.
+limits and method version as distinct data. Typed and imported values are stored as supplied and
+never rounded. A value calculated from bench readings is carried at full precision and rounded
+once by the test's calculation rule, which the laboratory sets; its readings, the version of the
+calculation (code in `analytical/calculations.py`, never changed once registered) and the rounding
+applied are stored with the result, so the reported value can be worked out again.
 Do not infer nondetects from zero or overwrite observations; preservation limits are per method.
 Custody and result corrections retain actor, timestamp, reason and prior linkage. Mutations
 write an attributed audit event in the same transaction; background/system actions have an
