@@ -16,8 +16,15 @@ from django.utils import timezone
 from accounts.models import User
 from accounts.roles import can_authorize_release
 from analytical import services as bench
+from analytical import worksheets
 from analytical.holding import duration_label
-from analytical.models import HoldingTimeRule, ResultRevision
+from analytical.models import (
+    CalculationRule,
+    HoldingTimeRule,
+    Result,
+    ResultRevision,
+    WorksheetReading,
+)
 from catalog.models import Method
 from core.models import AuditEvent
 from receipt import services as receipt
@@ -34,8 +41,10 @@ from .journey import (
     create_client_user,
     download,
     enter,
+    receive,
     sha256,
     signed_in,
+    tests_for,
 )
 from .runner import csrf_refusal, role_refusal, step
 from .scratch import sqlstate
@@ -509,4 +518,113 @@ def csrf(run):
         f"The same post with the token from the own origin: HTTP {genuine.status_code}, client "
         "created",
         "302",
+    )
+
+
+SOLIDS = "DEMO-TSS-AQ"  # the demonstration method whose results are worked from weights
+
+
+@step(
+    "C08",
+    "A calculated result keeps its readings and can be worked out again",
+    requirement="Where the laboratory sets a calculation for a test, the readings behind a "
+    "result belong to the record: the result is worked from them at full precision, rounded "
+    "once by the laboratory's rule, and can be worked out again from what was stored "
+    "(docs/product.md, calculated results).",
+    expected="For the demonstration solids test a typed final result is refused; the weights "
+    "0.1183 g and 0.1058 g over 300 mL give 41.666... mg/L, reported as 42 by the demonstration "
+    "rule (whole numbers below 1,000); the three readings are stored as typed; working the "
+    "stored worksheet again gives the same result; the database refuses to change a stored "
+    "reading; the result page shows the worksheet.",
+    depends=("O03",),
+)
+def calculated_result(run):
+    analyst = account(run, "analyst")
+    now = timezone.now().replace(second=0, microsecond=0)
+    tests = tests_for(SOLIDS)
+    rule = CalculationRule.objects.get(definition=tests[0], is_active=True)
+    sample = receive(
+        run,
+        run["order_a"],
+        "OF001-A5",
+        tests,
+        collected_at=now - timedelta(hours=4),
+        received_at=now - timedelta(hours=2),
+    )
+    batch = bench.create_batch(
+        actor=analyst, method=Method.objects.get(code=SOLIDS, version=VERSION), matrix="water"
+    )
+    bench.add_tests_to_batch(
+        actor=analyst,
+        batch_id=batch.pk,
+        requested_test_ids=list(sample.requested_tests.values_list("pk", flat=True)),
+    )
+    result = Result.objects.get(requested_test__sample=sample)
+    entry = dict(
+        actor=analyst,
+        result_id=result.pk,
+        reporting_limit_applied="5",
+        dilution_factor="1",
+        analysis_started_at=now - timedelta(minutes=30),
+    )
+    try:
+        bench.enter_result(supplied_text="42", **entry)
+        refusal = None
+    except ValidationError as exc:
+        refusal = " ".join(exc.messages)
+    run.check(
+        refusal is not None and "calculated from readings" in refusal,
+        f"A typed final result for the calculated test is refused: '{refusal}'",
+        "the refusal of a typed result",
+    )
+    readings = {"gross": "0.1183", "tare": "0.1058", "volume": "300"}
+    revision = bench.enter_result(supplied_text="", readings=readings, **entry)
+    sheet = revision.worksheet
+    stored = {r.key: f"{r.supplied_text} {r.unit}" for r in sheet.readings.all()}
+    run.check(
+        revision.supplied_text == "42"
+        and revision.source == "calculated"
+        and str(sheet.unrounded_value).startswith("41.6666666666")
+        and stored == {"gross": "0.1183 g", "tare": "0.1058 g", "volume": "300 mL"},
+        f"{sample.lab_id} {revision.analyte_name}: reported {revision.supplied_text} "
+        f"{revision.unit} ({revision.get_source_display().lower()}) from readings {stored}; "
+        f"value before rounding {sheet.unrounded_value}; calculation '{sheet.title}' version "
+        f"{sheet.version}; rounding {rule.rounding.describe()}",
+        "42 mg/L from the three stored readings",
+    )
+    again = worksheets.reproduce(sheet)
+    run.check(
+        again.available and again.matches and again.value_text == revision.supplied_text,
+        f"Worked again from the stored readings: {again.value_text} {revision.unit}, "
+        f"{'the same as' if again.matches else 'NOT the same as'} the recorded result",
+        "the same result",
+    )
+    reading = sheet.readings.get(key="gross")
+    refusals = [
+        refused_by_database(
+            f'UPDATE "{WorksheetReading._meta.db_table}" SET "value" = %s WHERE "id" = %s',
+            [9, reading.pk],
+        ),
+        refused_by_database(
+            f'DELETE FROM "{WorksheetReading._meta.db_table}" WHERE "id" = %s', [reading.pk]
+        ),
+    ]
+    run.check(
+        all(r is not None and r[0] in TRIGGER_STATES and r[1] for r in refusals)
+        and WorksheetReading.objects.get(pk=reading.pk).supplied_text == "0.1183",
+        "Direct UPDATE and DELETE of a stored reading: "
+        + ", ".join("went through" if r is None else f"refused (SQLSTATE {r[0]})" for r in refusals)
+        + "; the reading still holds 0.1183",
+        "both refused by the database",
+    )
+    page = signed_in(run, "reviewer").get(f"/analytical/results/{result.pk}/")
+    html = page.content.decode("utf-8", "replace")
+    run.check(
+        page.status_code == 200
+        and "Worksheet: " in html
+        and "0.1183" in html
+        and "Same result" in html,
+        f"Result page for the reviewer (HTTP {page.status_code}) shows the worksheet, the "
+        "readings as typed and that working them again gives the same result",
+        "the worksheet on the result page",
     )

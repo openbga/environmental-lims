@@ -61,6 +61,13 @@ VALUES = {
 LCS_AQUEOUS = ["19.6", "20.3", "19.8", "20.2", "19.4", "20.6", "19.9", "20.1", "19.5", "20.4"]
 LCS_SOIL = ["48.6", "50.9", "49.3", "51.2"]
 SPIKE = {"water": "20.0", "wastewater": "20.0", "soil": "50.0"}
+# Invented balance and cylinder readings for the solids worksheet: dried residue with its filter
+# (g), the filter alone (g) and the volume filtered (mL). The result is worked from them.
+SOLIDS = [
+    ("0.1183", "0.1058", "300"),
+    ("0.1097", "0.1041", "500"),
+    ("0.1262", "0.1049", "250"),
+]
 MDL_SPIKES = [  # (days ago, preparation batch, observed); spiking level 2.00
     (20, "MDL-A", "1.82"),
     (20, "MDL-A", "2.11"),
@@ -356,7 +363,10 @@ class Week:
         approved. The analyst enters and submits; the reviewer, a different person, decides."""
         if stage == "awaiting":
             return None
-        text, qualifiers = extra.pop("value", None) or self.value(rt.definition)
+        if "readings" in extra:
+            text, qualifiers = "", ()  # a calculated test: the service works the result
+        else:
+            text, qualifiers = extra.pop("value", None) or self.value(rt.definition)
         revision = bench.enter_result(
             actor=self.analyst,
             result_id=Result.objects.get(requested_test=rt).pk,
@@ -414,6 +424,52 @@ class Week:
             self.entry(rt, analysed_at, stages.get(rt.sample.client_sample_id, stage))
         if not stages and stage != "awaiting":
             bench.close_batch(actor=self.analyst, batch_id=batch.pk)
+        return batch
+
+    def solids_batch(self, samples, *, analysed_at, stages):
+        """Suspended solids by weight: each result is worked from its balance and volume
+        readings by the demo calculation rule. Method blank and a laboratory duplicate; the
+        batch stays open because one test still awaits its weights."""
+        method = Method.objects.get(code="DEMO-TSS-AQ", version=VERSION)
+        batch = bench.create_batch(
+            actor=self.analyst,
+            method=method,
+            matrix="wastewater",
+            notes="Synthetic demonstration batch. Results are calculated from the readings.",
+        )
+        tests = self.requested(samples, method)
+        bench.add_tests_to_batch(
+            actor=self.analyst, batch_id=batch.pk, requested_test_ids=[rt.pk for rt in tests]
+        )
+        definition = tests[0].definition
+        common = dict(
+            actor=self.analyst,
+            definition_id=definition.pk,
+            reporting_limit_applied=_rl(definition),
+            analysis_started_at=analysed_at,
+        )
+        blank = bench.add_qc_sample(
+            actor=self.analyst, batch_id=batch.pk, qc_type="method_blank", label="MB-1"
+        )
+        bench.record_qc_measurement(qc_sample_id=blank.pk, observed_text="ND", **common)
+        duplicate = bench.add_qc_sample(
+            actor=self.analyst,
+            batch_id=batch.pk,
+            qc_type="lab_duplicate",
+            label="DUP-1",
+            parent_sample=tests[0].sample,
+        )
+        bench.record_qc_measurement(
+            qc_sample_id=duplicate.pk, observed_text="43", reference_value="42", **common
+        )
+        for rt, weights in zip(tests, cycle(SOLIDS), strict=False):
+            gross, tare, volume = weights
+            self.entry(
+                rt,
+                analysed_at,
+                stages.get(rt.sample.client_sample_id, "awaiting"),
+                readings={"gross": gross, "tare": tare, "volume": volume},
+            )
         return batch
 
     def soil_batch(self, samples, *, prepared_at, completed_at, analysed_at):
@@ -675,7 +731,7 @@ class Week:
             self.receive(
                 order,
                 ident,
-                wastewater,
+                [*wastewater, *tss],
                 source=source,
                 received_at=self.at(1, 14, minute),
                 composite_hours=24 if source == "influent" else None,
@@ -700,6 +756,13 @@ class Week:
             analysed_at=self.ago(hours=2),
             stage="awaiting",
             stages={"P2-INF-102": "returned", "P2-EFF-103": "entered", "P2-EFF-104": "entered"},
+        )
+        # Their suspended solids, worked from the weights: two awaiting review, one entered and
+        # one still to weigh.
+        self.solids_batch(
+            bench_today,
+            analysed_at=self.ago(hours=1),
+            stages={"P2-INF-102": "submitted", "P2-EFF-103": "submitted", "P2-EFF-104": "entered"},
         )
         self.receive(
             order,

@@ -175,6 +175,45 @@ hash and mapping used; changing a saved profile does not reinterpret previous ob
 These are operator-defined mappings, not validated vendor instrument adapters; Excel files and
 unverified vendor-specific layouts are outside this workflow.
 
+## Calculated results
+
+A result can be worked out by the application from the readings taken at the bench, in place
+of a final value typed in. The `admin` role sets this per test under **QC configuration →
+Calculation rules**: the calculation, and how its value is rounded. With an active rule, manual
+entry of that test (the entry grid and the result page) takes the readings and refuses a typed
+result. The application carries the arithmetic at full precision, rounds once at the end and
+stores a worksheet with the result: each reading as typed with its unit, the calculation and its
+version, the value before rounding and the rounding applied. The result page shows the worksheet
+and works it again from the stored readings each time it is opened. Worksheets are never
+changed: a correction adds a revision with its own worksheet, and a later change to the rule
+leaves earlier results as they were.
+
+Calculations available:
+
+| Calculation | Readings | Result | Reporting limit applied |
+| --- | --- | --- | --- |
+| Reading times dilution factor | Instrument reading (or ND), reporting limit before dilution, dilution factor | Reading × dilution factor | Limit before dilution × dilution factor |
+| Solids by weight, balance in grams or in milligrams | Dried residue with its filter or dish, filter or dish alone, sample volume in mL | (Residue weight) × 1,000,000 ÷ mL for grams, × 1,000 ÷ mL for milligrams, in mg/L | Typed by the analyst |
+
+Rounding is the laboratory's own rule and has no default: significant figures or decimal
+places, an optional second rounding from a size the laboratory names (for example whole numbers
+below 1,000 and three significant figures from there up), and whether a dropped 5 rounds to the
+even digit or always up. Which of the two roundings applies is decided by the value before
+rounding, so a value just under that size can round up to it and still show the digits of the
+smaller range. Results keep at most 10 decimal places; a rounding that would need more for a
+value is refused when the value is entered. A calculated value below the reporting limit applied needs a qualifier,
+or the analyst reports it as ND; the readings and the calculated value stay on record either
+way. A reading of ND in the dilution calculation gives ND at the diluted limit.
+
+Limits: a rule covers one test and one calculation, and its results are always worked from
+readings in manual entry. File imports are not recalculated or rounded: they supply final
+values, kept with their source. QC sample measurements are still typed. The solids calculation
+gives mg/L only, applies no blank correction and no dilution factor, and does not scale the
+reporting limit with the volume used. Preparation factors, percent moisture and dry-weight
+correction for soil, and worksheets for BOD and titrations are not built. The arithmetic of a
+calculation version is part of the release: a laboratory checks it against its method before
+use, and the demonstration rule is synthetic.
+
 ## MDL studies
 
 MDL studies show **Recalculate by** as 13 calendar months (lab time zone) after the calculation date of

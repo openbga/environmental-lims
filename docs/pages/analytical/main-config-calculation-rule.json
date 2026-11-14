@@ -1,0 +1,179 @@
+{
+  "id": "analytical-main-config-calculation-rule",
+  "routes": [
+    "analytical:config-new",
+    "analytical:config-edit"
+  ],
+  "match": {
+    "kind": "calculation-rule"
+  },
+  "title": "Calculation rule",
+  "purpose": "Add or edit the calculation and the laboratory's rounding for the manual results of one exact test, so analysts enter readings and the application works the result.",
+  "summary": "Make manual results of one test calculated from readings, and set how the calculated value is rounded. Only administrators can save; other staff read these rules on QC configuration.",
+  "tasks": [
+    {
+      "title": "Add a calculation rule for a test",
+      "steps": [
+        "Choose the [[Test]] and the [[Calculation]]. Choose the rounding in [[Round to]] and [[Digits]], and the rule for [[When the dropped digits are exactly 5]].",
+        "Record the method or SOP in [[Basis]].",
+        "Select [[Add calculation rule]]. From then on, analysts enter readings for that test."
+      ]
+    },
+    {
+      "title": "Round larger values differently",
+      "steps": [
+        "Enter the size in [[Second rounding from]], in the unit of the test.",
+        "Choose [[Round larger values to]] and [[Digits for larger values]], then save. Calculated values at or above that size use them."
+      ]
+    },
+    {
+      "title": "Change a rule",
+      "steps": [
+        "Open it from QC configuration and change the values.",
+        "Explain why in [[Reason for change]] and select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Go back to typed results for a test",
+      "steps": [
+        "Clear [[Active]], give a reason and select [[Save changes]]. The rule and the worksheets already recorded stay."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "There is no default rounding. The application rounds only a calculated value, once, at the end, using the rule you set. Typed and imported results are never rounded.",
+    "Changing or deactivating a rule never touches worksheets already recorded. Each keeps the rounding it was worked with.",
+    "A rule applies to manual entry only. File imports still supply final values and get no worksheet.",
+    "A solids calculation can only be chosen for a test whose unit is mg/L. Units are not converted.",
+    "If you add or deactivate a rule, or choose another calculation, a page an analyst already had open is refused on save. A new rounding simply applies from the next save."
+  ],
+  "sections": [
+    {
+      "title": "Create, edit and access",
+      "paragraphs": [
+        "Only administrators can open and save this form; other staff read these rules on the QC configuration page, where the rows are not links for them. Add creates a new configuration record; Edit prepopulates the existing record and requires a Reason for change. These are laboratory policy values: nothing here supplies a default rounding, and synthetic seed data is not a validated set."
+      ]
+    },
+    {
+      "title": "Fields",
+      "items": [
+        {
+          "label": "Test",
+          "description": "Required. One exact test: method version, analyte and matrix, listed by method, analyte and matrix. Manual results of that test are then worked from readings and a typed final result is refused. Only one rule can exist for a test, active or not; edit the existing one."
+        },
+        {
+          "label": "Calculation",
+          "description": "Required. Reading times dilution factor, Solids by weight with the balance in grams, or Solids by weight with the balance in milligrams. New entries use the current version; each result keeps the version it was worked with. The two solids calculations give mg/L and are refused for a test whose unit is not mg/L (units are not converted). A rule that names a calculation this release no longer has is shown as not in this release and must be changed."
+        },
+        {
+          "label": "Round to",
+          "description": "Required. Significant figures or Decimal places. This is the laboratory's own choice."
+        },
+        {
+          "label": "Digits",
+          "description": "Required whole number. 1 to 15 for significant figures; 0 to 10 for decimal places (0 rounds to whole numbers). Results are stored to 10 decimal places: a rounding that would need more for a value, for example many significant figures of a value below 1, is refused when that value is entered."
+        },
+        {
+          "label": "Second rounding from",
+          "description": "Optional size in the unit of the test (up to 10 decimal places), greater than zero. A calculated value whose size before rounding is at or above it uses the second rounding below; smaller values use Round to and Digits. Because the choice is made before rounding, a value just under this size can round up to it and still show the digits of the smaller range. Blank means one rounding for every value. Giving it requires the two fields below, and they cannot be given without it."
+        },
+        {
+          "label": "Round larger values to",
+          "description": "Significant figures or Decimal places for values at or above Second rounding from."
+        },
+        {
+          "label": "Digits for larger values",
+          "description": "Digits for those larger values, with the same limits as Digits."
+        },
+        {
+          "label": "When the dropped digits are exactly 5",
+          "description": "Required. Half to even (a final 5 rounds to the nearest even digit) or Half up (a final 5 always rounds away from zero). The value is carried at full precision and rounded once, at the end."
+        },
+        {
+          "label": "Basis",
+          "description": "Required, not blank. The method or SOP the calculation and rounding come from. It is copied onto each worksheet as the basis of the rule."
+        },
+        {
+          "label": "Active",
+          "description": "Initially checked on Add. Only an active rule changes how the test is entered. Clearing it makes the test take typed results again; the rule and earlier worksheets stay."
+        }
+      ]
+    },
+    {
+      "title": "The calculations",
+      "items": [
+        {
+          "label": "Reading times dilution factor",
+          "description": "The analyst enters the Instrument reading (a number, or ND) and the Reporting limit before dilution, offered from the test's catalog limit. Result = reading × dilution factor; reporting limit applied = limit before dilution × dilution factor. A reading of ND gives ND at that limit. Works for a test in any unit."
+        },
+        {
+          "label": "Solids by weight, balance in grams",
+          "description": "Readings: Dried residue with its filter or dish (g), Filter or dish alone (g) and Sample volume (mL). Result in mg/L = (dried residue with its filter or dish − filter or dish alone) × 1,000,000 ÷ sample volume in mL."
+        },
+        {
+          "label": "Solids by weight, balance in milligrams",
+          "description": "The same readings with the weights in mg. Result in mg/L = (dried residue with its filter or dish − filter or dish alone) × 1,000 ÷ sample volume in mL."
+        },
+        {
+          "label": "What the solids calculations do not do",
+          "description": "They apply no dilution factor (it must be 1) and no blank correction. The reporting limit applied is still typed by the analyst. The source named on each worksheet gives the reference the formula comes from."
+        }
+      ]
+    },
+    {
+      "title": "Rules and effects",
+      "paragraphs": [
+        "With an active rule, manual entry of the test on the batch entry grid and on the result page takes the readings instead of a final result, and a typed final result is refused. The value is worked at full precision and rounded once by this rule. A calculated value below the reporting limit applied needs a qualifier, or the analyst ticks Report as ND (allowed only below the limit).",
+        "File imports are unchanged: they supply final values kept with their source and get no worksheet. Typed and imported values are never rounded.",
+        "Each calculated revision keeps a worksheet with the readings, the unrounded value, the rounding applied and this rule's basis. A later change to the rule does not touch earlier worksheets, and a correction adds a new revision with its own worksheet.",
+        "The rule is read again when the analyst saves. If a rule was added or deactivated, or its calculation replaced, after the analyst opened the entry grid or the result page, saving is refused with the reason and the analyst reloads: readings typed for one calculation are never worked with another. A change to the rounding alone is not a refusal; it applies from the next save. If the test's unit later stops matching a solids calculation, or this release no longer has the calculation, entry is refused and says an administrator must correct the rule."
+      ]
+    },
+    {
+      "title": "Creation action",
+      "items": [
+        {
+          "label": "Add calculation rule",
+          "description": "Validate and create the rule, then return to QC configuration."
+        }
+      ]
+    },
+    {
+      "title": "Save, cancel and history",
+      "paragraphs": [
+        "Validation errors appear beside their fields and preserve entered values. A stale form is refused rather than overwriting another person's edit; input stays visible, but reload and compare current values before saving again."
+      ],
+      "items": [
+        {
+          "label": "Reason for change",
+          "description": "Optional on creation; required nonblank for every existing-row save. Recorded with actor, time and before and after values."
+        },
+        {
+          "label": "Save changes",
+          "description": "For an edit, validate the fields, recheck that the record still matches the version opened, and save with its audit event. Success returns to QC configuration."
+        },
+        {
+          "label": "Cancel",
+          "description": "Return to QC configuration without saving typed changes."
+        },
+        {
+          "label": "History",
+          "description": "Existing rules show their latest 20 audit events, displayed oldest to newest, with action, actor, time and reason. No history section appears before any events exist."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "analytical/views.py",
+    "analytical/forms.py",
+    "analytical/models.py",
+    "analytical/services.py",
+    "analytical/calculations.py",
+    "analytical/worksheets.py",
+    "accounts/roles.py",
+    "analytical/templates/analytical/form.html",
+    "core/concurrency.py",
+    "analytical/tests/test_calculations.py",
+    "analytical/tests/test_calculation_pages.py"
+  ]
+}

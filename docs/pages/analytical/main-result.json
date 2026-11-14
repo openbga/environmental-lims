@@ -5,7 +5,7 @@
   ],
   "title": "Result revisions and correction",
   "purpose": "Inspect one requested test’s complete result revision trail and enter an initial observation, correction or reanalysis without rewriting prior observations.",
-  "summary": "See every revision of one test's result, and enter a first result, a correction or a reanalysis. Earlier revisions are never changed.",
+  "summary": "See every revision of one test's result, and enter a first result, a correction or a reanalysis. A result worked from readings shows its worksheet. Earlier revisions are never changed.",
   "tasks": [
     {
       "title": "Enter the first result",
@@ -22,6 +22,20 @@
       ]
     },
     {
+      "title": "Enter or correct a result worked from readings",
+      "steps": [
+        "Type the readings the form asks for, where a result would be. Add a qualifier, or tick [[Report as ND]], if the value will fall below the reporting limit applied.",
+        "Select [[Enter result]] or [[Correct result]]. The result is worked from the readings and rounded once by the laboratory's rule."
+      ]
+    },
+    {
+      "title": "Check how a calculated result was worked",
+      "steps": [
+        "Find the revision. Under its facts, read the worksheet: the readings as typed, the value before rounding and the rounding applied.",
+        "Read [[Worked again now]] to see whether the stored readings still give the recorded result."
+      ]
+    },
+    {
       "title": "Check the preservation evidence",
       "steps": [
         "Select [[Preservation findings and lab disposition]] in the header."
@@ -30,6 +44,7 @@
   ],
   "good_to_know": [
     "A correction adds a new revision. Approved and returned revisions stay as they were, and issued reports are not changed.",
+    "A calculated revision keeps its worksheet. A correction adds a revision with its own worksheet, and a later change to the calculation rule never alters an earlier one.",
     "While the latest revision awaits review, it cannot be corrected. A reviewer must decide it first.",
     "Each revision keeps the qualifiers, method and reporting limit it was entered with.",
     "A sample held or rejected at receipt cannot take new results."
@@ -75,7 +90,7 @@
         },
         {
           "label": "Result as supplied",
-          "description": "Original decimal text or ND and frozen unit. ND is displayed with its applied reporting-limit threshold and is stored separately from numeric zero."
+          "description": "Original decimal text or ND and frozen unit. ND is displayed with its applied reporting-limit threshold and is stored separately from numeric zero. Labelled Result as calculated when the revision was worked from readings; the value then carries a calculated marker, and the rounded value is the reported text."
         },
         {
           "label": "Weight basis / supplied solids",
@@ -111,7 +126,7 @@
         },
         {
           "label": "Entered",
-          "description": "Entering actor/time, manual or import source and filename/row detail for imported entries."
+          "description": "Entering actor/time, the source (Manual entry, File import, or Calculated from readings) and filename/row detail for imported entries."
         },
         {
           "label": "Submitted",
@@ -136,6 +151,46 @@
       ]
     },
     {
+      "title": "Worksheet of a calculated revision",
+      "paragraphs": [
+        "A revision worked from readings shows a worksheet under its facts, with a link target the review grid uses. Revisions that were typed or imported have none. Worksheets and their readings are never changed or deleted; a correction adds a new revision with its own worksheet, and a later change to the calculation rule does not touch earlier worksheets."
+      ],
+      "items": [
+        {
+          "label": "Worksheet: calculation (version N)",
+          "description": "The calculation's title and the version this result was worked with, with the formula in words."
+        },
+        {
+          "label": "Reading, As typed, Unit",
+          "description": "Every reading exactly as typed, with the unit it was read in. For a dilution calculation ND can be a reading."
+        },
+        {
+          "label": "Calculated value before rounding",
+          "description": "The value at full precision, before the rounding was applied, in the unit of the revision (up to 20 decimal places). Not shown when a reading was ND."
+        },
+        {
+          "label": "Rounding applied",
+          "description": "The laboratory's rounding as it was when the result was entered, for example 3 significant figures, half to even, including the second rounding when it applied. Reads None when a reading was ND."
+        },
+        {
+          "label": "Reported as ND",
+          "description": "Shown when the analyst reported a calculated value below the reporting limit applied as ND. The readings and the calculated value stay on record."
+        },
+        {
+          "label": "Basis of the rule",
+          "description": "The method or SOP basis the administrator recorded on the rule when the result was entered."
+        },
+        {
+          "label": "Source of the calculation",
+          "description": "The reference for the calculation's formula, kept with the worksheet."
+        },
+        {
+          "label": "Worked again now",
+          "description": "The page recomputes the result from the stored readings, the stored calculation version and the stored rounding. Same result means it matches the recorded value (and reporting limit where the calculation sets it). Different result means it does not; tell the laboratory's administrator. If this release no longer holds that calculation version, it says so and the recorded result stands."
+        }
+      ]
+    },
+    {
       "title": "Enter result / Correct result fields",
       "items": [
         {
@@ -143,16 +198,24 @@
           "description": "Optional unless required by current test configuration. Initially the latest revision’s aliquot when present. Choose the same physical aliquot for repeat analysis or a new one for re-preparation; labels/timestamps do not infer identity."
         },
         {
+          "label": "Readings",
+          "description": "For a test with an active calculation rule, one required box for each reading of its calculation, with the unit: Instrument reading and Reporting limit before dilution (offered from the catalog limit), or Dried residue with its filter or dish, Filter or dish alone and Sample volume. Typed as read, never rounded. A note under the form names the calculation, its version and its formula."
+        },
+        {
+          "label": "Report as ND",
+          "description": "Only for a calculated value below the reporting limit applied; refused otherwise. A calculated value below the limit with no qualifier and no Report as ND is refused. The readings and the calculated value stay on record."
+        },
+        {
           "label": "Result",
-          "description": "Required supplied number or ND. The form does not prefill the earlier observation."
+          "description": "Required supplied number or ND. The form does not prefill the earlier observation. Not shown for a test with an active calculation rule: the reading fields take its place."
         },
         {
           "label": "Reporting limit applied",
-          "description": "Required positive per-result limit; defaults to the current test definition’s limit when configured, not the prior revision’s applied limit."
+          "description": "Required positive per-result limit; defaults to the current test definition's limit when configured, not the prior revision's applied limit. Not shown for the dilution calculation: the limit is worked out from Reporting limit before dilution and the dilution factor."
         },
         {
           "label": "Dilution factor",
-          "description": "Required; initially 1."
+          "description": "Required; initially 1. Not shown for the solids calculations, which apply no dilution factor (it is saved as 1)."
         },
         {
           "label": "Qualifiers",
@@ -199,11 +262,11 @@
       "items": [
         {
           "label": "Enter result",
-          "description": "Analysts can enter a first observation once the test is assigned to an analytical batch. Saves a new entered revision; it does not submit."
+          "description": "Analysts can enter a first observation once the test is assigned to an analytical batch. Saves a new entered revision; it does not submit. With an active calculation rule the entry is worked from readings and a typed result is refused."
         },
         {
           "label": "Correct result",
-          "description": "Analysts create a new entered revision. A prior draft becomes Superseded; prior approved/returned revisions stay intact. Current result state becomes Entered and the new revision needs submission and independent review. Existing issued report versions remain unchanged."
+          "description": "Analysts create a new entered revision. A prior draft becomes Superseded; prior approved/returned revisions stay intact. Current result state becomes Entered and the new revision needs submission and independent review. Existing issued report versions remain unchanged. A correction of a calculated test takes new readings and gets its own worksheet."
         },
         {
           "label": "Awaiting review",
@@ -218,7 +281,7 @@
     {
       "title": "Errors and next steps",
       "paragraphs": [
-        "Receipt Hold or Reject blocks new entry. Invalid fields remain on the form. A changed batch/preparation dependency requires reload and retry against current records. A submitted revision cannot be replaced even by an analyst/reviewer combination. After saving, return to the current batch, inspect the entered revision and submit it. Closed membership does not prevent correction or entry."
+        "Receipt Hold or Reject blocks new entry. Invalid fields remain on the form. A changed batch/preparation dependency requires reload and retry against current records. A submitted revision cannot be replaced even by an analyst/reviewer combination. After saving, return to the current batch, inspect the entered revision and submit it. Closed membership does not prevent correction or entry. If a calculation rule was added, changed or deactivated after you opened the page, saving is refused with the reason; reload and enter again."
       ]
     }
   ],
@@ -238,6 +301,10 @@
     "analytical/tests/test_workflow.py",
     "analytical/tests/test_integrity.py",
     "analytical/tests/test_observation_metadata.py",
-    "analytical/tests/test_views.py"
+    "analytical/tests/test_views.py",
+    "analytical/calculations.py",
+    "analytical/worksheets.py",
+    "analytical/tests/test_calculations.py",
+    "analytical/tests/test_calculation_pages.py"
   ]
 }

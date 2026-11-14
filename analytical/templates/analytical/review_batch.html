@@ -107,7 +107,7 @@ services; this page only presents them.{% endcomment %}
           </td>
           <td>{{ rev.analyte_name }}{% if rev.number > 1 %} <span class="vr-muted small">revision {{ rev.number }}</span>{% endif %}</td>
           <td>{% if rev.prepared_aliquot_id %}<a class="vr-id" href="{% url 'analytical:prep-detail' rev.prepared_aliquot.batch_id %}">{{ rev.prepared_aliquot.batch.number }}</a><div class="small">Aliquot <span class="vr-id">{{ rev.prepared_aliquot.label }}</span></div>{% else %}<span class="vr-muted">Not linked</span>{% endif %}</td>
-          <td class="text-end">{% include "analytical/_revision_value.html" %}</td>
+          <td class="text-end">{% include "analytical/_revision_value.html" %}{% if rev.source == "calculated" %}<div class="small"><a href="{% url 'analytical:result-detail' rev.result_id %}#worksheet-{{ rev.number }}">Worksheet<span class="visually-hidden"> of {{ rev.result.requested_test.sample.lab_id }} {{ rev.analyte_name }}</span></a></div>{% endif %}</td>
           <td>{{ rev.unit }}{% if rev.matrix == "soil" %}<div>{% include "analytical/_basis.html" %}</div>{% endif %}</td>
           <td class="text-end">{{ rev.reporting_limit_applied|plain_decimal }}</td>
           <td>{% for q in rev.qualifiers %}<span class="vr-id" title="{{ q.description }}">{{ q.code }}</span>{% if not forloop.last %}, {% endif %}{% endfor %}</td>

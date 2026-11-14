@@ -21,7 +21,7 @@
           {% status label=rev.get_status_display tone=rev.tone plain=True %}
         </div>
         <dl class="vr-facts">
-          {% fact label="Result as supplied" %}{% include "analytical/_revision_value.html" %} {{ rev.unit }}{% endfact %}
+          {% fact %}{% fill label %}{% if rev.sheet %}Result as calculated{% else %}Result as supplied{% endif %}{% endfill %}{% include "analytical/_revision_value.html" %} {{ rev.unit }}{% endfact %}
           {% if rev.matrix == "soil" %}{% fact label="Weight basis / supplied solids" %}{% include "analytical/_basis.html" %}{% endfact %}{% endif %}
           {% fact label="Reporting limit applied" %}{{ rev.reporting_limit_applied|plain_decimal }} {{ rev.unit }}{% if rev.method_reporting_limit %} <span class="vr-muted small">method limit {{ rev.method_reporting_limit|plain_decimal }}</span>{% endif %}{% endfact %}
           {% fact label="Dilution factor" value=rev.dilution_factor|plain_decimal %}
@@ -37,6 +37,26 @@
           {% if rev.correction_reason %}{% fact label="Reason for this revision" wide=True value=rev.correction_reason %}{% endif %}
           {% if rev.comments %}{% fact label="Comments" wide=True value=rev.comments %}{% endif %}
         </dl>
+        {% if rev.sheet %}{% with sheet=rev.sheet %}
+        <h4 class="vr-section-title" id="worksheet-{{ rev.number }}">Worksheet: {{ sheet.title }} (version {{ sheet.version }})</h4>
+        <p class="small">{{ sheet.formula }}</p>
+        <div class="vr-table-wrap">
+          <table class="table vr-table" aria-labelledby="worksheet-{{ rev.number }}">
+            <thead><tr><th scope="col">Reading</th><th scope="col" class="text-end">As typed</th><th scope="col">Unit</th></tr></thead>
+            <tbody>
+              {% for reading in sheet.readings.all %}<tr><th scope="row">{{ reading.label }}</th><td class="text-end vr-id">{{ reading.supplied_text }}</td><td>{{ reading.unit }}</td></tr>{% endfor %}
+              {% if sheet.unrounded_value is not None %}<tr><th scope="row">Calculated value before rounding</th><td class="text-end vr-id">{{ sheet.unrounded_value|plain_decimal }}</td><td>{{ rev.unit }}</td></tr>{% endif %}
+            </tbody>
+          </table>
+        </div>
+        <dl class="vr-facts">
+          {% fact label="Rounding applied" wide=True %}{% if sheet.rounding_text %}{{ sheet.rounding_text }}{% else %}None: a reading was ND, so there was no value to round{% endif %}{% endfact %}
+          {% if sheet.reported_as_nd %}{% fact label="Reported as ND" wide=True %}The analyst reported the calculated value as ND because it is below the reporting limit applied.{% endfact %}{% endif %}
+          {% fact label="Basis of the rule" wide=True value=sheet.rule_basis %}
+          {% fact label="Source of the calculation" wide=True value=sheet.source %}
+          {% fact label="Worked again now" wide=True %}{% with check=sheet.check %}{% if not check.available %}This release no longer holds version {{ sheet.version }} of the calculation, so the readings cannot be worked again here. The recorded result stands.{% elif check.matches %}{% status label="Same result" tone="success" plain=True %} {% if sheet.reported_as_nd %}The stored readings give {{ check.value_text }} {{ rev.unit }}, below the reporting limit applied, and the result is reported as ND, as recorded.{% elif check.value_text == "ND" %}The stored reading is ND{% if check.limit_text %} at a reporting limit of {{ check.limit_text }}{% endif %}, as recorded.{% else %}The stored readings give {{ check.value_text }} {{ rev.unit }}{% if check.limit_text %} with a reporting limit of {{ check.limit_text }}{% endif %}, as recorded.{% endif %}{% else %}{% status label="Different result" tone="danger" plain=True %} {% if check.value_text %}The stored readings now give {{ check.value_text }}{% if check.limit_text %} with a reporting limit of {{ check.limit_text }}{% endif %}, which is not what is recorded.{% else %}The stored readings could not be worked.{% endif %} Tell the laboratory's administrator.{% endif %}{% endwith %}{% endfact %}
+        </dl>
+        {% endwith %}{% endif %}
         {% if rev.qc_evidence %}
         <details><summary>QC evidence relied on at approval ({{ rev.qc_evidence.measurements|length }} measurements, {{ rev.qc_evidence.issues|length }} finding(s))</summary>
           <ul class="small mt-2">
@@ -59,7 +79,7 @@
         {% form_page form=form action=entry_action local=True submit_label=entry_label %}
           {% for field in form.visible_fields %}{{ field.as_field_group }}{% endfor %}
           {% for field in form.hidden_fields %}{{ field }}{% endfor %}
-          <p class="vr-form-note mt-2 mb-0">Unit: {{ result.requested_test.definition.unit }} (not converted). The earlier entry is kept.</p>
+          <p class="vr-form-note mt-2 mb-0">{% if calculation %}Calculated: {{ calculation.label }}. {{ calculation.formula }} The result is rounded once by the laboratory's rule. {% endif %}Unit: {{ result.requested_test.definition.unit }} (not converted). The earlier entry is kept.</p>
         {% endform_page %}
         {% endwith %}
     {% endpanel %}

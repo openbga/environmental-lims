@@ -23,10 +23,11 @@ from core.grids import GridRequest, active_filters
 from core.models import AuditEvent
 from core.widgets import SuggestInput
 
+from . import calculations, holding, importing, selectors, services, worksheets
 from . import forms as f
-from . import holding, importing, selectors, services
 from .models import (
     Batch,
+    CalculationRule,
     HoldingTimeRule,
     PreparationRequirement,
     PreservationRule,
@@ -37,6 +38,7 @@ from .models import (
     Qualifier,
     Result,
     ResultRevision,
+    ResultWorksheet,
 )
 from .preparation import aliquot_choices, batch_definition_ids, lock_work_batches
 from .preservation_services import summaries_for_tests
@@ -835,6 +837,7 @@ def batch_entry(request, pk):
         by_id = {r.pk: r for r in current}
         formset = f.RowFormSet(request.POST)
         _entry_aliquot_choices(formset, by_id)
+        _entry_calculations(formset, by_id)
         if formset.is_valid() and defaults.is_valid():
             saved, failures = _save_entry_rows(request, formset, defaults, by_id)
             if not failures and saved:
@@ -863,6 +866,7 @@ def batch_entry(request, pk):
             )
         formset = f.RowFormSet(initial=initial)
         _entry_aliquot_choices(formset, by_id)
+        _entry_calculations(formset, by_id)
     qualifiers = Qualifier.objects.filter(is_active=True)
     qualifier_codes = [(q.code, q.description) for q in qualifiers]
     rows = []
@@ -887,6 +891,8 @@ def batch_entry(request, pk):
                 "result_basis": "Result basis",
                 "percent_solids": "Percent solids",
                 "solids_reference": "Solids source reference",
+                "report_nd": "Report as ND",
+                **{name: form.fields[name].label for name in form.reading_names},
             },
         )
         form.fields["qualifiers"].widget = SuggestInput(
@@ -911,10 +917,34 @@ def batch_entry(request, pk):
             "page_obj": page,
             "qualifiers": qualifiers,
             "preparation_rules": selectors.preparation_rules_missing(batch),
+            "any_calculated": any(form.calculation for form, _, _ in rows),
             **ctx,
             "filtered": ctx["active"],
         },
     )
+
+
+def _calculation_for(rule):
+    """The calculation new entries of a rule's test use, or None (no rule, or a rule naming a
+    calculation this release lacks: the service then refuses the entry and says why)."""
+    return calculations.current(rule.calculation) if rule else None
+
+
+def _entry_calculations(formset, by_id):
+    """Before the formset validates: tell each row the limit the page offered (an untouched one
+    does not make a row an entry) and give rows of a calculated test their reading fields. The
+    service reads the rule again under lock; a row drawn for another rule is refused there."""
+    rules = worksheets.active_rules({r.requested_test.definition_id for r in by_id.values()})
+    for form in formset:
+        result = by_id.get(f.parse_id(form["result_id"].value()))
+        if result is None:
+            form.current = False  # no longer enterable here; the save reports that row
+            continue
+        definition = result.requested_test.definition
+        if definition.reporting_limit is not None:
+            form.prefilled_limit = trim(definition.reporting_limit)
+        if calculation := _calculation_for(rules.get(definition.pk)):
+            form.use_calculation(calculation, definition, small=True)
 
 
 def _entry_aliquot_choices(formset, by_id):
@@ -974,6 +1004,9 @@ def _save_entry_rows(request, formset, defaults, by_id):
                     solids_reference=data.get("solids_reference", ""),
                     reason=data.get("reason", ""),
                     prepared_aliquot_id=data.get("prepared_aliquot_id"),
+                    readings=form.readings(),
+                    report_nd=data.get("report_nd", False),
+                    calculation_token=data.get("calculation_token") or None,
                 )
                 saved += 1
             except ValidationError as exc:
@@ -1166,8 +1199,29 @@ def result_detail(request, pk):
     if result.requested_test.sample.matrix != "soil":
         for name in ("result_basis", "percent_solids", "solids_reference"):
             del form.fields[name]
+    definition = result.requested_test.definition
+    calculation = _calculation_for(worksheets.active_rules([definition.pk]).get(definition.pk))
+    if definition.reporting_limit is not None:
+        form.prefilled_limit = trim(definition.reporting_limit)
+    if calculation:
+        form.use_calculation(calculation, definition)
+    sheets = {
+        sheet.revision_id: sheet
+        for sheet in ResultWorksheet.objects.filter(revision__in=revisions).prefetch_related(
+            "readings"
+        )
+    }
     for revision in revisions:
         revision.tone = status_tone(revision.status)
+        revision.sheet = sheets.get(revision.pk)
+        if revision.sheet:
+            revision.sheet.revision = revision  # the same object, not a query per worksheet
+            revision.sheet.rounding_text = (
+                calculations.Rounding.from_json(revision.sheet.rounding).describe()
+                if revision.sheet.rounding
+                else ""
+            )
+            revision.sheet.check = worksheets.reproduce(revision.sheet)
     can_correct = (latest is None or latest.status != "submitted") and result.batch_id
     if request.method == "POST":
         services.require_role(request.user, services.ANALYST)
@@ -1177,8 +1231,8 @@ def result_detail(request, pk):
                 services.enter_result(
                     actor=request.user,
                     result_id=result.pk,
-                    supplied_text=data["supplied_text"],
-                    reporting_limit_applied=data["reporting_limit_applied"],
+                    supplied_text=data.get("supplied_text", ""),
+                    reporting_limit_applied=data.get("reporting_limit_applied", ""),
                     dilution_factor=data["dilution_factor"],
                     analysis_started_at=data["analysis_started_at"],
                     qualifier_codes=form.qualifier_codes(),
@@ -1188,6 +1242,9 @@ def result_detail(request, pk):
                     comments=data["comments"],
                     reason=data["reason"],
                     prepared_aliquot_id=data.get("prepared_aliquot_id"),
+                    readings=form.readings(),
+                    report_nd=data.get("report_nd", False),
+                    calculation_token=data.get("calculation_token") or None,
                 )
             except ValidationError as exc:
                 f.add_service_errors(form, exc)
@@ -1214,6 +1271,7 @@ def result_detail(request, pk):
             "latest": latest,
             "form": form,
             "can_correct": can_correct,
+            "calculation": calculation,
             "events": events,
             "tone": status_tone(result.status),
         },
@@ -1428,16 +1486,26 @@ def qc_config(request):
     preparations = PreparationRequirement.objects.select_related(
         "definition__method", "definition__analyte", "method"
     )
+    calculation_rules = CalculationRule.objects.select_related(
+        "definition__method", "definition__analyte"
+    )
     if method:
+        calculation_rules = calculation_rules.filter(definition__method=method)
         limits = limits.filter(definition__method=method)
         rules_qs = rules_qs.filter(method=method)
         reqs = reqs.filter(method=method)
         preservation = preservation.filter(definition__method=method)
         preparations = preparations.filter(definition__method=method)
     # An invalid filter shows its error and no rows; it never widens the query.
-    limits, rules_qs, reqs, preservation, preparations = (
-        _scoped(form, qs) for qs in (limits, rules_qs, reqs, preservation, preparations)
+    limits, rules_qs, reqs, preservation, preparations, calculation_rules = (
+        _scoped(form, qs)
+        for qs in (limits, rules_qs, reqs, preservation, preparations, calculation_rules)
     )
+    calculation_rules = list(calculation_rules)
+    for rule in calculation_rules:
+        current = calculations.current(rule.calculation)
+        rule.calculation_label = current.label if current else ""
+        rule.rounding_text = rule.rounding.describe()
 
     rules = list(rules_qs)
     for rule in rules:
@@ -1457,6 +1525,7 @@ def qc_config(request):
             "holding_rules": rules,
             "preservation_rules": preservation,
             "preparation_requirements": preparations,
+            "calculation_rules": calculation_rules,
             "requirements": reqs,
             "limits": _paginate(_grid(request), limits),
             "qualifiers": Qualifier.objects.all(),

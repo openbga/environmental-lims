@@ -36,19 +36,33 @@ def parse_decimal(text, label="Value"):
     return value
 
 
-def parse_result_text(text):
+def parse_dilution(text):
+    """Parse a dilution factor: greater than zero, at most 4 decimal places, as it is stored."""
+    dilution = parse_decimal(text, "Dilution factor")
+    if (
+        dilution <= 0
+        or dilution != dilution.quantize(Decimal("0.0001"))
+        or dilution.adjusted() >= 10
+    ):
+        raise ValidationError(
+            "Dilution factor must be greater than zero, with at most 4 decimal places."
+        )
+    return dilution
+
+
+def parse_result_text(text, label="Result"):
     """Return (kind, value) for supplied result text: a number, or ND for non-detect."""
     if text is None or len(text) > MAX_TEXT_LENGTH:
-        raise ValidationError(f"Result text must be 1 to {MAX_TEXT_LENGTH} characters.")
+        raise ValidationError(f"{label} text must be 1 to {MAX_TEXT_LENGTH} characters.")
     stripped = text.strip()
     if stripped.upper() == "ND":
         return ResultKind.NON_DETECT, None
-    if stripped[:1] in "<>":
+    if stripped[:1] in ("<", ">"):  # a tuple: "" is "in" every string
         raise ValidationError(
             f"'{stripped}' is a comparison, not a result. Enter ND for a non-detect and "
             "give the reporting limit separately."
         )
-    return ResultKind.DETECTED, parse_decimal(stripped, "Result")
+    return ResultKind.DETECTED, parse_decimal(stripped, label)
 
 
 def parse_timestamp(text, lab_timezone, label="Date and time"):

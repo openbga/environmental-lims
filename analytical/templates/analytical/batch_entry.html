@@ -18,8 +18,8 @@
   {% grid_toolbar label="Filter rows to enter" %}
 {% endpanel %}
 {% list_results items=rows noun="rows needing entry" filtered=filtered invalid=filter_form.errors clear_url=request.path no_results_title="No rows match these filters" no_results_body="Clear the filters to see every row that still needs an entry." empty_title="Nothing to enter" empty_body="Every test in this batch is submitted or approved, or the batch has no tests. Returned results and corrections are entered from the result page." action_url=add_url action_label="Add tests" %}
-{# The pager sits above the entry form: it is a GET navigation with its own rows-per-page form, which
-cannot nest inside this POST form, and the form's sticky action row must stay last in the dialog. #}
+{% comment %}The pager sits above the entry form: it is a GET navigation with its own rows-per-page form, which
+cannot nest inside this POST form, and the form's sticky action row must stay last in the dialog.{% endcomment %}
 {% pagination noun="rows needing entry" filtered=filtered %}
 {# form: entry-grid #}
 <form class="vr-form" method="post" novalidate action="{{ request.get_full_path }}">
@@ -32,6 +32,7 @@ cannot nest inside this POST form, and the form's sticky action row must stay la
   <div class="row g-3 mb-3"><div class="col-md-5">{{ defaults.default_analysis_started_at.as_field_group }}</div></div>
   <p class="vr-form-note" role="note"><strong>Saving covers the {{ rows|length }} row{{ rows|length|pluralize }} shown on this page{% if page_obj.paginator.num_pages > 1 %} (page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}){% endif %}.</strong> Rows on other pages are not changed. If any row here has an error, nothing on this page is saved and what you typed is kept. Reason is required only when a result already exists.</p>
   {% if batch.matrix == "soil" %}<p class="vr-form-note">Choose wet or dry weight for every soil result entered. Enter the final result and reporting limit on that basis; no conversion is performed. Percent solids and its source are optional and must come from an actual supplied measurement.</p>{% endif %}
+  {% if any_calculated %}<p class="vr-form-note">Rows marked <strong>Calculated</strong> take the readings as read at the bench, not a final result. Saving works out the result from them and rounds it once by the laboratory's rule; the readings stay on record with the result.</p>{% endif %}
   <details class="mb-3"><summary>How to enter results</summary>
     <p class="vr-form-note mt-2">Type the result exactly as read: a number, or <strong>ND</strong> for a non-detect. Values are stored exactly; entries needing rounding are rejected. The reporting limit applied defaults to the method limit times the dilution; check it. Units come from the test and are not converted. Times are laboratory local time.</p>
     {% if qualifiers %}<p class="vr-form-note mb-1">Qualifier codes you can use ({{ qualifiers|length }}):</p>
@@ -51,7 +52,7 @@ cannot nest inside this POST form, and the form's sticky action row must stay la
           <th scope="col">Sample</th><th scope="col">Analyte</th><th scope="col">Prepared aliquot</th><th scope="col">Unit</th>
           <th scope="col">Current</th>
           {% if batch.matrix == "soil" %}<th scope="col">Soil basis</th>{% endif %}
-          <th scope="col">Result<span class="vr-req" aria-hidden="true">*</span></th><th scope="col">Reporting limit<span class="vr-req" aria-hidden="true">*</span></th><th scope="col">Dilution<span class="vr-req" aria-hidden="true">*</span></th>
+          <th scope="col">{% if any_calculated %}Result or readings{% else %}Result{% endif %}<span class="vr-req" aria-hidden="true">*</span></th><th scope="col">Reporting limit<span class="vr-req" aria-hidden="true">*</span></th><th scope="col">Dilution<span class="vr-req" aria-hidden="true">*</span></th>
           <th scope="col">Qualifiers</th><th scope="col">Analysis start<span class="vr-req" aria-hidden="true">*</span></th><th scope="col">Reason</th>
         </tr></thead>
         <tbody>
@@ -68,9 +69,13 @@ cannot nest inside this POST form, and the form's sticky action row must stay la
                 {{ form.percent_solids.as_field_group }}{{ form.solids_reference.as_field_group }}
               </details>
             </td>{% endif %}
-            <td>{{ form.supplied_text }}</td>
-            <td>{{ form.reporting_limit_applied }}</td>
-            <td>{{ form.dilution_factor }}</td>
+            <td>{% if form.calculation %}
+              <div class="vr-muted small">Calculated: {{ form.calculation.label }}{{ form.calculation_token }}</div>
+              <div class="row g-2 flex-nowrap">{% for field in form.reading_fields %}<div class="col">{{ field.as_field_group }}</div>{% endfor %}</div>
+              {{ form.report_nd.as_field_group }}
+            {% else %}{{ form.supplied_text }}{% endif %}</td>
+            <td>{% if form.calculation.sets_limit %}<span class="vr-muted small">Calculated: limit before dilution × dilution</span>{% else %}{{ form.reporting_limit_applied }}{% endif %}</td>
+            <td>{{ form.dilution_factor }}{% if form.calculation and not form.calculation.uses_dilution %}<span class="vr-muted small">Not used</span>{% endif %}</td>
             <td>{{ form.qualifiers }}</td>
             <td>{{ form.analysis_started_at }}</td>
             <td>{% if result.latest %}{{ form.reason }}{% else %}<span class="vr-muted">—</span>{% endif %}</td>

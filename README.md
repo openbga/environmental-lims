@@ -17,7 +17,8 @@ records; it does not certify compliance or accreditation.
 - **Receipt and custody:** chains of custody with several samples, containers, receipt
   inspection, holds and dispositions, custody events and reasoned corrections.
 - **Analytical work:** preparation and analytical batches, manual entry and mapped CSV/TSV
-  imports, QC evaluation, independent review, control charts and MDL studies.
+  imports, results calculated from bench readings that are kept with the result and rounded by
+  the laboratory's own rule, QC evaluation, independent review, control charts and MDL studies.
 - **Reporting:** explicit release authorization, versioned immutable PDF reports that print the
   laboratory's address, logo and certificate numbers, amendments and a client portal where each
   client sees only its own work.
