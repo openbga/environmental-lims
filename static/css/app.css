@@ -417,6 +417,7 @@
   --vr-matrix-tile-lg: 1.5rem;
   --vr-matrix-source-width: 8rem; /* the source truncates in dense rows */
   --vr-cell-sub-width: 6rem; /* a sub-line under a name in a list table */
+  --vr-reading-grid-width: 24rem; /* two readable columns of bench observations */
   --vr-badge-py: 0.1875rem; /* status pills */
   --vr-badge-px: 0.625rem;
   --vr-badge-py-lg: 0.3125rem;
@@ -2773,6 +2774,10 @@ a.vr-navlink[aria-current="page"]:hover {
 }
 
 /* Inputs inside table cells: wide enough to read back typed values and dates. */
+.vr-table .vr-calculated-entry {
+  min-width: var(--vr-reading-grid-width);
+}
+
 .vr-table .form-control,
 .vr-table .form-select {
   min-width: 6.5rem;
