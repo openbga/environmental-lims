@@ -73,7 +73,9 @@ limits and method version as distinct data. Typed and imported values are stored
 never rounded. A value calculated from bench readings is carried at full precision and rounded
 once by the test's calculation rule, which the laboratory sets; its readings, the version of the
 calculation (code in `analytical/calculations.py`, never changed once registered) and the rounding
-applied are stored with the result, so the reported value can be worked out again.
+applied are stored with the result, so the reported value can be worked out again. A reporting
+limit that a calculation works out from the amounts prepared is rounded by the same rule and kept
+before rounding beside the value.
 Do not infer nondetects from zero or overwrite observations; preservation limits are per method.
 Custody and result corrections retain actor, timestamp, reason and prior linkage. Mutations
 write an attributed audit event in the same transaction; background/system actions have an

@@ -18,7 +18,8 @@ records; it does not certify compliance or accreditation.
   inspection, holds and dispositions, custody events and reasoned corrections.
 - **Analytical work:** preparation and analytical batches, manual entry and mapped CSV/TSV
   imports, results calculated from bench readings that are kept with the result and rounded by
-  the laboratory's own rule, QC evaluation, independent review, control charts and MDL studies.
+  the laboratory's own rule (dilutions, solids by weight, preparation factors and dry-weight
+  correction for soil), QC evaluation, independent review, control charts and MDL studies.
 - **Reporting:** explicit release authorization, versioned immutable PDF reports that print the
   laboratory's address, logo and certificate numbers, amendments and a client portal where each
   client sees only its own work.
