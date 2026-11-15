@@ -50,6 +50,13 @@
             </tbody>
           </table>
         </div>
+        {% if sheet.bottles %}
+        <div class="vr-table-wrap"><table class="table vr-table" aria-label="BOD5 bottle observations for revision {{ rev.number }}">
+          <thead><tr><th scope="col">Bottle</th><th scope="col">Selection / reason</th><th scope="col" class="text-end">Bottle value before prior dilution (mg/L)</th><th scope="col" class="text-end">Initial DO (mg/L)</th><th scope="col" class="text-end">Final DO (mg/L)</th><th scope="col" class="text-end">Sample (mL)</th><th scope="col" class="text-end">Filled bottle (mL)</th><th scope="col" class="text-end">Seed correction (mg/L)</th><th scope="col">Seed record reference</th><th scope="col" class="text-end">Depletion (mg/L)</th><th scope="col" class="text-end">Corrected depletion (mg/L)</th></tr></thead>
+          <tbody>{% for bottle in sheet.bottles %}<tr><th scope="row">{{ bottle.identifier }}</th><td>{% if bottle.selected %}Included{% else %}Excluded{% endif %}{% if bottle.reason %}: {{ bottle.reason }}{% endif %}</td><td class="text-end">{{ bottle.value|plain_decimal }}</td><td class="text-end">{{ bottle.initial_do }}</td><td class="text-end">{{ bottle.final_do }}</td><td class="text-end">{{ bottle.sample_volume }}</td><td class="text-end">{{ bottle.bottle_volume }}</td><td class="text-end">{{ bottle.seed_correction }}</td><td>{{ bottle.seed_reference|default:"—" }}</td><td class="text-end">{{ bottle.depletion|plain_decimal }}</td><td class="text-end">{{ bottle.corrected_depletion|plain_decimal }}</td></tr>{% endfor %}</tbody>
+        </table></div>
+        <p class="small vr-muted">Bottle selection is an analyst decision. These calculations do not assess QC acceptance or method eligibility. Prior dilution factor: {{ rev.dilution_factor|plain_decimal }}.</p>
+        {% endif %}
         <dl class="vr-facts">
           {% fact label="Rounding applied" wide=True %}{% if not sheet.rounding_text %}None: a reading was ND, so there was no value to round{% elif sheet.unrounded_value is None %}{{ sheet.rounding_text }}, applied to the reporting limit. A reading was ND, so there was no value to round{% elif sheet.unrounded_limit is not None %}{{ sheet.rounding_text }}, applied to the value and to the reporting limit{% else %}{{ sheet.rounding_text }}{% endif %}{% endfact %}
           {% if sheet.reported_as_nd %}{% fact label="Reported as ND" wide=True %}The analyst reported the calculated value as ND because it is below the reporting limit applied.{% endfact %}{% endif %}
@@ -76,6 +83,10 @@
   {% fill aside %}
     {% if can_enter and can_correct %}
     {% panel title=entry_label heading_id="entry-heading" id="entry" %}
+        {% if calculation.supports_bottles %}
+        <p>Record and select the bottle observations in the BOD5 bottle worksheet. Earlier revisions are kept.</p>
+        <a class="btn btn-primary" href="{% url 'analytical:result-bottles' result.pk %}">Record BOD5 bottles</a>
+        {% else %}
         {% with entry_action=request.path|add:"#entry" %}
         {% form_page form=form action=entry_action local=True submit_label=entry_label %}
           {% for field in form.visible_fields %}{{ field.as_field_group }}{% endfor %}
@@ -83,6 +94,7 @@
           <p class="vr-form-note mt-2 mb-0">{% if calculation %}Calculated: {{ calculation.label }}. {{ calculation.formula }} The result is rounded once by the laboratory's rule. {% endif %}Unit: {{ result.requested_test.definition.unit }} (not converted). The earlier entry is kept.</p>
         {% endform_page %}
         {% endwith %}
+        {% endif %}
     {% endpanel %}
     {% elif latest and latest.status == "submitted" %}
     {% notice tone="progress" label="Awaiting review" %}Awaiting technical review. It cannot be changed until a reviewer approves or returns it.{% endnotice %}

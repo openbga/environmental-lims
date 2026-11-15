@@ -13,6 +13,8 @@ chooses a rounding for the laboratory.
 from dataclasses import dataclass
 from decimal import ROUND_HALF_EVEN, ROUND_HALF_UP, Decimal, localcontext
 
+from . import bod
+
 PRECISION = 50  # significant digits carried through the arithmetic
 UNROUNDED_PLACES = 20  # decimal places of the unrounded value kept on a worksheet
 MAX_SIGNIFICANT = 15
@@ -85,6 +87,7 @@ class Calculation:
     # and the sentence that tells the analyst why.
     soil_basis: str = ""
     soil_basis_reason: str = ""
+    supports_bottles: bool = False
 
     @property
     def label(self):
@@ -685,6 +688,30 @@ _REGISTERED = (
         soil_basis_reason=_WET_REASON,
     ),
     *_TITRATIONS,
+    Calculation(
+        key="bod_bottles",
+        version=1,
+        title="BOD5 bottle worksheet",
+        formula="BOD5 (mg/L) = arithmetic mean of selected bottle values × prior dilution factor. "
+        "Bottle value = (initial DO − final DO − entered seed correction), in mg/L × filled "
+        "bottle volume ÷ sample volume (both mL). Round only the final mean.",
+        source="Washington Department of Ecology, publication 91e20, BOD checklist item 24 "
+        "(historical arithmetic guidance): "
+        "https://apps.ecology.wa.gov/publications/documents/91e20.pdf. "
+        "Wisconsin DNR BOD method and seeding guidance: "
+        "https://dnr.wisconsin.gov/topic/labCert/BODMethod.html and "
+        "https://dnr.wisconsin.gov/topic/labCert/BODSeeding.html. Read 2026-11-15. "
+        "Entered seed correction is oxygen demand attributed to added seed in this bottle; "
+        "no dilution-water blank subtraction or automatic QC acceptance. This worksheet "
+        "does not establish incubation conditions, method eligibility or regulatory approval; "
+        "CBOD5 is outside its scope.",
+        inputs=(),
+        work=bod.work,
+        result_unit="mg/L",
+        uses_dilution=True,
+        liquid_only=True,
+        supports_bottles=True,
+    ),
 )
 
 REGISTRY = {(c.key, c.version): c for c in _REGISTERED}

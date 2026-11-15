@@ -23,6 +23,7 @@ from accounts.roles import can_authorize_release
 from analytical import mdl_services, preparation
 from analytical import services as bench
 from analytical.models import PreparationRequirement, Result, ResultRevision
+from analytical.synthetic_dataset import BOD_BOTTLES
 from catalog.models import Method, TestDefinition
 from laboratory.models import Equipment
 from receipt import services as receipt
@@ -383,7 +384,7 @@ class Week:
         approved. The analyst enters and submits; the reviewer, a different person, decides."""
         if stage == "awaiting":
             return None
-        if "readings" in extra:
+        if "readings" in extra or "bottle_data" in extra:
             text, qualifiers = "", ()  # a calculated test: the service works the result
         else:
             text, qualifiers = extra.pop("value", None) or self.value(rt.definition)
@@ -935,6 +936,38 @@ class Week:
             self.store(sample)
         self.dry_weight_batches(cores, weighed_at=self.at(1, 9), analysed_at=self.at(1, 14))
         self.titration_batches()
+        self.bod_batch()
+
+    def bod_batch(self):
+        """Invented BOD bottles: one recorded worksheet and one sample ready for entry."""
+        definitions = self.tests("DEMO-BOD-AQ", "water")
+        order = self.order(self.river, self.at(1, 9))
+        samples = [
+            self.receive(
+                order,
+                f"BOD-{n:02d}",
+                definitions,
+                source="surface_water",
+                received_at=self.at(1, 9, n),
+                location=f"Synthetic BOD sampling point {n}",
+                container_preservation="Cool; no chemical preservative (synthetic)",
+            )
+            for n in (1, 2)
+        ]
+        batch = bench.create_batch(
+            actor=self.analyst,
+            method=definitions[0].method,
+            matrix="water",
+            notes="Synthetic BOD demonstration: invented readings and seed corrections. "
+            "No automatic assessment of incubation or QC. Second sample ready for entry.",
+        )
+        requested = self.requested(samples, definitions[0].method)
+        bench.add_tests_to_batch(
+            actor=self.analyst,
+            batch_id=batch.pk,
+            requested_test_ids=[rt.pk for rt in requested],
+        )
+        self.entry(requested[0], self.at(1, 11), "entered", bottle_data=BOD_BOTTLES)
 
     def titration_batches(self):
         """Separate invented portions for each titration, with one worksheet and one open row.

@@ -937,12 +937,19 @@ def enter_result_locked(
     readings=None,
     report_nd=False,
     calculation_token=None,
+    bottle_data=None,
+    expected_revision=None,
 ):
     """Create the next revision of a locked result. Caller holds the transaction and lock.
 
     Where the test has an active calculation rule, a manual entry is worked from `readings`
     (see worksheets.py) and a typed result is refused. A file import always supplies final
     values, kept with their source, and is never recalculated."""
+    require_role(actor, ANALYST)
+    if expected_revision is not None and expected_revision != result.latest_number:
+        raise ValidationError(
+            "This result changed after you opened the page. Nothing was saved. Reload and retry."
+        )
     batch = result.batch
     if batch is None:
         raise ValidationError("This test is not assigned to a batch.")
@@ -966,7 +973,7 @@ def enter_result_locked(
     # The rule is read under the method policy lock taken with the batch; save_config takes
     # the same lock, so a rule cannot change between this read and the write below.
     rule = worksheets.active_rule(definition.pk) if source == ResultRevision.Source.MANUAL else None
-    if rule is None and (readings or report_nd or calculation_token):
+    if rule is None and (readings or report_nd or calculation_token or bottle_data is not None):
         raise ValidationError(
             "This test has no active calculation, so it takes a final result, not readings. "
             "Reload the page."
@@ -978,6 +985,7 @@ def enter_result_locked(
                 rule=rule,
                 definition=definition,
                 readings=readings,
+                bottle_data=bottle_data,
                 dilution_factor=dilution_factor,
                 reporting_limit_applied=reporting_limit_applied,
                 report_nd=report_nd,

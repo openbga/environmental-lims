@@ -38,9 +38,10 @@
       ]
     },
     {
-      "title": "Check how to type results",
+      "title": "Record BOD5 bottle observations",
       "steps": [
-        "Open [[How to enter results]] for the formats and the qualifier codes you can use."
+        "On a BOD5 row, select [[Record BOD5 bottles]].",
+        "Record and select complete bottle observations on that worksheet, then save. This row cannot take a final numeric result in the grid."
       ]
     }
   ],
@@ -269,6 +270,21 @@
           "description": "Low alkalinity only. Required measured pH after further acid addition, exactly 0.3 below the first endpoint pH. A different pair is refused with the readings kept; no tolerance or interpolation is applied."
         }
       ]
+    },
+    {
+      "title": "BOD5 bottle entry",
+      "paragraphs": [
+        "Each bottle value in mg/L is (initial DO − final DO − entered seed correction) × filled bottle volume ÷ sample volume. The arithmetic mean gives each included bottle equal weight, even when volumes differ. The common prior dilution factor multiplies that mean once, and only that final result is rounded by the test rule. Excluded bottles never contribute to the mean.",
+        "A BOD5 test row shows its analyte, unit and BOD5 bottle worksheet instead of numeric entry fields. Analysts follow Record BOD5 bottles to its dedicated page. Other staff can inspect the batch grid but are not offered the entry link. Saving this grid does not save bottle observations; entering a final numeric value for a BOD5 row is refused.",
+        "The separate worksheet keeps 1–12 complete rows, original strings, per-bottle correction sources and explicit Include/Exclude choices. Excluded rows require reasons and at least one bottle must be included. Add/Remove only changes current entry rows; saving creates a revision and retains earlier ones.",
+        "This is BOD5 arithmetic only. It does not estimate seed demand from controls, subtract dilution-water blank demand, assess incubation or method eligibility, apply automatic bottle QC thresholds, or establish regulatory approval. CBOD5 is outside its scope. The analyst assesses the laboratory method and QC before selection; Include is not an automatic acceptance verdict."
+      ],
+      "items": [
+        {
+          "label": "Record BOD5 bottles",
+          "description": "Open the dedicated worksheet for this test. A current batch assignment and analyst access are required; a submitted result must be returned before editing. Entry errors keep input, and a stale revision or replaced calculation requires reload."
+        }
+      ]
     }
   ],
   "sources": [
@@ -294,6 +310,13 @@
     "analytical/tests/test_prepared_calculations.py",
     "analytical/tests/test_prepared_pages.py",
     "analytical/tests/test_titration_calculations.py",
-    "analytical/tests/test_titration_pages.py"
+    "analytical/tests/test_titration_pages.py",
+    "analytical/urls.py",
+    "analytical/bod.py",
+    "analytical/bod_forms.py",
+    "analytical/bod_views.py",
+    "analytical/templates/analytical/result_bottles.html",
+    "analytical/templates/analytical/result_detail.html",
+    "analytical/tests/test_bod.py"
   ]
 }

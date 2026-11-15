@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import import_views, mdl_views, preparation_views, preservation_views, views
+from . import bod_views, import_views, mdl_views, preparation_views, preservation_views, views
 
 app_name = "analytical"
 urlpatterns = [
@@ -50,6 +50,7 @@ urlpatterns = [
     path("import-profiles/<int:pk>/edit/", import_views.profile_edit, name="import-profile-edit"),
     path("batches/<int:pk>/submit/", views.batch_submit, name="batch-submit"),
     path("qc/<int:pk>/measure/", views.qc_measure, name="qc-measure"),
+    path("results/<int:pk>/bottles/", bod_views.result_bottles, name="result-bottles"),
     path("results/<int:pk>/", views.result_detail, name="result-detail"),
     path("review/", views.review_list, name="review-list"),
     path("review/batches/<int:pk>/", views.review_batch, name="review-batch"),

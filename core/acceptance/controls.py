@@ -836,3 +836,79 @@ def titration_result(run):
         "retained, and the recorded calculation and rounding give the same result",
         "5.5 mg/L as CaCO3, with all readings retained and reproducible",
     )
+
+
+@step(
+    "C11",
+    "A BOD result keeps selected and excluded bottle observations",
+    requirement="A BOD worksheet retains original bottle readings, seed correction evidence, "
+    "analyst selection, calculation version and rounding so its mean can be reproduced "
+    "(docs/product.md, BOD worksheets).",
+    expected="Two synthetic bottles with 300 mL filled volume and 30 or 15 mL sample, "
+    "initial DO 8.00 mg/L, final DO 4.50 or 6.00 mg/L and 0.50 mg/L seed correction "
+    "give a selected mean of 30.0 mg/L. A fully depleted excluded bottle and its reason "
+    "are retained. Nonzero correction without a source is refused without saving.",
+    depends=("O03",),
+)
+def bod_result(run):
+    from analytical.synthetic_dataset import BOD_BOTTLES
+
+    analyst = account(run, "analyst")
+    now = timezone.now().replace(second=0, microsecond=0)
+    tests = tests_for("DEMO-BOD-AQ", "water")
+    sample = receive(
+        run,
+        run["order_a"],
+        "BOD-A1",
+        tests,
+        collected_at=now - timedelta(hours=3),
+        received_at=now - timedelta(hours=2),
+        preservation_check="Synthetic: cooled; no chemical preservation",
+        containers=[
+            {
+                "description": "Synthetic 1000 mL HDPE",
+                "condition": "Intact",
+                "preservation": "Cool; no chemical preservative (synthetic)",
+            }
+        ],
+    )
+    batch = bench.create_batch(actor=analyst, method=tests[0].method, matrix="water")
+    bench.add_tests_to_batch(
+        actor=analyst,
+        batch_id=batch.pk,
+        requested_test_ids=list(sample.requested_tests.values_list("pk", flat=True)),
+    )
+    result = Result.objects.get(requested_test__sample=sample)
+    entry = dict(
+        actor=analyst,
+        result_id=result.pk,
+        supplied_text="",
+        reporting_limit_applied="2.0",
+        dilution_factor="1",
+        analysis_started_at=now - timedelta(minutes=30),
+    )
+    missing_source = [dict(row) for row in BOD_BOTTLES]
+    missing_source[0]["seed_reference"] = ""
+    refused = False
+    try:
+        bench.enter_result(**entry, bottle_data=missing_source)
+    except ValidationError:
+        refused = True
+    run.check(
+        refused and not result.revisions.exists(),
+        "Nonzero seed correction without evidence was refused without a result revision",
+    )
+    revision = bench.enter_result(**entry, bottle_data=BOD_BOTTLES)
+    stored = revision.worksheet.bottle_data
+    again = worksheets.reproduce(revision.worksheet)
+    run.check(
+        (revision.supplied_text, revision.unit, revision.source) == ("30.0", "mg/L", "calculated")
+        and stored == BOD_BOTTLES
+        and stored[2]["selected"] is False
+        and bool(stored[2]["reason"])
+        and again.matches
+        and again.value_text == "30.0",
+        f"Reported {revision.supplied_text} {revision.unit}; all original bottle strings, "
+        "seed correction sources and the excluded bottle reason retained; mean reproduces",
+        "30.0 mg/L, with selected and excluded observations retained and reproducible",
+    )

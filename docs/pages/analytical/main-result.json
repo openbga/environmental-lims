@@ -37,9 +37,10 @@
       ]
     },
     {
-      "title": "Check the preservation evidence",
+      "title": "Record or correct BOD5 bottles",
       "steps": [
-        "Select [[Preservation findings and lab disposition]] in the header."
+        "Select [[Record BOD5 bottles]] when offered. It opens the dedicated worksheet with the latest saved rows.",
+        "Complete the observations, selection and result details there, then save. Inspect all included and excluded bottles under the new revision."
       ]
     }
   ],
@@ -204,7 +205,7 @@
         },
         {
           "label": "Readings",
-          "description": "For a test with an active calculation rule, one required box for each reading of its calculation, with the unit, typed as read and never rounded. Dilution: Instrument reading and Reporting limit before dilution (offered from the catalog limit). Solids by weight: Dried residue with its filter or dish, Filter or dish alone and Sample volume. Preparation by volume: Instrument reading, Reporting limit in the solution, Sample volume prepared (mL) and Final volume (mL). Prepared solid (as weighed or corrected to dry weight): Instrument reading, Reporting limit in the solution, Final volume (mL) and Sample weight (g), or Sample weight as received for the dry-weight correction. Percent solids and percent moisture: Dish alone, Dish with the sample as received and Dish with the dried sample (g). The limit in the solution is typed; it is not filled in. A note under the form names the calculation, its version and its formula."
+          "description": "For a test with an active calculation rule, one required box for each reading of its calculation, with the unit, typed as read and never rounded. Dilution: Instrument reading and Reporting limit before dilution (offered from the catalog limit). Solids by weight: Dried residue with its filter or dish, Filter or dish alone and Sample volume. Preparation by volume: Instrument reading, Reporting limit in the solution, Sample volume prepared (mL) and Final volume (mL). Prepared solid (as weighed or corrected to dry weight): Instrument reading, Reporting limit in the solution, Final volume (mL) and Sample weight (g), or Sample weight as received for the dry-weight correction. Percent solids and percent moisture: Dish alone, Dish with the sample as received and Dish with the dried sample (g). The limit in the solution is typed; it is not filled in. A note under the form names the calculation, its version and its formula. BOD5 is entered through Record BOD5 bottles on its dedicated page instead of these inline reading boxes."
         },
         {
           "label": "Report as ND",
@@ -335,6 +336,49 @@
           "description": "Low alkalinity only. Required measured pH after further acid addition, exactly 0.3 below the first endpoint pH. A different pair is refused with the readings kept; no tolerance or interpolation is applied."
         }
       ]
+    },
+    {
+      "title": "BOD5 bottle observations",
+      "paragraphs": [
+        "Each bottle value in mg/L is (initial DO − final DO − entered seed correction) × filled bottle volume ÷ sample volume. The arithmetic mean gives each included bottle equal weight, even when volumes differ. The common prior dilution factor multiplies that mean once, and only that final result is rounded by the test rule. Excluded bottles never contribute to the mean.",
+        "For a current BOD5 calculation, analysts use Record BOD5 bottles in the entry/correction panel rather than a numeric form here. The link is unavailable while the latest revision awaits review or the test has no assigned batch. The dedicated page checks analyst access, current state and stale revisions on save.",
+        "Each revision keeps 1–12 complete bottle rows with original numeric strings, explicit selection and exclusion reasons, seed correction evidence, calculation version and saved rounding. A correction adds a revision; Add or Remove on the entry page never changes an earlier saved worksheet.",
+        "This is BOD5 arithmetic only. It does not estimate seed demand from controls, subtract dilution-water blank demand, assess incubation or method eligibility, apply automatic bottle QC thresholds, or establish regulatory approval. CBOD5 is outside its scope. The analyst assesses the laboratory method and QC before selection; Include is not an automatic acceptance verdict."
+      ],
+      "items": [
+        {
+          "label": "Record BOD5 bottles",
+          "description": "Open the dedicated bottle worksheet to enter or correct a result. Submitted work must first be returned by a reviewer. Save there creates an entered revision and returns here; submit separately from the batch."
+        },
+        {
+          "label": "Bottle, Initial DO, Final DO, Sample, Filled bottle",
+          "description": "Bottle identifier, initial/final dissolved oxygen in mg/L, sample aliquot volume in mL and actual filled bottle volume in mL, as originally supplied."
+        },
+        {
+          "label": "Seed correction, Seed record reference",
+          "description": "Entered mg/L oxygen demand attributed to added seed in this bottle, with a supporting laboratory record reference required when nonzero. Zero explicitly represents no correction; raw seed-control estimation is outside this worksheet."
+        },
+        {
+          "label": "Depletion, Corrected depletion",
+          "description": "Initial DO minus final DO, and that depletion minus the entered seed correction, both in mg/L. Excluded observations may show negative derived values; they are not clamped or used in the mean."
+        },
+        {
+          "label": "Bottle value before prior dilution",
+          "description": "Corrected depletion × filled bottle volume ÷ sample volume, in mg/L, displayed for every retained bottle. The common prior dilution is applied to the selected mean, not to these displayed bottle values."
+        },
+        {
+          "label": "Selection / reason",
+          "description": "Included or Excluded and any recorded reason. Each included bottle contributes equally; exclusion requires a reason and preserves the entire bottle observation."
+        },
+        {
+          "label": "Prior dilution factor",
+          "description": "The common preliminary dilution recorded with this revision, before the aliquot entered the bottle. The bottle’s sample fraction is already included in each bottle value."
+        },
+        {
+          "label": "Worked again now",
+          "description": "Uses the saved bottle rows, selection, prior dilution, calculation version and rounding to reproduce the recorded result. Later configuration changes do not alter this saved evidence."
+        }
+      ]
     }
   ],
   "sources": [
@@ -361,6 +405,13 @@
     "analytical/tests/test_prepared_calculations.py",
     "analytical/tests/test_prepared_pages.py",
     "analytical/tests/test_titration_calculations.py",
-    "analytical/tests/test_titration_pages.py"
+    "analytical/tests/test_titration_pages.py",
+    "analytical/urls.py",
+    "analytical/bod.py",
+    "analytical/bod_forms.py",
+    "analytical/bod_views.py",
+    "analytical/templates/analytical/result_bottles.html",
+    "analytical/templates/analytical/batch_entry.html",
+    "analytical/tests/test_bod.py"
   ]
 }

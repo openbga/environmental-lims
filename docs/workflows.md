@@ -201,6 +201,7 @@ Calculations available:
 | Alkalinity by titration to pH 4.5 | Initial and final burette readings (mL), original sample volume (mL), standardized acid normality (N), endpoint pH | (Final − initial) × normality × 50,000 ÷ sample volume, in mg/L as CaCO3 | Typed by the analyst |
 | Low alkalinity by two-endpoint titration | Initial, first endpoint and final burette readings (mL), original sample volume (mL), standardized acid normality (N), both endpoint pH readings | (2B − C) × normality × 50,000 ÷ sample volume, where B and C are volumes from the initial reading to each endpoint, in mg/L as CaCO3 | Typed by the analyst |
 | Total hardness by EDTA titration | Initial and final burette readings (mL), original sample volume (mL), standardized EDTA normality (N) | (Final − initial) × normality × 50,000 ÷ sample volume, in mg/L as CaCO3 | Typed by the analyst |
+| BOD bottle worksheet | Per bottle: identifier, initial/final DO and entered seed correction (mg/L), correction source, sample and filled bottle volumes (mL), selection and exclusion reason; common preliminary dilution | Mean of selected ((initial DO − final DO − seed correction) × bottle volume ÷ sample volume) × preliminary dilution, in mg/L | Typed by the analyst |
 
 A preparation calculation takes the reading back to the sample with the amounts actually
 prepared, and takes the reporting limit with it. The limit it works out is rounded by the test's
@@ -246,9 +247,11 @@ its limits another way cannot set that yet. A calculation gives one
 unit from one unit: the three pairings above for solids, the unit of the test for a preparation
 by volume and percent for solids and moisture. Units are matched by name, and only the spelling
 of micro (µ, μ or u) may differ. Each reading is used as typed, so a method that rounds the
-solution concentration first is followed by typing the rounded concentration. BOD worksheets and other titrations are not built. The arithmetic of a calculation version is part of the
+solution concentration first is followed by typing the rounded concentration. Other titrations are not built. The arithmetic of a calculation version is part of the
 release: a laboratory checks it against its method before use, and the demonstration rules are
 synthetic.
+
+BOD bottles are entered from the result’s **Record BOD5 bottles** action, reached from the batch entry grid or the result record. Keep 1–12 complete bottle rows; every selection is explicit and excluded bottles need a reason. The worksheet keeps all rows and shows their calculated concentrations, including excluded negative values. A selected bottle must have nonnegative corrected depletion. Each bottle is weighted equally in the mean; the sample fractions are applied before averaging. The common dilution factor is only a preliminary dilution before aliquots were taken, not the bottle-to-sample ratio again. Enter zero seed correction for an unseeded bottle, or enter the correction for that bottle with a source reference. Seed correction is supplied in mg/L of bottle oxygen demand, not in mg/L of final sample result. The application does not calculate it from seed controls, subtract a dilution-water blank or choose usable bottles. Review method suitability, incubation, depletion, residual oxygen and QC separately. If no bottle can be selected, this calculation cannot produce the method-specific exception report. Corrections keep the earlier worksheet and refuse a save if the result changed since the form was opened.
 
 The titration worksheets use one uninterrupted burette run, with nonnegative, increasing
 readings (equal initial and final readings are permitted for the single-endpoint equations).

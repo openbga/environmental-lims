@@ -45,6 +45,7 @@ FORM_SURFACES = {
     "analytical:batch-create": "lg",
     "analytical:batch-add-tests": "xl",
     "analytical:batch-entry": "xl",
+    "analytical:result-bottles": "xl",
     "analytical:batch-import": "xl",
     "analytical:batch-import-mapped": "xl",
     "dataimport:upload": "xl",
