@@ -33,6 +33,13 @@
       "steps": [
         "In the QC holds approval notice, select [[Record disposition]] for the finding."
       ]
+    },
+    {
+      "title": "Prepare an instrument run list",
+      "steps": [
+        "Select [[Export run list]] to download all batch tests and recorded QC samples.",
+        "Map the CSV columns for your instrument and check sample states, QC and injection order before use."
+      ]
     }
   ],
   "good_to_know": [
@@ -90,6 +97,10 @@
           "description": "Analysts can close a nonempty open batch. The confirmation dialog explains that closure cannot be undone: sample and QC membership can no longer be added or removed. Entry, QC measurement and review continue. Closing does not approve results."
         },
         {
+          "label": "Export run list",
+          "description": "Analysts and administrators download a UTF-8 CSV for instrument setup. Every assigned test and direct batch QC sample is included, regardless of filters, pagination or checkboxes. Open and closed analytical batches are allowed. Empty batches produce column headings only. The download changes no records or audit history and is not stored as an issued snapshot."
+        },
+        {
           "label": "Import results",
           "description": "A menu with the two import paths: Standard CSV file opens the standard CSV validation and preview flow; With a saved mapping opens profile-mapped CSV/TSV import."
         },
@@ -100,6 +111,57 @@
         {
           "label": "Add tests",
           "description": "Analysts can add eligible requested tests while membership is open."
+        }
+      ]
+    },
+    {
+      "title": "Run-list CSV",
+      "paragraphs": [
+        "This is a generic current inventory for mapping into an instrument workflow. It does not establish eligibility, select aliquots, add missing QC or calibration standards, prescribe injection order or transmit to an instrument. It is not a result-import template. Review the sample disposition, disposal and result states before using it.",
+        "Sample-test rows are ordered by lab sample ID, analyte and requested-test identifier, followed by QC rows ordered by type, label and identifier. A sample with several tests repeats. Only QC samples directly attached to this analytical batch appear; preparation-batch QC is not added. QC test, limit and preparation cells are blank because the export does not infer QC analytes.",
+        "The whole file is refused above 2,000 data rows or when text contains tabs, line breaks or a leading control character, or starts with =, +, -, @ or a full-width equivalent after whitespace. The message identifies the row and column to correct; nothing is silently rewritten or partially downloaded. Commas and quotes are preserved using CSV quoting. Use the source record’s correction action where available. For labels with no correction action, retain the original record and prepare replacement work with a safe label; do not edit historical evidence.",
+        "Columns describe current records at download time, not conditions at a historical run. Import identifiers as text in spreadsheet software to retain leading zeros. The limit is exported as an exact decimal without rounding."
+      ],
+      "items": [
+        {
+          "label": "batch_id, batch_status",
+          "description": "The B-number and current open or closed membership state, repeated on every row. Closed does not mean approved."
+        },
+        {
+          "label": "method_code, method_version, matrix, equipment_id",
+          "description": "The batch method and version, analytical matrix and linked equipment asset identifier; equipment is blank if none is recorded."
+        },
+        {
+          "label": "row_type",
+          "description": "sample_test means one requested test currently assigned to the batch; qc_sample means one directly attached QC sample."
+        },
+        {
+          "label": "sample_id, client_sample_id",
+          "description": "Laboratory sample identifier and the client’s identifier for a sample-test row. These are blank on QC rows; a parent is named separately."
+        },
+        {
+          "label": "sample_disposition, sample_disposed",
+          "description": "The sample’s current proceed, qualify, hold or reject disposition and yes/no physical disposal state. These are blank on QC rows and are not an analytical acceptance decision."
+        },
+        {
+          "label": "requested_test_id, analyte",
+          "description": "Stable internal identifier for the requested sample test and its current analyte name. A sample repeats for each assigned test."
+        },
+        {
+          "label": "unit, configured_reporting_limit",
+          "description": "Current catalog test unit and exact configured reporting limit, blank when no limit is configured. This is not a result’s applied limit, has no dilution or preparation factor applied and is blank for QC rows."
+        },
+        {
+          "label": "result_status",
+          "description": "Current logical result state: awaiting, draft, submitted, returned or approved. If work has moved batches, an approved state can describe a prior batch’s revision; it does not establish that this run is approved."
+        },
+        {
+          "label": "recorded_prepared_aliquot_id, recorded_preparation_batch, recorded_aliquot_label",
+          "description": "The explicit aliquot identifier, preparation batch number and label from the latest result revision only when it belongs to this analytical batch. Blank before entry, when none was selected, or when the latest revision belongs to a different batch. These are recorded provenance, not the aliquot selected for a future run."
+        },
+        {
+          "label": "qc_sample_id, qc_label, qc_type, parent_sample_id",
+          "description": "The QC record’s stable internal identifier, entered label, stored QC type and explicitly linked parent lab sample ID. Parent is blank when none was linked. These columns are blank for sample-test rows."
         }
       ]
     },
@@ -364,6 +426,10 @@
     "laboratory/templates/laboratory/batch_context.html",
     "laboratory/selectors.py",
     "laboratory/permissions.py",
-    "analytical/templates/analytical/_revision_value.html"
+    "analytical/templates/analytical/_revision_value.html",
+    "analytical/run_lists.py",
+    "analytical/run_list_views.py",
+    "analytical/tests/test_run_lists.py",
+    "e2e/test_run_lists.py"
   ]
 }

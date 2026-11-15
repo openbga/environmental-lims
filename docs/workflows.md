@@ -175,6 +175,17 @@ hash and mapping used; changing a saved profile does not reinterpret previous ob
 These are operator-defined mappings, not validated vendor instrument adapters; Excel files and
 unverified vendor-specific layouts are outside this workflow.
 
+**Export run list** on an analytical batch downloads a generic CSV for analysts and administrators.
+It covers the entire current batch, including tests hidden by filters or pagination, followed by
+its recorded QC samples. Sample and QC rows are distinct; each sample test is a row, so a sample
+requested for several analytes repeats. Configured reporting limits are not the limits applied
+to entered results. Preparation identifiers describe the latest revision in this batch, not a
+selection for the next run. QC rows name only the recorded sample, type and optional parent;
+no analytes, missing standards or injection sequence are inferred. Map the columns and check the
+sample states against the intended instrument run. This download changes no record and is not
+retained as an issued snapshot. Its complete column reference and refusal states are in the
+batch's Help drawer.
+
 ## Calculated results
 
 A result can be worked out by the application from the readings taken at the bench, in place
