@@ -77,6 +77,13 @@ applied are stored with the result, so the reported value can be worked out agai
 limit that a calculation works out from the amounts prepared is rounded by the same rule and kept
 before rounding beside the value.
 Do not infer nondetects from zero or overwrite observations; preservation limits are per method.
+XLSX result import reads a bounded SpreadsheetML table with `zipfile` and `defusedxml`, retaining
+the numeric XML text before any numeric conversion. General workbook readers that expose floats
+cannot preserve this evidence. No formula evaluation, display-format interpretation or Excel
+serial-date conversion is performed. Package/XML limits and explicit worksheet selection bound
+the synchronous import; existing mapping, authorization and atomic result-entry services apply.
+Format and parser references checked 2026-11-15: [SpreadsheetML sheets](https://learn.microsoft.com/en-us/office/open-xml/spreadsheet/working-with-sheets),
+[defusedxml](https://pypi.org/project/defusedxml/) and [Python ZIP handling](https://docs.python.org/3.14/library/zipfile.html).
 Custody and result corrections retain actor, timestamp, reason and prior linkage. Mutations
 write an attributed audit event in the same transaction; background/system actions have an
 explicit identity. Prevent update/delete of audit and released records by the runtime DB role
@@ -196,4 +203,4 @@ validation either. Commands are in [CONTRIBUTING](../CONTRIBUTING.md#verify-your
 | Hosting budget and demo access/reset policy | The deployer approves budget and defines access/reset policy |
 | Email delivery, MFA enforcement and account recovery | Allauth mechanisms selected; operating policy and provider are the laboratory's choice |
 | License | AGPL-3.0-only; canonical GNU LICENSE and dependency notices included; published 2026-11-11 |
-| Instrument imports | Operator-mapped CSV/TSV; vendor validation awaits representative exports |
+| Instrument imports | Operator-mapped CSV/TSV and bounded XLSX worksheets; vendor validation awaits representative exports |

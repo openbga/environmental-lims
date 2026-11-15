@@ -19,7 +19,7 @@ from django.utils import timezone
 from accounts.roles import require_role
 from core.models import AuditEvent
 
-from . import import_profiles, services
+from . import import_profiles, services, workbook_import
 from .models import Batch, ImportProfile, Result, ResultRevision
 from .parsing import parse_timestamp
 from .preparation import lock_work_batches
@@ -76,6 +76,7 @@ class ImportPreview:
     blanks: list = field(default_factory=list)
     unused_columns: list = field(default_factory=list)
     preamble_rows: int = 0
+    worksheet: str = ""
 
     @property
     def ok(self):
@@ -349,11 +350,11 @@ def commit_import(
 # ------------------------------------------------------------------ mapped (profile) import
 
 
-def parse_profile_import(batch, profile, data, *, filename="upload.txt"):
+def parse_profile_import(batch, profile, data, *, filename="upload.txt", worksheet=""):
     """Validate an uploaded file (bytes) against a batch through a saved mapping. Writes nothing.
 
-    The digest is of the uploaded bytes. The text read from them is UTF-8 with a leading byte
-    order mark ignored; line endings are read as uploaded."""
+    The digest covers the uploaded bytes. CSV/TSV uses UTF-8; XLSX uses the explicitly
+    selected worksheet and preserves stored numeric text without applying display formats."""
     preview = ImportPreview(
         filename=filename,
         profile=profile,
@@ -361,36 +362,59 @@ def parse_profile_import(batch, profile, data, *, filename="upload.txt"):
         file_hash=file_digest(data),
     )
     try:
-        text = decode_upload(data)
+        if len(data) > MAX_BYTES:
+            raise ValidationError(f"The file is larger than {MAX_BYTES // 1024} KiB.")
+        if filename.lower().endswith(".xlsx"):
+            table = workbook_import.read_workbook(data, worksheet=worksheet)
+            preview.worksheet = table.worksheet
+            extracted = import_profiles.extract_records(
+                profile,
+                table.rows,
+                max_rows=MAX_ROWS,
+                worksheet=True,
+                numeric_cells=table.numeric_cells,
+            )
+        else:
+            if worksheet:
+                raise ValidationError("Worksheet name is only used for .xlsx files.")
+            if filename.lower().endswith((".xls", ".xlsm", ".xlsb", ".ods")):
+                raise ValidationError("Use a plain .xlsx workbook or UTF-8 CSV/TSV file.")
+            text = decode_upload(data)
+            if "\x00" in text:
+                raise ValidationError("The file contains NUL characters; it is not delimited text.")
+            extracted = import_profiles.extract(profile, text, max_rows=MAX_ROWS)
     except ValidationError as exc:
         preview.file_errors.extend(exc.messages)
         return preview
-    if "\x00" in text:
-        preview.file_errors.append("The file contains NUL characters; it is not delimited text.")
-        return preview
-    extracted = import_profiles.extract(profile, text, max_rows=MAX_ROWS)
     preview.file_errors.extend(extracted.file_errors)
     preview.blanks, preview.unused_columns = extracted.blanks, extracted.unused
     preview.preamble_rows = extracted.preamble
     if preview.file_errors:
         return preview
-    earlier = _earlier_import(batch, preview.file_hash, preview.mapping_hash)
+    earlier = _earlier_import(
+        batch, preview.file_hash, preview.mapping_hash, worksheet=preview.worksheet
+    )
     if earlier is not None:
         preview.file_errors.append(_already_imported(earlier, "This file, with this mapping,"))
     lookup = _lookup(batch)
     tz, now, seen = services.lab_timezone(), timezone.now(), {}
     for item in extracted.rows:
+        source = f"{preview.worksheet}!{item.detail}" if preview.worksheet else item.detail
         row = ImportRow(
             item.line,
             item.values,
             errors=list(item.errors),
-            detail=f"{filename[:100]}:{item.detail}"[:200],
-            source=item.source,
+            detail=f"{filename[:100]}:{source}"[:200],
+            source=f"{preview.worksheet}!{item.source}" if preview.worksheet else item.source,
         )
         if not row.errors:
             _validate_row(row, lookup, seen, batch, tz, now)
         preview.rows.append(row)
-    preview.state_token = _state_token(preview.rows)
+    preview.state_token = hashlib.sha256(
+        json.dumps(
+            [preview.file_hash, preview.mapping_hash, preview.worksheet, _state_token(preview.rows)]
+        ).encode()
+    ).hexdigest()
     if not preview.rows and not preview.file_errors:
         preview.file_errors.append(
             "The file has a header but no values to import."
@@ -399,7 +423,7 @@ def parse_profile_import(batch, profile, data, *, filename="upload.txt"):
     return preview
 
 
-def _earlier_import(batch, file_hash, mapping_hash=None):
+def _earlier_import(batch, file_hash, mapping_hash=None, *, worksheet=""):
     """The latest import of these exact bytes into the batch: through this mapping, or through the
     strict import when `mapping_hash` is None."""
     mapping = (
@@ -407,6 +431,8 @@ def _earlier_import(batch, file_hash, mapping_hash=None):
         if mapping_hash is None
         else {"after__mapping_sha256": mapping_hash}
     )
+    if worksheet:
+        mapping["after__worksheet"] = worksheet
     return (
         AuditEvent.objects.filter(
             action="batch.results_imported",
@@ -447,7 +473,7 @@ def _state_token(rows):
 
 
 def commit_profile_import(
-    *, actor, batch_id, profile_id, data, filename, mapping_hash, state_token
+    *, actor, batch_id, profile_id, data, filename, mapping_hash, state_token, worksheet=""
 ):
     """Revalidate through the saved mapping and write every row, or nothing.
 
@@ -462,6 +488,7 @@ def commit_profile_import(
             ImportProfile.objects.get(pk=profile_id),
             data,
             filename=filename,
+            worksheet=worksheet,
         )
         if not initial.ok:
             raise ValidationError(
@@ -482,14 +509,15 @@ def commit_profile_import(
             raise ValidationError(
                 "The mapping profile changed after the preview. Preview the file again."
             )
-        preview = parse_profile_import(batch, profile, data, filename=filename)
+        preview = parse_profile_import(batch, profile, data, filename=filename, worksheet=worksheet)
         if not preview.ok:
             raise ValidationError(
                 f"The file has {preview.error_count} error(s). Nothing was imported."
             )
         if preview.state_token != state_token:
             raise ValidationError(
-                "A result in this batch changed after the preview. Preview the file again."
+                "The file, worksheet or a result in this batch changed after the preview. "
+                "Preview the file again."
             )
         return _write_rows(
             actor=actor,
@@ -505,5 +533,10 @@ def commit_profile_import(
                 "mapping_snapshot": import_profiles.snapshot(profile),
                 "blank_cells_not_imported": len(preview.blanks),
                 "unmapped_columns": preview.unused_columns,
+                **(
+                    {"worksheet": preview.worksheet, "file_format": "xlsx"}
+                    if preview.worksheet
+                    else {}
+                ),
             },
         )

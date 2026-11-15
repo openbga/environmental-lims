@@ -11,6 +11,7 @@
       "title": "Import with a saved mapping",
       "steps": [
         "Choose the [[Mapping profile]] and the results file.",
+        "For XLSX, enter the exact [[Worksheet name]]. For CSV/TSV, leave it blank.",
         "Select [[Validate and preview]] and check What will be recorded and the preview rows.",
         "Confirm the import. Every result is saved as entered, or none."
       ]
@@ -30,9 +31,10 @@
   ],
   "good_to_know": [
     "A blank cell in a wide file is skipped. It is not ND and does not change an existing result.",
-    "The unit must be given in the file and must match the test unit exactly. Nothing is converted.",
-    "The same file with the same mapping cannot be imported twice into this batch.",
-    "The uploaded file is not kept. Keep your source file; its digest identifies it."
+    "The unit supplied by the file or mapping must match the test unit exactly. Nothing is converted.",
+    "The same file, mapping and worksheet cannot be imported twice into this batch.",
+    "The uploaded file is not kept. Keep your source file; its digest identifies it.",
+    "XLSX imports stored values, not display formatting. Use text timestamps and identifiers; formulas are refused."
   ],
   "sections": [
     {
@@ -48,7 +50,7 @@
         },
         {
           "label": "Import with a mapping",
-          "description": "Current tab uses an active saved mapping for long or wide comma/tab-delimited text."
+          "description": "Current tab uses an active saved mapping for long or wide CSV/TSV text or a selected XLSX worksheet."
         },
         {
           "label": "New mapping",
@@ -64,12 +66,16 @@
           "description": "Required active saved mapping. A profile selected through the link/query can be preselected; upload validation still requires an active available choice."
         },
         {
-          "label": "Results file (UTF-8 text)",
-          "description": "Required file, at most 1024 KiB (1 MiB), in the mapping’s delimiter/layout. The page advertises 2000 results; the parser checks accumulated result/blank-cell count before each source record, so a final wide row can expand beyond that count. Split large files rather than relying on that edge case. A leading UTF-8 byte order mark is ignored for parsing but included in the file digest. Binary/NUL, non-UTF-8 and malformed delimited text fail."
+          "label": "Results file (CSV, TSV or XLSX)",
+          "description": "Required file, at most 1024 KiB (1 MiB), containing at most 2000 results and blank mapped cells combined. CSV/TSV uses the mapping’s delimiter; a leading UTF-8 byte order mark is ignored for parsing but included in the file digest. XLSX uses the explicitly named worksheet and ignores the delimiter. Legacy XLS, XLSM, XLSB and ODS are refused."
+        },
+        {
+          "label": "Worksheet name",
+          "description": "Required for XLSX: exact case-sensitive name of a visible worksheet, at most 31 characters. No active or first sheet is chosen automatically. A missing or unknown name reports up to 20 available visible worksheets and counts any others. Leave blank for CSV/TSV. This selection belongs to this upload; it does not change the saved mapping."
         },
         {
           "label": "Validate and preview",
-          "description": "Reads and validates without writing results. Mapped headers must occur exactly once; missing required or duplicate mapped headers fail. Every populated row must have the same column count as the header. Wholly blank records are ignored; pre-header records and unused columns are reported."
+          "description": "Reads and validates without writing results. Mapped headers must occur exactly once; missing or duplicate mapped headers fail. Text records need the same width as the header. Missing worksheet cells are blank; nonblank cells beyond the header fail. Blank records are ignored. Preamble rows and unused columns are reported."
         },
         {
           "label": "Cancel",
@@ -86,6 +92,14 @@
       ]
     },
     {
+      "title": "XLSX values and workbook limits",
+      "paragraphs": [
+        "Use a plain XLSX values-only table. Headers, sample IDs, analytes, units, analysis timestamps and other text fields must be stored as text. Numeric cells are accepted for results, reporting limits, dilution factors, percent solids and prepared aliquot IDs. Timestamps must be text in the mapping’s declared format; Excel serial dates and typed date cells are not converted. Text retains its characters, including leading zeros. Numeric values retain their stored decimal text, not formatting such as extra displayed zeroes, percentages or dates.",
+        "The selected sheet must be visible. Hidden and filtered rows and columns are included. Formulas (even with cached results), error cells, booleans, typed dates and merged cells in the selected sheet are refused, including unused columns and preamble rows. Macro-enabled, encrypted, external-link, malformed or unsupported workbooks are refused. Use a separate values-only sheet and retain the original in the laboratory’s records.",
+        "Workbooks are limited to 200 ZIP members and 20 MiB expanded contents; selected worksheets to 10000 physical rows, 256 columns and 100000 stored cells. Shared strings are limited to 100000 entries; each cell text to 32767 characters. These are application resource limits, not laboratory rules. The 2000 result/blank-cell limit also applies. Split larger tables."
+      ]
+    },
+    {
       "title": "Preview status and What will be recorded",
       "items": [
         {
@@ -93,8 +107,12 @@
           "description": "Valid shows total results that passed and states nothing is saved yet. Any file or row error blocks the entire file. Fix the source or mapping and preview again; errors do not import the otherwise-valid rows."
         },
         {
+          "label": "Worksheet",
+          "description": "Shown for XLSX. Identifies the selected sheet. All its rows and columns are read, including hidden or filtered ones; other worksheets are not imported."
+        },
+        {
           "label": "Mapping",
-          "description": "Profile name, layout and delimiter used for this preview."
+          "description": "Profile name and layout used for this preview, plus delimiter for CSV/TSV only."
         },
         {
           "label": "Mapping SHA-256",
@@ -114,7 +132,7 @@
         },
         {
           "label": "How the file is read",
-          "description": "UTF-8 with leading BOM ignored for parsing; source line endings and raw bytes define the digest."
+          "description": "CSV/TSV uses UTF-8 with a leading BOM ignored. XLSX reads stored text and numeric values without applying cell display formats or calculating formulas. Digits already rounded by the workbook producer cannot be recovered. The digest covers all original uploaded bytes."
         },
         {
           "label": "Rows above the header",
@@ -138,7 +156,7 @@
       "items": [
         {
           "label": "Source",
-          "description": "Source record number; wide layout includes the source column. Retained as result revision provenance with filename."
+          "description": "Source record number; wide layout includes the column. XLSX adds the selected worksheet name and uses physical worksheet row numbers, including blank rows. Retained on each result revision with the filename."
         },
         {
           "label": "Sample",
@@ -187,7 +205,7 @@
       "items": [
         {
           "label": "Import result(s) as entered",
-          "description": "Available to analysts only for an error-free preview. Revalidates file, active profile, current target revisions, preparation evidence and assignments under locks. All rows, their revision history and audit metadata commit together, or none do. Success returns to the batch; review and submit there."
+          "description": "Available to analysts only for an error-free preview. Revalidates the same file and worksheet, active profile, current target revisions, preparation evidence and assignments under locks. All rows, their revision history and audit metadata commit together, or none do. Success returns to the batch; review and submit there."
         },
         {
           "label": "Start over",
@@ -206,8 +224,8 @@
     {
       "title": "Stale and repeated import rules",
       "paragraphs": [
-        "Confirmation refuses an inactive or removed profile, changed mapping meaning, changed targeted latest revision or preparation dependency, and no longer valid result evidence. Refresh and preview again so the displayed plan reflects current records. A failed confirmation may display a re-parsed preview but does not silently commit it. Hidden confirmation data is validated; damaged or oversized payloads do not import anything.",
-        "The same raw file digest with the same mapping digest cannot be imported twice into the same batch, even with a different filename; the previous actor/time are reported. Change the source meaningfully or correct results by hand. A mapping rename alone does not bypass repeated-file detection. Results are saved as entered with current user attribution, filename/source row or column, mapping snapshot, file and mapping digests and audit metadata. This page does not retain an uploaded source file or release reports."
+        "Confirmation refuses an inactive or removed profile, changed mapping meaning, changed file or worksheet selection, changed targeted latest revision or preparation dependency, and no longer valid result evidence. Refresh and preview again so the displayed plan reflects current records. A failed confirmation may display a re-parsed preview but does not silently commit it. Hidden confirmation data is validated; damaged or oversized payloads do not import anything.",
+        "The same raw file digest with the same mapping digest and worksheet cannot be imported twice into the same batch, even with a different filename; the previous actor/time are reported. Change the source meaningfully or correct results by hand. A mapping rename alone does not bypass repeated-file detection. Results are saved as entered with current user attribution, filename/worksheet/source row or column, mapping snapshot, file and mapping digests and audit metadata. This page does not retain an uploaded source file or release reports."
       ]
     }
   ],
@@ -225,6 +243,9 @@
     "analytical/templates/analytical/batch_import_mapped.html",
     "analytical/templates/analytical/_import_basis.html",
     "analytical/tests/test_preparation.py",
-    "analytical/views.py"
+    "analytical/views.py",
+    "analytical/workbook_import.py",
+    "analytical/tests/test_workbook_import.py",
+    "analytical/tests/test_workbook_reader.py"
   ]
 }

@@ -1045,7 +1045,15 @@ class MappedImportUploadForm(forms.Form):
         empty_label="Choose a profile",
         help_text="How the columns of this file map to results.",
     )
-    file = forms.FileField(label="Results file (UTF-8 text)")
+    file = forms.FileField(label="Results file (CSV, TSV or XLSX)")
+    worksheet = forms.CharField(
+        label="Worksheet name",
+        required=False,
+        max_length=31,
+        strip=False,
+        help_text="For XLSX, enter the exact visible worksheet name. Leave blank for CSV/TSV. "
+        "The mapping's delimiter is used only for text files.",
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1058,6 +1066,9 @@ class MappedImportCommitForm(forms.Form):
     profile_id = forms.IntegerField(widget=forms.HiddenInput)
     mapping_hash = forms.CharField(widget=forms.HiddenInput, max_length=64)
     state_token = forms.CharField(widget=forms.HiddenInput, max_length=64)
+    worksheet = forms.CharField(
+        widget=forms.HiddenInput, required=False, max_length=31, strip=False
+    )
 
 
 # ------------------------------------------------------------------------------ review

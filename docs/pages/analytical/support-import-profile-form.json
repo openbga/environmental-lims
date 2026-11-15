@@ -41,7 +41,7 @@
       "title": "Access, variants and file assumptions",
       "paragraphs": [
         "Active internal staff with a laboratory role can read this workspace; clients cannot. Analysts manage mappings and import results. Admin includes analyst operational access; superuser status alone does not grant a laboratory role.",
-        "New mapping starts a new active mapping and offers Create mapping; Edit preloads all fields, adds Active and offers Save changes. Names and header mappings are not inferred. Headers match exactly after surrounding whitespace is removed; sample IDs and analyte names are matched case-insensitively after trimming. Explicit aliases map different names, not approximate spellings. UTF-8 comma/tab-delimited text is supported, including a leading byte order mark; Excel files are not. Keep the source file: the application stores parsed results, mapping snapshots and digests, not uploaded file bytes."
+        "New mapping starts a new active mapping and offers Create mapping; Edit preloads all fields, adds Active and offers Save changes. Names and header mappings are not inferred. Headers match exactly after surrounding whitespace is removed; sample IDs and analyte names are matched case-insensitively after trimming. Explicit aliases map different names, not approximate spellings. UTF-8 comma/tab-delimited text and plain XLSX worksheets are supported. Select the exact visible worksheet name when uploading. XLSX headers, identifiers and timestamps must be text; numbers use stored values without display formatting. Formulas are refused. Keep the source file: the application stores parsed results, mapping snapshots and digests, not uploaded file bytes."
       ]
     },
     {
@@ -57,11 +57,11 @@
         },
         {
           "label": "Delimiter",
-          "description": "Required Comma or Tab; filename extension does not choose it."
+          "description": "Comma or Tab for text files; ignored when importing an XLSX worksheet. The same column mapping can be used for either source."
         },
         {
           "label": "Header row",
-          "description": "Required integer 1 through 50, initially 1. Rows before this CSV record are ignored and counted in preview."
+          "description": "Required integer 1 through 50, initially 1. Rows before this CSV record or physical worksheet row are ignored and counted in preview. XLSX headers must be text."
         },
         {
           "label": "Date format in the file",
@@ -198,6 +198,8 @@
     "analytical/templates/analytical/import_profile_form.html",
     "analytical/parsing.py",
     "analytical/services.py",
-    "core/concurrency.py"
+    "core/concurrency.py",
+    "analytical/workbook_import.py",
+    "analytical/tests/test_workbook_import.py"
   ]
 }

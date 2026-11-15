@@ -16,6 +16,7 @@ dependencies = [
   "dj-database-url>=3,<4",
   "python-barcode>=0.16.1,<0.17",
   "scipy>=1.18.1,<1.19",
+  "defusedxml>=0.7.1,<0.8",
 ]
 
 [project.urls]

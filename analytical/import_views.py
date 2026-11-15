@@ -171,13 +171,18 @@ def batch_import_mapped(request, pk):
                         filename=d["filename"],
                         mapping_hash=d["mapping_hash"],
                         state_token=d["state_token"],
+                        worksheet=d["worksheet"],
                     )
                 except ValidationError as exc:
                     _report_errors(request, exc)
                     profile = ImportProfile.objects.filter(pk=d["profile_id"]).first()
                     if profile:
                         preview = importing.parse_profile_import(
-                            batch, profile, d["payload"], filename=d["filename"]
+                            batch,
+                            profile,
+                            d["payload"],
+                            filename=d["filename"],
+                            worksheet=d["worksheet"],
                         )
                 except ImportProfile.DoesNotExist:
                     messages.error(request, "That mapping profile no longer exists.")
@@ -196,7 +201,11 @@ def batch_import_mapped(request, pk):
                 file, profile = upload.cleaned_data["file"], upload.cleaned_data["profile"]
                 data = file.read(importing.MAX_BYTES + 1)
                 preview = importing.parse_profile_import(
-                    batch, profile, data, filename=file.name[:200]
+                    batch,
+                    profile,
+                    data,
+                    filename=file.name[:200],
+                    worksheet=upload.cleaned_data["worksheet"],
                 )
                 if len(data) <= importing.MAX_BYTES:
                     commit_form = f.MappedImportCommitForm(
@@ -206,6 +215,7 @@ def batch_import_mapped(request, pk):
                             "profile_id": profile.pk,
                             "mapping_hash": preview.mapping_hash,
                             "state_token": preview.state_token,
+                            "worksheet": preview.worksheet,
                         }
                     )
     shown = None

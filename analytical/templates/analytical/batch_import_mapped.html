@@ -14,7 +14,8 @@
   <legend class="visually-hidden">Results file and mapping</legend>
   {% for field in upload.visible_fields %}{{ field.as_field_group }}{% endfor %}
   {% for field in upload.hidden_fields %}{{ field }}{% endfor %}
-  <p class="vr-form-note">One file imports into {{ batch.number }}. Up to {{ max_kib }} KiB and {{ max_rows }} results, comma or tab delimited UTF-8 as the mapping says. Rows must name a sample and analyte already in this batch. Nothing is saved until you confirm the preview, and any error blocks the whole file. Results are saved as entered, with the file name, row and mapping recorded. The uploaded file itself is not stored: keep your source file.</p>
+  <p class="vr-form-note">One file imports into {{ batch.number }}. Up to {{ max_kib }} KiB and {{ max_rows }} results or blank mapped cells. Use comma or tab delimited UTF-8 as the mapping says, or select a worksheet from an XLSX workbook. Rows must name a sample and analyte already in this batch. Nothing is saved until you confirm the preview, and any error blocks the whole file. The file name, worksheet, row and mapping are recorded. Keep your source file; the upload itself is not stored.</p>
+  <p class="vr-form-note">For XLSX, use a values-only table with text sample IDs, analyte names, units and analysis timestamps. Numbers are read exactly as stored, without display formatting. Formulas, merged cells and typed date cells are refused. Hidden rows and columns are included. See Help for workbook limits.</p>
   </fieldset>
 {% endform_page %}
 {% else %}
@@ -30,12 +31,13 @@
     {% if preview.file_errors %}<ul class="mb-0 ps-3">{% for e in preview.file_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}{% endnotice %}{% endif %}
 {% panel title="What will be recorded" heading_id="source-heading" class="mb-3" %}
     <dl class="vr-facts">
-      {% fact label="Mapping" wide=True %}{{ preview.profile.name }} <span class="vr-muted">({{ preview.profile.get_layout_display }}; {{ preview.profile.get_delimiter_display|lower }}-delimited)</span>{% endfact %}
+      {% fact label="Mapping" wide=True %}{{ preview.profile.name }} <span class="vr-muted">({{ preview.profile.get_layout_display }}{% if not preview.worksheet %}; {{ preview.profile.get_delimiter_display|lower }}-delimited{% endif %})</span>{% endfact %}
+      {% if preview.worksheet %}{% fact label="Worksheet" wide=True %}{{ preview.worksheet }} · hidden rows and columns included{% endfact %}{% endif %}
       {% fact label="Mapping SHA-256" class="vr-id" %}<span title="{{ preview.mapping_hash }}">{{ preview.mapping_hash|slice:":16" }}…</span>{% endfact %}
       {% fact label="File SHA-256 (uploaded bytes)" class="vr-id" %}<span title="{{ preview.file_hash }}">{{ preview.file_hash|slice:":16" }}…</span>{% endfact %}
       {% fact label="Results" %}{{ shown.new }} new · {{ shown.revisions }} new revision{{ shown.revisions|pluralize }} of an existing result{% endfact %}
       {% fact label="Original file" wide=True %}<strong>Not stored by this application.</strong> It keeps the imported results as parsed, the mapping snapshot and the digest above. Keep the source file in the laboratory's own records.{% endfact %}
-      {% fact label="How the file is read" wide=True %}As UTF-8 text; a leading byte order mark is ignored and line endings are read as uploaded. The digest covers the file exactly as uploaded.{% endfact %}
+      {% fact label="How the file is read" wide=True %}{% if preview.worksheet %}XLSX stored text and numeric values, without display formatting or calculation. Digits already lost when the workbook was saved cannot be recovered. Only the named worksheet is imported.{% else %}As UTF-8 text; a leading byte order mark is ignored and line endings are read as uploaded.{% endif %} The digest covers the file exactly as uploaded.{% endfact %}
       {% if preview.preamble_rows %}{% fact label="Rows above the header" %}{{ preview.preamble_rows }} ignored{% endfact %}{% endif %}
       {% fact label="Columns not mapped" wide=True %}{% if preview.unused_columns %}{{ preview.unused_columns|join:", " }} <span class="vr-muted">(not read)</span>{% else %}none{% endif %}{% endfact %}
       {% fact label="Blank cells" %}{{ preview.blanks|length }}{% if preview.blanks %} <span class="vr-muted">(wide layout; nothing is imported for a blank cell, the result stays as it is)</span>{% endif %}{% endfact %}
@@ -80,7 +82,7 @@
   {% fill actions %}<a class="btn btn-link" href="{% url 'analytical:batch-import-mapped' batch.pk %}">Start over</a>{% endfill %}
   <input type="hidden" name="step" value="commit">
   {% for field in commit_form %}{{ field }}{% endfor %}
-  <p class="vr-form-note">The file is checked again when you confirm, and the import is refused if the mapping changed or a result was entered since this preview. Imported results are saved as entered; submit them for review from the batch page.</p>
+  <p class="vr-form-note">The file and worksheet are checked again when you confirm, and the import is refused if the source, mapping or a result changed since this preview. Imported results are saved as entered; submit them for review from the batch page.</p>
 {% endform_page %}{% endwith %}
 {% else %}
 {% url 'analytical:batch-detail' batch.pk as batch_url %}

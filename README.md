@@ -17,7 +17,7 @@ records; it does not certify compliance or accreditation.
 - **Receipt and custody:** chains of custody with several samples, containers, receipt
   inspection, holds and dispositions, custody events and reasoned corrections.
 - **Analytical work:** preparation and analytical batches, generic instrument run-list CSV exports,
-  manual entry and mapped CSV/TSV imports, results calculated from bench readings that are kept
+  manual entry and mapped CSV/TSV or XLSX worksheet imports, results calculated from bench readings that are kept
   with the result and rounded by the laboratory's own rule (dilutions, solids by weight, preparation factors and dry-weight
   correction for soil, alkalinity and EDTA hardness titrations, BOD bottle worksheets), QC evaluation, independent review, control charts and MDL studies.
 - **Reporting:** explicit release authorization, versioned immutable PDF reports that print the

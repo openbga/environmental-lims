@@ -169,11 +169,17 @@ it never deletes records or claims that the lab has satisfied a regulatory reten
 
 ## Result imports
 
-Analytical **Import mappings** supports explicitly configured long or wide CSV/TSV layouts.
+Analytical **Import mappings** supports explicitly configured long or wide CSV/TSV layouts and
+plain XLSX worksheets, with an exact visible worksheet selected for each upload.
 Preview the mapping against the target batch before importing. Each import retains the source
 hash and mapping used; changing a saved profile does not reinterpret previous observations.
-These are operator-defined mappings, not validated vendor instrument adapters; Excel files and
-unverified vendor-specific layouts are outside this workflow.
+XLSX imports stored numeric text without binary-float conversion or display formatting. Text
+identifiers and analysis timestamps are required; formulas, merged cells, typed dates and error
+cells in the selected sheet are refused. Hidden rows and columns are included. The original
+workbook is not retained; its hash, worksheet and source rows are recorded. Repeated-file checks
+include the worksheet, and confirmation rechecks source selection as well as current results.
+These are operator-defined mappings, not validated vendor instrument adapters. Legacy XLS and
+macro-enabled workbooks remain outside this workflow. Setup spreadsheet import remains CSV-only.
 
 **Export run list** on an analytical batch downloads a generic CSV for analysts and administrators.
 It covers the entire current batch, including tests hidden by filters or pagination, followed by

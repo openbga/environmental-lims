@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load ui %}
 {% comment %}Saved import mappings. Server owns search, filters, sort and paging; grid.js presents columns.{% endcomment %}
-{% block page_intro %}<p class="vr-page-intro">A mapping tells the importer which column of a long or wide delimited file holds what; it describes a file and is not a validated instrument adapter.</p>{% endblock %}
+{% block page_intro %}<p class="vr-page-intro">A mapping tells the importer which column of a long or wide file or worksheet holds what; it describes your data and is not a validated instrument adapter.</p>{% endblock %}
 {% block page_actions %}
 {% if can_enter %}<a class="btn btn-primary" href="{% url 'analytical:import-profile-create' %}">{% icon name="plus-lg" %}New mapping</a>{% endif %}
 {% endblock %}
@@ -9,7 +9,7 @@
 {% url 'analytical:import-profile-create' as create_url %}
 {% panel title="Import mappings" heading_id="profiles-heading" table=True hidden_title=True %}
   {% grid_toolbar label="Filter import mappings" grid=grid_key %}
-  {% list_results items=page_obj noun="mappings" filtered=filtered invalid=filter_form.errors clear_url=request.path no_results_title="No mappings match these filters" no_results_body="Clear the filters to see every mapping." empty_title="No import mappings yet" empty_body="Describe a long or wide delimited results file once, then reuse it for batch imports." action_url=create_url action_label="New mapping" %}
+  {% list_results items=page_obj noun="mappings" filtered=filtered invalid=filter_form.errors clear_url=request.path no_results_title="No mappings match these filters" no_results_body="Clear the filters to see every mapping." empty_title="No import mappings yet" empty_body="Describe a long or wide results file or worksheet once, then reuse it for batch imports." action_url=create_url action_label="New mapping" %}
   <div class="vr-table-wrap">
     <table class="table table-hover vr-table" data-vr-grid="analytical.import_profiles" data-vr-grid-version="1" aria-labelledby="profiles-heading">
       <thead><tr>

@@ -21,6 +21,7 @@ files in the image. Do not strip those files or the notices in bundled browser a
 | python-barcode | MIT; https://github.com/WhyNotHugo/python-barcode/blob/v0.16.1/LICENCE |
 | SciPy / NumPy | BSD-3-Clause; https://github.com/scipy/scipy/blob/v1.18.1/LICENSE.txt and https://github.com/numpy/numpy/blob/v2.5.4/LICENSE.txt; retain bundled numerical-library notices |
 | dj-database-url | BSD-3-Clause; https://github.com/jazzband/dj-database-url/blob/master/LICENSE |
+| defusedxml | PSF-2.0; https://github.com/tiran/defusedxml/blob/main/LICENSE; bounded XML parsing for XLSX result imports |
 | Bootstrap 5.3.8 | MIT; https://github.com/twbs/bootstrap/blob/v5.3.8/LICENSE; retain bundled license header/file under static/vendor/bootstrap-5.3.8/ |
 | Bootstrap Icons 1.13.2 (subset in static/img/icons.svg, symbols copied verbatim) | MIT; https://github.com/twbs/icons/blob/v1.13.2/LICENSE; retain static/img/icons.LICENSE |
 | Overpass (variable, latin and latin-ext subsets, via @fontsource-variable/overpass 5.3.0) | SIL Open Font License 1.1; Copyright 2021 The Overpass Project Authors (https://github.com/RedHatOfficial/Overpass); retain static/vendor/overpass-5.3.0/OFL.txt and its copy website/about/assets/overpass-OFL.txt (the product site serves the latin subset from website/about/assets/); the subsets are also embedded in issued report PDFs |

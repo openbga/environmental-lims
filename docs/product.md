@@ -117,7 +117,21 @@ Rules that follow:
 
 Status, 2026-11-15: milestones 1 to 3 are implemented, with the limits in [Workflow rules and limits](workflows.md). What comes after them is the public [roadmap](../website/about/roadmap/index.html), published at <https://openbga.github.io/smart-roots-lims/roadmap/>. It carries no dates and sorts the remaining work into Next (what a laboratory needs for daily use: a stable release, instrument data, invoicing, notifications and deliverables), Later (quality system records, management view and milestone 4's programs and disciplines) and Exploring. From its first Next area these are implemented (2026-11-12): the laboratory's address, logo and certificate numbers on reports; import of clients, projects, methods, tests, limits and rules from spreadsheets saved as CSV; starter files for common methods, each rule naming its public source; and acceptance scripts a laboratory runs on its own installation, which record what passed on synthetic data and make no validation claim. Holding-time limits per analyte, added to that area when the starter files showed the gap, are implemented (2026-11-14): a rule may name one analyte of its method, and the starter files give EPA 300.0 and EPA 365.1 their Table II limits per analyte. Versioned releases remain. From the second Next area, calculated results at the bench, these are implemented (2026-11-14): versioned calculations whose readings, version and rounding are kept with each result so the reported value can be worked out again; rounding rules set by the laboratory per test; a dilution factor applied to the result and the reporting limit; and a worksheet for solids by weight. A second increment the same day added preparation factors applied to results and reporting limits (by volume and by weight), percent solids and percent moisture by weight, and a dry-weight correction for soil that keeps the percent solids on the worksheet. A third increment (2026-11-15) added alkalinity titrations (pH 4.5 and the low-alkalinity two-endpoint equation) and total hardness by EDTA, with burette readings and actual titrant normality retained. A fourth increment (2026-11-15) added BOD bottle worksheets: initial and final dissolved oxygen, actual sample and bottle volumes, entered seed correction with its source, and explicit bottle selection. The reported value is the equally weighted mean of selected bottle concentrations, multiplied by the common preliminary dilution and rounded once. Seed-control calculations, automatic bottle eligibility, CBOD-specific records and other titrations are outside the implemented set. The roadmap is the one list of planned work: change it in the same increment when an area ships or the order changes, and keep this document for the requirements and domain rules of work being built. Its order rests on the public rules cited here and on its own page, on public laboratory system requirements and on the gaps recorded in these documents, reviewed on that date.
 
-Initial instrument-file support uses explicit long/wide CSV/TSV mappings. Qualifying a particular instrument/software export requires representative files; these mappings are not vendor-qualified adapters.
+Instrument-file support uses explicit long/wide CSV/TSV mappings and, from 2026-11-15,
+plain XLSX worksheets. An analyst names the visible worksheet for each upload and previews
+its values against the batch before confirming. Text and stored numeric decimal text are
+preserved without binary-float conversion; display formatting does not supply significant
+digits, units or leading zeros. Digits already lost when a spreadsheet was saved cannot be
+recovered. Identifiers and analysis timestamps must be text. Formulas, cached formula results,
+merged cells, error cells and typed dates in the selected sheet are refused; hidden rows and
+columns are included. Macro-enabled, encrypted and external-link workbooks are outside this
+bounded input format. The original file remains the laboratory's record; the application keeps
+its digest, selected worksheet, row/column provenance and mapping snapshot with the import.
+Confirmation rechecks the source and current records atomically. Resource bounds (1 MiB upload,
+20 MiB expanded workbook, 200 ZIP members, 10,000 worksheet rows, 256 columns, 100,000 cells and
+2,000 results/blank mapped cells) are product choices for synchronous processing. Setup imports
+remain CSV-only. Qualifying a particular instrument/software export still requires representative
+files; these mappings are not vendor-qualified adapters.
 
 Analysts can export a generic CSV run list of the current analytical batch's assigned tests and
 recorded QC samples for instrument setup. It includes sample disposition and disposal state,
@@ -127,8 +141,7 @@ missing QC or calibration standards, assigns injection order, or sends commands 
 The laboratory maps the columns and verifies the intended run. Closed batches remain exportable
 as current inventories, not historical snapshots. The 2,000-row bound is a product choice for
 synchronous downloads; formula-like text is refused without rewriting identifiers. No vendor
-qualification or analytical acceptance is implied. Excel input and vendor-specific run formats
-remain roadmap work.
+qualification or analytical acceptance is implied. Vendor-specific run formats remain roadmap work.
 
 Deliverable and reporting targets for milestones 2 to 4. All are exploratory. A recipient accepts an EDD only against its own current specification and reference values, so no format here is claimed as accepted until tested against one named recipient's spec.
 
