@@ -129,7 +129,7 @@
     {
       "title": "Calculation rules",
       "paragraphs": [
-        "A rule makes manual results of one test calculated from readings and sets how the calculated value is rounded. The readings, the calculation version and the rounding are kept with each result as a worksheet. Typed and imported results are never rounded, and file imports still supply final values. There is no default rounding: it is the laboratory's own rule, recorded with its basis. One rule can exist per test.",
+        "A rule makes manual results of one test calculated from readings and sets how the calculated value is rounded. The readings, the calculation version and the rounding are kept with each result as a worksheet. Typed and imported results are never rounded, and file imports still supply final values. There is no default rounding: it is the laboratory's own rule, recorded with its basis. One rule can exist per test, so a test uses one calculation: it is either corrected to dry weight or not. The rounding also applies to a reporting limit that a preparation calculation works out.",
         "With no rule, the test takes typed results as before. An empty table says that every result is typed or imported as a final value; a method filter with no match says there are no calculation rules for these filters and to clear the method filter."
       ],
       "items": [
@@ -139,7 +139,7 @@
         },
         {
           "label": "Calculation",
-          "description": "The calculation and its current version, for example Solids by weight, balance in grams (version 1). A rule that names a calculation this release does not have shows Not in this release with its stored key; an administrator must change it, and entry of that test is refused until then."
+          "description": "The calculation and its current version, for example Solids by weight, balance in grams (version 1) or Prepared solid corrected to dry weight, mg/L in solution to mg/kg (version 1). A rule that names a calculation this release does not have shows Not in this release with its stored key; an administrator must change it, and entry of that test is refused until then."
         },
         {
           "label": "Rounding",
@@ -312,6 +312,7 @@
     "analytical/worksheets.py",
     "analytical/tests/test_calculations.py",
     "analytical/tests/test_calculation_pages.py",
-    "analytical/templates/analytical/_active_status.html"
+    "analytical/templates/analytical/_active_status.html",
+    "analytical/tests/test_prepared_calculations.py"
   ]
 }

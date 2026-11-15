@@ -8,6 +8,7 @@ purpose, to show that the database itself refuses to update or delete them.
 import hashlib
 import json
 from datetime import timedelta
+from decimal import Decimal
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import DatabaseError, connection, transaction
@@ -627,4 +628,131 @@ def calculated_result(run):
         f"Result page for the reviewer (HTTP {page.status_code}) shows the worksheet, the "
         "readings as typed and that working them again gives the same result",
         "the worksheet on the result page",
+    )
+
+
+SOIL_SOLIDS = "DEMO-SOLIDS-SOIL"  # percent solids, worked from three weights
+SOIL_NITRATE = "DEMO-NITRATE-SOIL"  # worked from an extract reading to a dry-weight result
+
+
+@step(
+    "C09",
+    "A soil result is taken back to the sample on a dry-weight basis, and its limit with it",
+    requirement="Where a result is worked from a prepared portion, the reading is taken back "
+    "to the sample with the amounts prepared and the reporting limit goes with it. A dry-weight "
+    "result is worked with the sample's percent solids, which stays on record with its source "
+    "(docs/product.md, calculated results).",
+    expected="For the demonstration soil tests: dish weights of 21.4035 g, 31.6182 g and "
+    "29.7391 g give 81.6 percent solids; an extract reading of 1.84 mg/L from 5.03 g brought to "
+    "50 mL gives 22.4 mg/kg dry weight with a reporting limit of 0.609 mg/kg; the same entry is "
+    "refused without the percent solids and on a wet-weight basis; the worksheet keeps the "
+    "percent solids and the limit before rounding, and working it again gives the same result "
+    "and limit.",
+    depends=("O03",),
+)
+def dry_weight_result(run):
+    analyst = account(run, "analyst")
+    now = timezone.now().replace(second=0, microsecond=0)
+    solids, nitrate = tests_for(SOIL_SOLIDS, "soil"), tests_for(SOIL_NITRATE, "soil")
+    sample = receive(
+        run,
+        run["order_a"],
+        "DB-A1",
+        [*solids, *nitrate],
+        collected_at=now - timedelta(hours=30),
+        received_at=now - timedelta(hours=26),
+        matrix="soil",
+        source_type="soil",
+        collection_location="Synthetic drying bed A1",
+        preservation_check="Synthetic: cooled; no chemical preservation",
+    )
+
+    def batched(code, tests):
+        batch = bench.create_batch(
+            actor=analyst, method=Method.objects.get(code=code, version=VERSION), matrix="soil"
+        )
+        requested = sample.requested_tests.filter(definition__in=tests)
+        bench.add_tests_to_batch(
+            actor=analyst,
+            batch_id=batch.pk,
+            requested_test_ids=list(requested.values_list("pk", flat=True)),
+        )
+        return batch, Result.objects.get(requested_test__in=requested)
+
+    drying, solids_result = batched(SOIL_SOLIDS, solids)
+    weighed = bench.enter_result(
+        actor=analyst,
+        result_id=solids_result.pk,
+        supplied_text="",
+        readings={"tare": "21.4035", "wet": "31.6182", "dry": "29.7391"},
+        reporting_limit_applied="0.1",
+        dilution_factor="1",
+        analysis_started_at=now - timedelta(hours=2),
+        result_basis="wet",
+    )
+    run.check(
+        (weighed.supplied_text, weighed.unit, weighed.source) == ("81.6", "%", "calculated")
+        and worksheets.reproduce(weighed.worksheet).matches,
+        f"{sample.lab_id} {weighed.analyte_name}: {weighed.supplied_text} {weighed.unit} from "
+        f"the three weights (value before rounding {weighed.worksheet.unrounded_value})",
+        "81.6 % from the three stored weights",
+    )
+    _, nitrate_result = batched(SOIL_NITRATE, nitrate)
+    source = f"{sample.lab_id} percent solids, batch {drying.number}"
+    entry = dict(
+        actor=analyst,
+        result_id=nitrate_result.pk,
+        supplied_text="",
+        readings={"reading": "1.84", "base_limit": "0.05", "final_volume": "50", "weight": "5.03"},
+        reporting_limit_applied="",
+        dilution_factor="1",
+        analysis_started_at=now - timedelta(minutes=30),
+    )
+    solids_given = dict(percent_solids=weighed.supplied_text, solids_reference=source)
+    refusals = {}
+    for label, extra in (
+        ("without percent solids", dict(result_basis="dry")),
+        ("on a wet-weight basis", dict(result_basis="wet", **solids_given)),
+    ):
+        try:
+            bench.enter_result(**entry, **extra)
+            refusals[label] = None
+        except ValidationError as exc:
+            refusals[label] = " ".join(exc.messages)
+    run.check(
+        "required by this calculation" in (refusals["without percent solids"] or "")
+        and "Choose Dry weight" in (refusals["on a wet-weight basis"] or "")
+        and not nitrate_result.revisions.exists(),
+        "; ".join(
+            f"{label}: {'saved' if text is None else f'refused ({text})'}"
+            for label, text in refusals.items()
+        ),
+        "both refused, nothing saved",
+    )
+    revision = bench.enter_result(**entry, result_basis="dry", **solids_given)
+    sheet = revision.worksheet
+    stored = {r.key: f"{r.supplied_text} {r.unit}" for r in sheet.readings.all()}
+    run.check(
+        (revision.supplied_text, revision.unit, revision.result_basis) == ("22.4", "mg/kg", "dry")
+        and revision.reporting_limit_applied == Decimal("0.609")
+        and (revision.percent_solids, revision.solids_reference) == (Decimal("81.6"), source)
+        and stored.get("percent_solids") == "81.6 %"
+        and stored.get("weight") == "5.03 g"
+        and str(sheet.unrounded_limit).startswith("0.6090905547"),
+        f"{sample.lab_id} {revision.analyte_name}: reported {revision.supplied_text} "
+        f"{revision.unit} ({revision.get_result_basis_display().lower()}) with a reporting limit "
+        f"of {revision.reporting_limit_applied.normalize()} from readings {stored}; value "
+        f"before rounding {sheet.unrounded_value}, limit before rounding "
+        f"{sheet.unrounded_limit}; percent solids source '{revision.solids_reference}'",
+        "22.4 mg/kg dry weight, limit 0.609, with the percent solids on the worksheet",
+    )
+    again = worksheets.reproduce(sheet)
+    run.check(
+        again.available
+        and again.matches
+        and (again.value_text, again.limit_text) == ("22.4", "0.609"),
+        f"Worked again from the stored readings: {again.value_text} {revision.unit} with a "
+        f"reporting limit of {again.limit_text}, "
+        f"{'the same as' if again.matches else 'NOT the same as'} the record",
+        "the same result and limit",
     )

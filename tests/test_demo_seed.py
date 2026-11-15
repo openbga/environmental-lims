@@ -42,6 +42,8 @@ def test_demo_seed_uses_synthetic_catalog_and_preserves_existing_data(
         "DEMO-BOD-AQ",
         "DEMO-TSS-AQ",
         "DEMO-METALS-SOIL",
+        "DEMO-SOLIDS-SOIL",
+        "DEMO-NITRATE-SOIL",
         "DEMO-DIGEST-SOIL",
     }
     soil_tests = TestDefinition.objects.filter(method_id=methods["DEMO-METALS-SOIL"], matrix="soil")
@@ -50,7 +52,7 @@ def test_demo_seed_uses_synthetic_catalog_and_preserves_existing_data(
             method_id=methods["DEMO-DIGEST-SOIL"], is_active=True
         ).values_list("definition_id", flat=True)
     ) == set(soil_tests.values_list("pk", flat=True))
-    assert TestDefinition.objects.count() == 19
+    assert TestDefinition.objects.count() == 21
     assert not Method.objects.filter(code="DEMO-CHEM").exists()
     user = User.objects.get(username="demo_approver")
     password_hash = user.password
@@ -73,7 +75,7 @@ def test_demo_seed_uses_synthetic_catalog_and_preserves_existing_data(
     assert not user.groups.get(name="approver").permissions.exists()
     assert definition.unit == "lab-edited-unit"
     assert Sample.objects.count() == 1
-    assert TestDefinition.objects.count() == 19
+    assert TestDefinition.objects.count() == 21
     assert (
         dict(
             Method.objects.filter(code__startswith="DEMO-", version="demo-1").values_list(

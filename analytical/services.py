@@ -983,6 +983,8 @@ def enter_result_locked(
                 report_nd=report_nd,
                 has_qualifier=any(c and c.strip() for c in qualifier_codes),
                 expected=calculation_token,
+                result_basis=(result_basis or "").strip(),
+                entry={"percent_solids": percent_solids},
             )
             supplied_text, reporting_limit_applied = worked.supplied_text, worked.limit_text
         except ValidationError as exc:

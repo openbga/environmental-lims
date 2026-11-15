@@ -52,6 +52,8 @@ TECHNIQUES = {
     "DEMO-NUTRIENTS-AQ": "colorimetric",
     "DEMO-BOD-AQ": "electrode",
     "DEMO-TSS-AQ": "gravimetric",
+    "DEMO-SOLIDS-SOIL": "gravimetric",
+    "DEMO-NITRATE-SOIL": "colorimetric",
 }
 ANALYTE_GROUPS = {
     "Lead": "metals",
@@ -62,6 +64,7 @@ ANALYTE_GROUPS = {
     "Total phosphorus": "nutrients",
     "BOD, 5-day": "demand",
     "Total suspended solids": "solids",
+    "Percent solids": "solids",
 }
 METHODS = [
     {
@@ -176,6 +179,56 @@ METHODS = [
             "calibration_verification": (False, 1, 10),
         },
         "limits": {"lcs": ("80", "120"), "ccv": ("90", "110"), "ms": ("70", "130"), "rpd": "25"},
+    },
+    {
+        "code": "DEMO-SOLIDS-SOIL",
+        "title": "Percent solids by weight, soil (synthetic demonstration)",
+        "analytes": [("Percent solids", "", {"soil": ("%", "0.1")})],
+        "hold": {"soil": (24 * 7, 24)},
+        "calculation": (
+            "percent_solids",
+            {
+                "rounding_method": "half_even",
+                "rounding_mode": "decimal_places",
+                "rounding_digits": 1,
+            },
+        ),
+        # No QC sample is required: seed_analytical_config would otherwise require a blank and
+        # an LCS, which a weight does not have.
+        "qc": {
+            "method_blank": (False, 1, 20),
+            "lcs": (False, 1, 20),
+            "matrix_spike": (False, 1, 20),
+            "matrix_spike_duplicate": (False, 1, 20),
+            "lab_duplicate": (False, 1, 10),
+            "calibration_verification": (False, 1, 10),
+        },
+        "limits": {"lcs": ("90", "110"), "ccv": ("90", "110"), "ms": ("80", "120"), "rpd": "10"},
+    },
+    {
+        "code": "DEMO-NITRATE-SOIL",
+        "title": "Extractable nitrate, soil (synthetic demonstration)",
+        "analytes": [("Nitrate as N", "14797-55-8", {"soil": ("mg/kg", "0.5")})],
+        "hold": {"soil": (24 * 14, 24 * 2)},
+        # Worked from the extract reading, the volumes and weights of the preparation and the
+        # sample's percent solids: a dry-weight result with a limit worked out the same way.
+        "calculation": (
+            "solid_dry_mg_l",
+            {
+                "rounding_method": "half_even",
+                "rounding_mode": "significant_figures",
+                "rounding_digits": 3,
+            },
+        ),
+        "qc": {
+            "method_blank": (True, 1, 20),
+            "lcs": (True, 1, 20),
+            "matrix_spike": (False, 1, 20),
+            "matrix_spike_duplicate": (False, 1, 20),
+            "lab_duplicate": (False, 1, 20),
+            "calibration_verification": (False, 1, 10),
+        },
+        "limits": {"lcs": ("85", "115"), "ccv": ("90", "110"), "ms": ("75", "125"), "rpd": "20"},
     },
 ]
 

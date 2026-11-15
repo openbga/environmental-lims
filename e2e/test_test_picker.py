@@ -67,6 +67,7 @@ def test_picker_searches_scopes_to_matrix_and_never_silently_drops_mismatches(
         [
             "Copper · DEMO-METALS-SOIL (demo-1) · mg/kg · Soil",
             "Lead · DEMO-METALS-SOIL (demo-1) · mg/kg · Soil",
+            "Nitrate as N · DEMO-NITRATE-SOIL (demo-1) · mg/kg · Soil",
             "Zinc · DEMO-METALS-SOIL (demo-1) · mg/kg · Soil",
         ]
     )
@@ -106,7 +107,8 @@ def test_picker_searches_scopes_to_matrix_and_never_silently_drops_mismatches(
     expect(summary).to_contain_text("2 tests selected")
     box.click()
     expect(picker_options(page).filter(has_not_text="Soil")).to_have_count(0)  # soil only now
-    expect(picker_options(page)).to_have_count(3)
+    soil = TestDefinition.objects.filter(matrix="soil", is_active=True).count()
+    expect(picker_options(page)).to_have_count(soil)
     page.keyboard.press("Escape")
 
     # Legibility of picker, flagged items, notice and open dropdown in both themes.
@@ -136,6 +138,8 @@ def test_picker_searches_scopes_to_matrix_and_never_silently_drops_mismatches(
     assert Sample.objects.filter(client_sample_id="PICK-1").count() == 0
 
     # Explicit removal returns focus to the search input; keyboard-only add and remove work.
+    # (The refused form focuses the picker, whose open list can reach down over the notice.)
+    page.keyboard.press("Escape")
     page.get_by_role("button", name="Remove these 2 tests").click()
     assert chosen_tests(page) == []
     expect(page.locator(".vr-test-mismatch")).to_be_hidden()

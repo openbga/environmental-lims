@@ -50,6 +50,9 @@ class Reading:
     positive: bool = False  # must be greater than zero
     non_negative: bool = False
     prefill_limit: bool = False  # the entry form offers the catalog reporting limit
+    # Taken from this field of the entry itself, not typed as a reading of its own: the entry
+    # already records it (percent solids, with its source). It is still kept on the worksheet.
+    entry_field: str = ""
 
 
 @dataclass(frozen=True)
@@ -72,7 +75,16 @@ class Calculation:
     work: object  # (readings: dict[str, Decimal | None], dilution: Decimal) -> Outcome
     result_unit: str | None = None  # the only test unit this arithmetic gives; None: any
     uses_dilution: bool = False
-    sets_limit: bool = False
+    sets_limit: bool = False  # works out the reporting limit applied, from the reading base_limit
+    # The limit worked out is a quotient, so it is rounded by the laboratory's rule like the value.
+    rounds_limit: bool = False
+    limit_note: str = ""  # what an entry row shows where the limit would be typed
+    soil_only: bool = False  # uses what only a soil entry records (percent solids)
+    liquid_only: bool = False  # takes a volume of sample: not for a soil test
+    # The weight basis a soil entry must declare for this arithmetic to mean what it says,
+    # and the sentence that tells the analyst why.
+    soil_basis: str = ""
+    soil_basis_reason: str = ""
 
     @property
     def label(self):
@@ -81,11 +93,30 @@ class Calculation:
     def unit_of(self, reading, test_unit):
         return reading.unit or test_unit
 
+    def gives(self, test_unit):
+        """Whether this arithmetic gives the unit of a test."""
+        return self.result_unit is None or same_unit(self.result_unit, test_unit)
+
+    @property
+    def entry_fields(self):
+        """The entry's own fields this calculation reads (see Reading.entry_field)."""
+        return tuple(r.entry_field for r in self.inputs if r.entry_field)
+
     def run(self, readings, dilution):
         """Work the readings at full precision. Callers pass exact Decimals keyed by reading."""
         with localcontext() as context:
             context.prec = PRECISION
             return self.work(readings, dilution)
+
+
+def same_unit(one, other):
+    """Whether two unit texts name the same unit. Only the spelling of micro may differ (the
+    micro sign, the Greek letter mu or a plain u); nothing is converted."""
+
+    def spelled(unit):
+        return (unit or "").strip().replace("\u00b5", "u").replace("\u03bc", "u")
+
+    return spelled(one) == spelled(other)
 
 
 def _diluted_reading(readings, dilution):
@@ -129,6 +160,216 @@ _RESIDUE_SOURCE = (
     "applied; record one in the comments and correct the weights if the method calls for it."
 )
 
+# ------------------------------------------------------------- prepared portions
+# The solution an instrument reads is not the sample: a measured portion was digested, extracted
+# or diluted to a final volume first. These calculations take the reading back to the sample and
+# take the reporting limit with it. Multiply first and divide once, so a value that is exact
+# stays exact.
+
+_ND_HELP = "ND if nothing was detected."
+_LIMIT_NOTE = "limit in the solution × the same factors, rounded like the result"
+_LIMIT_FORMULA = (
+    "Reporting limit applied = reporting limit in the solution × the same factors, rounded by "
+    "the same rule as the result. A reading of ND is reported as ND at that limit."
+)
+
+
+def _prepared(*, by, scale=Decimal(1), dry=False):
+    """reading × final volume × scale × dilution ÷ the amount prepared; for a dry-weight
+    result the amount is the weight as received × percent solids ÷ 100."""
+
+    def work(readings, dilution):
+        top = readings["final_volume"] * scale * dilution
+        bottom = readings[by]
+        if dry:
+            top = top * 100
+            bottom = bottom * readings["percent_solids"]
+        reading = readings["reading"]
+        return Outcome(
+            None if reading is None else reading * top / bottom,
+            readings["base_limit"] * top / bottom,
+        )
+
+    return work
+
+
+def _solution_inputs(unit, where):
+    return (
+        Reading(
+            "reading",
+            "Instrument reading",
+            unit,
+            help=f"As read for {where}. {_ND_HELP}",
+            allows_nd=True,
+        ),
+        Reading(
+            "base_limit",
+            "Reporting limit in the solution",
+            unit,
+            help="The limit that applies to the solution as measured, before the preparation "
+            "factor and any dilution.",
+            positive=True,
+        ),
+    )
+
+
+_FINAL_VOLUME = Reading(
+    "final_volume",
+    "Final volume",
+    "mL",
+    help="Volume the prepared portion was brought to.",
+    positive=True,
+)
+_VOLUME_SOURCE = (
+    "EPA Method 200.7, Revision 4.4 (1994), section 12.3: multiply the solution concentration "
+    "by the factor of the final volume over the aliquot prepared, and account for any further "
+    "dilution. Read 2026-11-14. Scaling the reporting limit by the same factors is general "
+    "practice; check both against the method."
+)
+_AS_WEIGHED_SOURCE = (
+    "EPA Method 200.7, Revision 4.4 (1994), section 12.5: mg/kg = C × V × D ÷ W, with C in "
+    "mg/L, V in L and W in kg. Read 2026-11-14. No percent solids correction is applied: the "
+    "result is on the basis of the portion as weighed, which that method dries first. Its "
+    "section 12.4 rounds the extract concentration before this calculation; to follow it, type "
+    "the rounded concentration. Scaling the reporting limit by the same factors is general "
+    "practice; check both against the method."
+)
+_DRY_SOURCE = (
+    "SW-846 Method 6010D, Revision 5 (2018), section 12.2: concentration on a dry-weight basis "
+    "= C × V ÷ (W × S), with C in mg/L, V in L, W the wet sample mass in kg and S the percent "
+    "solids ÷ 100; section 12.1 applies dilution factors. Read 2026-11-14. Scaling the "
+    "reporting limit by the same factors is general practice; check both against the method."
+)
+_DRY_REASON = (
+    "This calculation corrects the result to dry weight with the percent solids. Choose Dry weight."
+)
+
+# (key suffix, unit read in the solution, unit of the result, scale, the scale in words)
+_SOLID_UNITS = (
+    ("mg_l", "mg/L", "mg/kg", Decimal(1), ""),
+    ("ug_l", "ug/L", "ug/kg", Decimal(1), ""),
+    ("ug_l_mg_kg", "ug/L", "mg/kg", Decimal("0.001"), " ÷ 1,000"),
+)
+
+
+def _prepared_solids():
+    for suffix, read_in, result_unit, scale, scale_text in _SOLID_UNITS:
+        units = f"{read_in} in solution to {result_unit}"
+        yield Calculation(
+            key=f"solid_{suffix}",
+            version=1,
+            title=f"Prepared solid as weighed, {units}",
+            formula=f"Result ({result_unit}) = instrument reading in {read_in} × final volume in "
+            f"mL ÷ sample weight in g{scale_text} × dilution factor. {_LIMIT_FORMULA} No percent "
+            "solids correction: the result is on the basis of the portion as weighed.",
+            source=_AS_WEIGHED_SOURCE,
+            inputs=(
+                *_solution_inputs(read_in, "the prepared solution"),
+                _FINAL_VOLUME,
+                Reading(
+                    "weight",
+                    "Sample weight",
+                    "g",
+                    help="Weight of the portion prepared, as weighed: as received, or dried "
+                    "first where the method dries it. The result is on that basis.",
+                    positive=True,
+                ),
+            ),
+            work=_prepared(by="weight", scale=scale),
+            result_unit=result_unit,
+            uses_dilution=True,
+            sets_limit=True,
+            rounds_limit=True,
+            limit_note=_LIMIT_NOTE,
+        )
+        yield Calculation(
+            key=f"solid_dry_{suffix}",
+            version=1,
+            title=f"Prepared solid corrected to dry weight, {units}",
+            formula=f"Result ({result_unit}, dry weight) = instrument reading in {read_in} × "
+            f"final volume in mL ÷ (sample weight as received in g × percent solids ÷ 100)"
+            f"{scale_text} × dilution factor. {_LIMIT_FORMULA}",
+            source=_DRY_SOURCE,
+            inputs=(
+                *_solution_inputs(read_in, "the prepared solution"),
+                _FINAL_VOLUME,
+                Reading(
+                    "weight",
+                    "Sample weight as received",
+                    "g",
+                    help="Weight of the portion prepared, weighed as received (wet).",
+                    positive=True,
+                ),
+                Reading(
+                    "percent_solids",
+                    "Percent solids",
+                    "%",
+                    help="Type the percent solids of this sample, from its own determination: "
+                    "the share of the sample as received that is left after drying. Required "
+                    "by this calculation, with its source reference.",
+                    positive=True,
+                    entry_field="percent_solids",
+                ),
+            ),
+            work=_prepared(by="weight", scale=scale, dry=True),
+            result_unit=result_unit,
+            uses_dilution=True,
+            sets_limit=True,
+            rounds_limit=True,
+            limit_note=_LIMIT_NOTE,
+            soil_only=True,
+            soil_basis="dry",
+            soil_basis_reason=_DRY_REASON,
+        )
+
+
+# ------------------------------------------------------ percent solids and moisture
+
+
+def _share_of_sample(part):
+    """A part of the sample as received, in percent of its weight as received."""
+
+    def work(readings, dilution):
+        sample = readings["wet"] - readings["tare"]
+        if sample <= 0:
+            raise CalculationError(
+                "Dish with the sample as received must weigh more than the dish alone.", "wet"
+            )
+        if readings["dry"] < readings["tare"]:
+            raise CalculationError(
+                "Dish with the dried sample cannot weigh less than the dish alone.", "dry"
+            )
+        if readings["dry"] > readings["wet"]:
+            raise CalculationError(
+                "Dish with the dried sample cannot weigh more than with the sample as received.",
+                "dry",
+            )
+        return Outcome(part(readings) * 100 / sample)
+
+    return work
+
+
+_DRYING_INPUTS = (
+    Reading("tare", "Dish alone", "g", help="Tare weight of the empty dish.", non_negative=True),
+    Reading(
+        "wet",
+        "Dish with the sample as received",
+        "g",
+        help="Weight before drying, as read from the balance.",
+        positive=True,
+    ),
+    Reading(
+        "dry",
+        "Dish with the dried sample",
+        "g",
+        help="Weight after drying, as read from the balance.",
+        positive=True,
+    ),
+)
+_WET_REASON = (
+    "Percent solids and percent moisture are shares of the sample as received. Choose Wet weight."
+)
+
 _REGISTERED = (
     Calculation(
         key="dilution",
@@ -157,6 +398,7 @@ _REGISTERED = (
         work=_diluted_reading,
         uses_dilution=True,
         sets_limit=True,
+        limit_note="limit before dilution × dilution",
     ),
     Calculation(
         key="residue_g",
@@ -179,6 +421,63 @@ _REGISTERED = (
         inputs=_residue_inputs("mg"),
         work=_residue(Decimal(1_000)),
         result_unit="mg/L",
+    ),
+    Calculation(
+        key="prep_volume",
+        version=1,
+        title="Preparation by volume: final volume over sample volume",
+        formula="Result = instrument reading × final volume ÷ sample volume prepared × dilution "
+        f"factor. {_LIMIT_FORMULA}",
+        source=_VOLUME_SOURCE,
+        inputs=(
+            *_solution_inputs(None, "the prepared solution, in the unit of the test"),
+            Reading(
+                "sample_volume",
+                "Sample volume prepared",
+                "mL",
+                help="Volume of sample taken for the preparation.",
+                positive=True,
+            ),
+            _FINAL_VOLUME,
+        ),
+        work=_prepared(by="sample_volume"),
+        uses_dilution=True,
+        sets_limit=True,
+        rounds_limit=True,
+        limit_note=_LIMIT_NOTE,
+        liquid_only=True,
+    ),
+    *_prepared_solids(),
+    Calculation(
+        key="percent_solids",
+        version=1,
+        title="Percent solids by weight",
+        formula="Result (%) = (dish with the dried sample − dish alone) ÷ (dish with the sample "
+        "as received − dish alone) × 100.",
+        source="SW-846 Method 6010D, Revision 5 (2018), section 11.5.2: % dry weight = g of dry "
+        "sample ÷ g of sample × 100; EPA Method 200.7, Revision 4.4 (1994), section 12.6. Read "
+        "2026-11-14. The drying temperature and time are the method's.",
+        inputs=_DRYING_INPUTS,
+        work=_share_of_sample(lambda r: r["dry"] - r["tare"]),
+        result_unit="%",
+        soil_basis="wet",
+        soil_basis_reason=_WET_REASON,
+    ),
+    Calculation(
+        key="percent_moisture",
+        version=1,
+        title="Percent moisture by weight",
+        formula="Result (%) = (dish with the sample as received − dish with the dried sample) ÷ "
+        "(dish with the sample as received − dish alone) × 100.",
+        source="EPA Contract Laboratory Program, Equations utilized in conjunction with SOM01.2 "
+        "(2007-08-22), Exhibit D, Low/Medium Volatiles, EQ. 6: % moisture = (g of wet sample − "
+        "g of dry sample) ÷ g of wet sample × 100. Read 2026-11-14. A share of the sample as "
+        "received, not of its dry weight.",
+        inputs=_DRYING_INPUTS,
+        work=_share_of_sample(lambda r: r["wet"] - r["dry"]),
+        result_unit="%",
+        soil_basis="wet",
+        soil_basis_reason=_WET_REASON,
     ),
 )
 

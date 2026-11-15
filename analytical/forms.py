@@ -411,6 +411,13 @@ class ReadingsMixin:
         self.calculation = calculation
         self.reading_names = []
         for reading in calculation.inputs:
+            if reading.entry_field:
+                # The entry form already has this field (percent solids): say what it is for.
+                if reading.entry_field in self.fields:
+                    self.fields[reading.entry_field].help_text = (
+                        "Required by this calculation." if small else reading.help
+                    )
+                continue
             name = worksheets.reading_field(reading.key)
             self.fields[name] = raw_text(
                 reading.label,
@@ -441,10 +448,26 @@ class ReadingsMixin:
         if not calculation.uses_dilution:
             self.fields["dilution_factor"].widget = forms.HiddenInput()
             self.fields["dilution_factor"].initial = "1"
+        if calculation.soil_basis and "result_basis" in self.fields:
+            # The calculation means one weight basis only: offer it; the service still checks.
+            self.fields["result_basis"].initial = calculation.soil_basis
+            self.fields["result_basis"].help_text = calculation.soil_basis_reason
+        if self.needs_solids and "solids_reference" in self.fields:
+            self.fields["solids_reference"].help_text = (
+                "Required: where it comes from."
+                if small
+                else "Required: where this percent solids comes from, for example the sample's "
+                "percent solids result and its batch."
+            )
 
     @property
     def reading_fields(self):
         return [self[name] for name in self.reading_names]
+
+    @property
+    def needs_solids(self):
+        """Whether the calculation takes the entry's percent solids (and so its source)."""
+        return bool(self.calculation) and "percent_solids" in self.calculation.entry_fields
 
     # Set by the view. The limit the page offered for the row (never a sign of an entry), and
     # whether the row is still a current candidate: only then is its calculation known.
@@ -456,12 +479,23 @@ class ReadingsMixin:
         is no longer current the catalog limit is not looked up: its limit reading never counts."""
         return not self.current or (bool(self.prefilled_limit) and text == self.prefilled_limit)
 
+    def _shown(self):
+        """The calculation the page showed for this row when it was drawn, or None. It may no
+        longer be the test's calculation, and the row may no longer be current."""
+        return worksheets.shown(self.data.get(self.add_prefix("calculation_token"), ""))
+
+    def offered_basis(self):
+        """The weight basis the page chose for the row itself when it was drawn. Posted back
+        unchanged, it is not a sign of an entry."""
+        before = self._shown()
+        return before.soil_basis if before else ""
+
     def unexpected_readings(self):
         """Whether readings were typed that this form has no field for: the rule was removed or
         replaced after the page was drawn, or the row is no longer current."""
         prefix = self.add_prefix(worksheets.READING_PREFIX)
         expected = {self.add_prefix(name) for name in self.reading_names}
-        before = worksheets.shown(self.data.get(self.add_prefix("calculation_token"), ""))
+        before = self._shown()
         offered = {
             self.add_prefix(worksheets.reading_field(reading.key))
             for reading in (before.inputs if before else ())
@@ -495,6 +529,7 @@ class ReadingsMixin:
         return {
             reading.key: self.cleaned_data.get(worksheets.reading_field(reading.key), "")
             for reading in self.calculation.inputs
+            if not reading.entry_field  # the service takes those from the entry itself
         }
 
     def readings_typed(self):
@@ -503,6 +538,8 @@ class ReadingsMixin:
         if self.calculation is None:
             return False
         for reading in self.calculation.inputs:
+            if reading.entry_field:
+                continue  # an entry field of its own: is_blank looks at it
             name = worksheets.reading_field(reading.key)
             text = (self.cleaned_data.get(name) or "").strip()
             if text and not (reading.prefill_limit and self._offered(name, text)):
@@ -543,6 +580,8 @@ class ResultRowForm(ReadingsMixin, BasisForm):
         a calculation that sets the limit shows no limit field at all."""
         if self.calculation is not None and self.calculation.sets_limit:
             return False
+        if not self.current:
+            return False  # the limit the page offered is not looked up for such a row
         limit = (self.cleaned_data.get("reporting_limit_applied") or "").strip()
         return bool(limit) and limit != self.prefilled_limit
 
@@ -564,13 +603,14 @@ class ResultRowForm(ReadingsMixin, BasisForm):
             return False  # typed for a row the page no longer offers: reported, never dropped
         if typed("dilution_factor") not in ("", "1"):  # 1 is what the page offers
             return False
+        if typed("result_basis") not in ("", self.offered_basis()):
+            return False
         return not any(
             typed(name)
             for name in (
                 "supplied_text",
                 "qualifiers",
                 "reason",
-                "result_basis",
                 "percent_solids",
                 "solids_reference",
             )
@@ -623,6 +663,9 @@ class CorrectionForm(ReadingsMixin, BasisForm):
         del self.fields["supplied_text"]
         if calculation.sets_limit:
             del self.fields["reporting_limit_applied"]
+        if self.needs_solids and "percent_solids" in self.fields:
+            self.fields["percent_solids"].required = True
+            self.fields["solids_reference"].required = True
         moved = (*self.reading_names, "report_nd")
         order = [name for name in self.fields if name not in moved]
         at = order.index("prepared_aliquot_id") + 1
@@ -1304,6 +1347,8 @@ class CalculationRuleForm(forms.ModelForm):
             "definition": "Manual results of this exact method version, analyte and matrix are "
             "then worked from readings; a typed result is refused. File imports still supply "
             "final values.",
+            "rounding_mode": "The rounding of the calculated value. A reporting limit the "
+            "calculation works out (the preparation calculations) is rounded by the same rule.",
             "rounding_method": "The laboratory's own rule. The value is carried at full "
             "precision and rounded once, at the end.",
             "is_active": "An inactive rule is ignored: the test takes typed results again. "

@@ -68,6 +68,19 @@ SOLIDS = [
     ("0.1097", "0.1041", "500"),
     ("0.1262", "0.1049", "250"),
 ]
+# Invented balance readings for percent solids: the dish alone, with the soil as received and
+# with the dried soil (g). They work out to 81.6, 77.9 and 84.2 percent.
+DRYING = [
+    ("21.4035", "31.6182", "29.7391"),
+    ("20.9126", "30.4410", "28.3352"),
+    ("22.1508", "33.0271", "31.3089"),
+]
+# Invented extract readings for nitrate in soil: the reading in mg/L (or ND), the reporting limit
+# in the extract (mg/L), the final volume (mL) and the weight extracted as received (g).
+EXTRACTS = [
+    ("1.84", "0.05", "50", "5.03"),
+    ("ND", "0.05", "50", "5.21"),
+]
 MDL_SPIKES = [  # (days ago, preparation batch, observed); spiking level 2.00
     (20, "MDL-A", "1.82"),
     (20, "MDL-A", "2.11"),
@@ -371,7 +384,8 @@ class Week:
             actor=self.analyst,
             result_id=Result.objects.get(requested_test=rt).pk,
             supplied_text=text,
-            reporting_limit_applied=_rl(rt.definition),
+            # A calculation that works out the limit itself takes none: pass limit="".
+            reporting_limit_applied=extra.pop("limit", _rl(rt.definition)),
             dilution_factor="1",
             analysis_started_at=at,
             qualifier_codes=qualifiers,
@@ -471,6 +485,67 @@ class Week:
                 readings={"gross": gross, "tare": tare, "volume": volume},
             )
         return batch
+
+    def dry_weight_batches(self, samples, *, weighed_at, analysed_at):
+        """Percent solids worked from three weights, then nitrate in the extract taken back
+        to the soil on a dry-weight basis with that percent solids. Two percent solids results
+        are reviewed before they are used; the third is entered, so its nitrate still waits.
+        Both batches stay open."""
+        solids_method = Method.objects.get(code="DEMO-SOLIDS-SOIL", version=VERSION)
+        drying = bench.create_batch(
+            actor=self.analyst,
+            method=solids_method,
+            matrix="soil",
+            notes="Synthetic demonstration batch. Results are calculated from the weights.",
+        )
+        weighed = self.requested(samples, solids_method)
+        bench.add_tests_to_batch(
+            actor=self.analyst, batch_id=drying.pk, requested_test_ids=[rt.pk for rt in weighed]
+        )
+        solids = {}
+        for rt, (tare, wet, dry), stage in zip(
+            weighed, DRYING, ("approved", "approved", "entered"), strict=True
+        ):
+            solids[rt.sample_id] = self.entry(
+                rt,
+                weighed_at,
+                stage,
+                readings={"tare": tare, "wet": wet, "dry": dry},
+                result_basis="wet",
+            )
+        nitrate_method = Method.objects.get(code="DEMO-NITRATE-SOIL", version=VERSION)
+        run = bench.create_batch(
+            actor=self.analyst,
+            method=nitrate_method,
+            matrix="soil",
+            notes="Synthetic demonstration batch. Results are calculated from the extract "
+            "readings and each sample's percent solids.",
+        )
+        extracted = self.requested(samples, nitrate_method)
+        bench.add_tests_to_batch(
+            actor=self.analyst, batch_id=run.pk, requested_test_ids=[rt.pk for rt in extracted]
+        )
+        self.qc(run, [extracted[0].definition], analysed_at)
+        for rt, (reading, limit, volume, weight), stage in zip(
+            extracted, EXTRACTS, ("submitted", "entered"), strict=False
+        ):
+            percent = solids[rt.sample_id]
+            self.entry(
+                rt,
+                analysed_at,
+                stage,
+                readings={
+                    "reading": reading,
+                    "base_limit": limit,
+                    "final_volume": volume,
+                    "weight": weight,
+                },
+                limit="",
+                result_basis="dry",
+                percent_solids=percent.supplied_text,
+                solids_reference=f"{rt.sample.lab_id} percent solids, batch {drying.number}",
+            )
+        return drying, run
 
     def soil_batch(self, samples, *, prepared_at, completed_at, analysed_at):
         """Independent digestion, then analysis with blank, LCS and matrix spike; dry-basis
@@ -832,6 +907,26 @@ class Week:
             "transcription check.",
         )
         self.report(self.plant, "Plant 2 metals, week summary", plant_done)
+
+        # Drying-bed soils for nitrate, last so the numbers of the work above stay as they were:
+        # percent solids by weight, then nitrate worked from the extract to a dry-weight result.
+        solids = self.tests("DEMO-SOLIDS-SOIL", "soil")
+        nitrate = self.tests("DEMO-NITRATE-SOIL", "soil")
+        order = self.order(self.beds, self.at(2, 11))
+        cores = [
+            self.receive(
+                order,
+                f"DB-N{n:02d}",
+                [*solids, *nitrate],
+                source="soil",
+                received_at=self.at(2, 11, n),
+                location=f"Synthetic drying bed {n}",
+            )
+            for n in (1, 2, 3)
+        ]
+        for sample in cores:
+            self.store(sample)
+        self.dry_weight_batches(cores, weighed_at=self.at(1, 9), analysed_at=self.at(1, 14))
 
     def mdl_study(self, water):
         """An initial MDL study for lead in water: seven spikes over three preparation batches
