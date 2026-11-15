@@ -289,6 +289,7 @@ class Week:
         discrepancy="",
         location="",
         collector="Example County Field Crew",
+        container_preservation=None,
     ):
         matrix = tests[0].matrix
         collected_at = collected_at or received_at - timedelta(hours=2)
@@ -303,7 +304,13 @@ class Week:
             expected_revision=Order.objects.values_list("revision", flat=True).get(pk=order.pk),
             tests=tests,
             containers=[
-                {"description": container[0], "condition": "Intact", "preservation": container[1]}
+                {
+                    "description": container[0],
+                    "condition": "Intact",
+                    "preservation": container[1]
+                    if container_preservation is None
+                    else container_preservation,
+                }
             ],
             relinquished_by="Example Courier",
             client_sample_id=ident,
@@ -927,6 +934,79 @@ class Week:
         for sample in cores:
             self.store(sample)
         self.dry_weight_batches(cores, weighed_at=self.at(1, 9), analysed_at=self.at(1, 14))
+        self.titration_batches()
+
+    def titration_batches(self):
+        """Separate invented portions for each titration, with one worksheet and one open row.
+
+        Normal and low alkalinity are separate tests, never an inferred choice from a value.
+        These samples have no chemical preservative; do not reuse the metals' acidified bottle.
+        """
+        order = self.order(self.river, self.at(1, 9))
+        for prefix, code, readings in (
+            (
+                "ALK",
+                "DEMO-ALKALINITY-AQ",
+                {
+                    "initial": "0.20",
+                    "final": "12.70",
+                    "sample_volume": "100.0",
+                    "normality": "0.0200",
+                    "final_ph": "4.50",
+                },
+            ),
+            (
+                "LOW",
+                "DEMO-LOW-ALK-AQ",
+                {
+                    "initial": "0.20",
+                    "first_endpoint": "1.50",
+                    "final": "1.70",
+                    "sample_volume": "200.0",
+                    "normality": "0.0200",
+                    "first_ph": "4.60",
+                    "final_ph": "4.30",
+                },
+            ),
+            (
+                "HARD",
+                "DEMO-HARDNESS-AQ",
+                {
+                    "initial": "0.10",
+                    "final": "8.60",
+                    "sample_volume": "25.0",
+                    "normality": "0.0200",
+                },
+            ),
+        ):
+            definitions = self.tests(code, "water")
+            samples = [
+                self.receive(
+                    order,
+                    f"TT-{prefix}-{n:02d}",
+                    definitions,
+                    source="surface_water",
+                    received_at=self.at(1, 9, n),
+                    location=f"Synthetic titration sampling point {prefix}-{n}",
+                    container_preservation="Cool; no chemical preservative (synthetic)",
+                )
+                for n in (1, 2)
+            ]
+            batch = bench.create_batch(
+                actor=self.analyst,
+                method=definitions[0].method,
+                matrix="water",
+                notes="Synthetic titration demonstration. Readings and titrant strength are "
+                "invented. The second sample is ready for entry.",
+            )
+            requested = self.requested(samples, definitions[0].method)
+            bench.add_tests_to_batch(
+                actor=self.analyst,
+                batch_id=batch.pk,
+                requested_test_ids=[rt.pk for rt in requested],
+            )
+            self.qc(batch, definitions, self.at(1, 11))
+            self.entry(requested[0], self.at(1, 11), "approved", readings=readings)
 
     def mdl_study(self, water):
         """An initial MDL study for lead in water: seven spikes over three preparation batches

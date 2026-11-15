@@ -69,9 +69,9 @@ cannot nest inside this POST form, and the form's sticky action row must stay la
                 {{ form.percent_solids.as_field_group }}{{ form.solids_reference.as_field_group }}
               </details>
             </td>{% endif %}
-            <td>{% if form.calculation %}
-              <div class="vr-muted small">Calculated: {{ form.calculation.label }}{{ form.calculation_token }}</div>
-              <div class="row g-2 {% if form.reading_fields|length > 3 %}row-cols-2{% else %}flex-nowrap{% endif %}">{% for field in form.reading_fields %}<div class="col">{{ field.as_field_group }}</div>{% endfor %}</div>
+            <td{% if form.calculation %} class="vr-calculated-entry"{% endif %}>{% if form.calculation %}
+              <div class="vr-muted small text-wrap">Calculated: {{ form.calculation.label }}{{ form.calculation_token }}</div>
+              <div class="row g-2 text-wrap {% if form.reading_fields|length > 3 %}row-cols-2{% else %}flex-nowrap{% endif %}">{% for field in form.reading_fields %}<div class="col">{{ field.as_field_group }}</div>{% endfor %}</div>
               {{ form.report_nd.as_field_group }}
             {% else %}{{ form.supplied_text }}{% endif %}</td>
             <td>{% if form.calculation.sets_limit %}<span class="vr-muted small">Calculated: {{ form.calculation.limit_note }}</span>{% else %}{{ form.reporting_limit_applied }}{% endif %}</td>

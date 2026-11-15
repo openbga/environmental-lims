@@ -291,6 +291,13 @@
       "paragraphs": [
         "Only administrators can save configuration. Existing edits require a reason, preserve before/after audit values and reject stale edit forms. Inactive rows remain listed. Configuration represents lab-owned policy, not regulatory defaults; synthetic seed values are not validated. Frozen result/report snapshots retain their earlier values, while current QC and preservation checks can change approval/release eligibility. Empty sections explain the consequence of absent configuration and offer Add controls to administrators."
       ]
+    },
+    {
+      "title": "Titration calculations",
+      "paragraphs": [
+        "Alkalinity by titration to pH 4.5, Low alkalinity by two-endpoint titration and Total hardness by EDTA titration produce mg/L as CaCO3. The test must use that exact unit and cannot be soil. The laboratory chooses the calculation per test; a result never switches the procedure automatically.",
+        "The three titration calculations retain burette readings, sample volume and actual standardized titrant normality. Alkalinity also keeps endpoint pH. They apply no dilution or blank correction and do not scale the reporting limit. The calculation rule form describes each equation and its limits."
+      ]
     }
   ],
   "sources": [
@@ -313,6 +320,8 @@
     "analytical/tests/test_calculations.py",
     "analytical/tests/test_calculation_pages.py",
     "analytical/templates/analytical/_active_status.html",
-    "analytical/tests/test_prepared_calculations.py"
+    "analytical/tests/test_prepared_calculations.py",
+    "analytical/tests/test_titration_calculations.py",
+    "analytical/tests/test_titration_pages.py"
   ]
 }

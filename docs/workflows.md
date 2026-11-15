@@ -198,6 +198,9 @@ Calculations available:
 | Prepared solid as weighed (mg/L to mg/kg, ug/L to ug/kg, ug/L to mg/kg) | Instrument reading (or ND), reporting limit in the solution, final volume in mL, sample weight in g, dilution factor | Reading × final volume ÷ sample weight × dilution factor (÷ 1,000 from ug/L to mg/kg), on the basis of the portion as weighed | Limit in the solution × the same factors, rounded like the result |
 | Prepared solid corrected to dry weight (the same three pairings) | The same, with the weight as received, and the percent solids and its source from the entry | The same ÷ (percent solids ÷ 100), on a dry-weight basis | Limit in the solution × the same factors, rounded like the result |
 | Percent solids by weight, percent moisture by weight | Dish alone, dish with the sample as received, dish with the dried sample, in g | Dried sample ÷ sample as received × 100, or water lost ÷ sample as received × 100, in % | Typed by the analyst |
+| Alkalinity by titration to pH 4.5 | Initial and final burette readings (mL), original sample volume (mL), standardized acid normality (N), endpoint pH | (Final − initial) × normality × 50,000 ÷ sample volume, in mg/L as CaCO3 | Typed by the analyst |
+| Low alkalinity by two-endpoint titration | Initial, first endpoint and final burette readings (mL), original sample volume (mL), standardized acid normality (N), both endpoint pH readings | (2B − C) × normality × 50,000 ÷ sample volume, where B and C are volumes from the initial reading to each endpoint, in mg/L as CaCO3 | Typed by the analyst |
+| Total hardness by EDTA titration | Initial and final burette readings (mL), original sample volume (mL), standardized EDTA normality (N) | (Final − initial) × normality × 50,000 ÷ sample volume, in mg/L as CaCO3 | Typed by the analyst |
 
 A preparation calculation takes the reading back to the sample with the amounts actually
 prepared, and takes the reporting limit with it. The limit it works out is rounded by the test's
@@ -243,10 +246,25 @@ its limits another way cannot set that yet. A calculation gives one
 unit from one unit: the three pairings above for solids, the unit of the test for a preparation
 by volume and percent for solids and moisture. Units are matched by name, and only the spelling
 of micro (µ, μ or u) may differ. Each reading is used as typed, so a method that rounds the
-solution concentration first is followed by typing the rounded concentration. Worksheets for
-BOD and titrations are not built. The arithmetic of a calculation version is part of the
+solution concentration first is followed by typing the rounded concentration. BOD worksheets and other titrations are not built. The arithmetic of a calculation version is part of the
 release: a laboratory checks it against its method before use, and the demonstration rules are
 synthetic.
+
+The titration worksheets use one uninterrupted burette run, with nonnegative, increasing
+readings (equal initial and final readings are permitted for the single-endpoint equations).
+The low-alkalinity second endpoint must follow the first. Sample volume and titrant normality
+must be positive. Alkalinity uses an unaltered sample with no added dilution water. For
+hardness, sample volume excludes reagents and water added in the titration vessel. Normality is equivalents per liter, not molarity or mg CaCO3 per mL.
+Alkalinity to pH 4.5 requires that recorded endpoint; the low-alkalinity equation requires a
+first endpoint from 4.3 to 4.7 and a final pH exactly 0.3 lower. No tolerance is inferred.
+A negative low-alkalinity result is retained, with the usual below-limit qualifier or ND
+choice; it is never silently changed to zero. The administrator selects the calculation per
+test, so the application does not switch procedures based on a result. These calculations
+require the test unit mg/L as CaCO3 and a nonsoil matrix. They apply no dilution, preparation
+or blank correction and do not scale the reporting limit. They exclude the pH 3.9 mineral-acid
+procedure and the separate low-hardness blank procedure. Endpoint suitability, titrant
+standardization and method acceptance remain laboratory checks; the source text is named
+on each worksheet and in the [product evidence](product.md#primary-sources).
 
 ## MDL studies
 

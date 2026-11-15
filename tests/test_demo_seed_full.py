@@ -104,6 +104,26 @@ def test_full_seed_builds_a_working_week_once(password, monkeypatch):
     assert solids.batch.number in nitrate.solids_reference
     assert worksheets.reproduce(nitrate.worksheet).matches
 
+    for code, expected in (
+        ("DEMO-ALKALINITY-AQ", "125.0"),
+        ("DEMO-LOW-ALK-AQ", "5.5"),
+        ("DEMO-HARDNESS-AQ", "340.0"),
+    ):
+        titration = ResultRevision.objects.get(definition__method__code=code)
+        assert (titration.supplied_text, titration.unit, titration.status) == (
+            expected,
+            "mg/L as CaCO3",
+            "approved",
+        )
+        assert titration.worksheet.readings.get(key="normality").supplied_text == "0.0200"
+        assert worksheets.reproduce(titration.worksheet).matches
+        assert (
+            Result.objects.filter(
+                requested_test__definition__method__code=code, status="awaiting"
+            ).count()
+            == 1
+        )
+
     # Control chart history with exactly one point outside the configured LCS limits.
     series = charts.build_series(lead_water(), "lcs", "recovery")
     assert series.counts["points"] >= 20

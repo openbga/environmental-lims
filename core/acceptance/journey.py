@@ -111,19 +111,23 @@ def receive(run, order, ident, tests, *, collected_at, received_at, **extra):
         disposition_note="",
         current_location="Receipt bench",
     )
-    data.update(extra)
-    return receipt.receive_order_sample(
-        actor=account(run, "custodian"),
-        order_id=order.pk,
-        expected_revision=Order.objects.values_list("revision", flat=True).get(pk=order.pk),
-        tests=tests,
-        containers=[
+    containers = extra.pop(
+        "containers",
+        [
             {
                 "description": "Synthetic 500 mL HDPE",
                 "condition": "Intact",
                 "preservation": "HNO3 to pH < 2",
             }
         ],
+    )
+    data.update(extra)
+    return receipt.receive_order_sample(
+        actor=account(run, "custodian"),
+        order_id=order.pk,
+        expected_revision=Order.objects.values_list("revision", flat=True).get(pk=order.pk),
+        tests=tests,
+        containers=containers,
         relinquished_by="Example Courier (synthetic)",
         **data,
     )
