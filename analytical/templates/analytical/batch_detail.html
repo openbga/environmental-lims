@@ -12,6 +12,7 @@
 {% block page_actions %}
 {% if can_enter %}
 {% if open and total_count %}<button class="btn btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#close-batch-dialog">Close batch</button>{% endif %}
+<a class="btn btn-outline-secondary" href="{% url 'analytical:batch-run-list' batch.pk %}">Export run list</a>
 {% more_actions label="Import results" %}
     <li><a class="dropdown-item" href="{% url 'analytical:batch-import' batch.pk %}">Standard CSV file</a></li>
     <li><a class="dropdown-item" href="{% url 'analytical:batch-import-mapped' batch.pk %}">With a saved mapping</a></li>
@@ -54,6 +55,7 @@
       {% if batch.closed_at %}{% fact label="Closed" %}<time datetime="{{ batch.closed_at|date:'c' }}" title="{{ batch.closed_at|date:'Y-m-d H:i T' }}">{{ batch.closed_at|date:"Y-m-d H:i" }}</time> by {{ batch.closed_by.get_username }}{% endfact %}{% endif %}
       {% if batch.notes %}{% fact label="Notes" wide=True value=batch.notes %}{% endif %}
     </dl>
+    {% if can_enter %}<p class="vr-form-note">The run-list CSV includes every test and recorded QC sample in this batch, regardless of filters. Check the sample states and map the columns for your instrument; the file does not set injection order.</p>{% endif %}
 {% endpanel %}
 
 {% if can_enter %}

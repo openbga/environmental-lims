@@ -119,6 +119,17 @@ Status, 2026-11-15: milestones 1 to 3 are implemented, with the limits in [Workf
 
 Initial instrument-file support uses explicit long/wide CSV/TSV mappings. Qualifying a particular instrument/software export requires representative files; these mappings are not vendor-qualified adapters.
 
+Analysts can export a generic CSV run list of the current analytical batch's assigned tests and
+recorded QC samples for instrument setup. It includes sample disposition and disposal state,
+current configured units and limits, and the latest result's explicitly recorded preparation
+identity only when that revision belongs to this batch. It never chooses an aliquot, supplies
+missing QC or calibration standards, assigns injection order, or sends commands to an instrument.
+The laboratory maps the columns and verifies the intended run. Closed batches remain exportable
+as current inventories, not historical snapshots. The 2,000-row bound is a product choice for
+synchronous downloads; formula-like text is refused without rewriting identifiers. No vendor
+qualification or analytical acceptance is implied. Excel input and vendor-specific run formats
+remain roadmap work.
+
 Deliverable and reporting targets for milestones 2 to 4. All are exploratory. A recipient accepts an EDD only against its own current specification and reference values, so no format here is claimed as accepted until tested against one named recipient's spec.
 
 | Target | What it is | Notes |
