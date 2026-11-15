@@ -298,6 +298,14 @@
         "Alkalinity by titration to pH 4.5, Low alkalinity by two-endpoint titration and Total hardness by EDTA titration produce mg/L as CaCO3. The test must use that exact unit and cannot be soil. The laboratory chooses the calculation per test; a result never switches the procedure automatically.",
         "The three titration calculations retain burette readings, sample volume and actual standardized titrant normality. Alkalinity also keeps endpoint pH. They apply no dilution or blank correction and do not scale the reporting limit. The calculation rule form describes each equation and its limits."
       ]
+    },
+    {
+      "title": "BOD5 bottle worksheets",
+      "paragraphs": [
+        "Each bottle value in mg/L is (initial DO − final DO − entered seed correction) × filled bottle volume ÷ sample volume. The arithmetic mean gives each included bottle equal weight, even when volumes differ. The common prior dilution factor multiplies that mean once, and only that final result is rounded by the test rule. Excluded bottles never contribute to the mean.",
+        "BOD5 bottle worksheet is available for nonsoil tests in mg/L. Administrators choose it per exact test with the lab’s rounding and method/SOP basis. Analysts then use Record BOD5 bottles from the entry grid or result page; a final numeric value cannot be entered in that grid for the test.",
+        "This is BOD5 arithmetic only. It does not estimate seed demand from controls, subtract dilution-water blank demand, assess incubation or method eligibility, apply automatic bottle QC thresholds, or establish regulatory approval. CBOD5 is outside its scope. The analyst assesses the laboratory method and QC before selection; Include is not an automatic acceptance verdict."
+      ]
     }
   ],
   "sources": [
@@ -322,6 +330,16 @@
     "analytical/templates/analytical/_active_status.html",
     "analytical/tests/test_prepared_calculations.py",
     "analytical/tests/test_titration_calculations.py",
-    "analytical/tests/test_titration_pages.py"
+    "analytical/tests/test_titration_pages.py",
+    "analytical/urls.py",
+    "analytical/bod.py",
+    "analytical/bod_forms.py",
+    "analytical/bod_views.py",
+    "analytical/parsing.py",
+    "analytical/preparation.py",
+    "analytical/templates/analytical/result_bottles.html",
+    "analytical/templates/analytical/result_detail.html",
+    "analytical/templates/analytical/batch_entry.html",
+    "analytical/tests/test_bod.py"
   ]
 }

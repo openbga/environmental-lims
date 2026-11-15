@@ -512,3 +512,4 @@ def test_every_acceptance_step_passes():
     failures = {r.step.id: r.observations[-1:] for r in results if r.status != PASSED}
     assert not failures
     assert len(results) >= 20
+    assert any(r.step.id == "C11" and r.status == PASSED for r in results)

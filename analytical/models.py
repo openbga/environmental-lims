@@ -1367,6 +1367,12 @@ class ResultWorksheet(models.Model):
         help_text="The analyst reported a calculated value below the reporting limit as ND.",
     )
     rule_basis = models.TextField(blank=True)
+    bottle_data = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="BOD bottle observations and selections, with measured values kept as text. "
+        "Empty for other calculations.",
+    )
     unrounded_limit = models.DecimalField(
         null=True,
         blank=True,

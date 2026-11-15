@@ -166,6 +166,7 @@ STAFF_NAV = (
             "analytical:qc-action",
             "analytical:qc-measure",
             "analytical:result-detail",
+            "analytical:result-bottles",
         ),
     ),
     NavItem(

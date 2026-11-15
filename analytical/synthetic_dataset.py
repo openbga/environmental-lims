@@ -31,6 +31,27 @@ BASIS = "SYNTHETIC DEMONSTRATION VALUE. Not validated, not a regulatory limit."
 
 AQUEOUS = ("water", "wastewater")
 
+# Invented oxygen readings and corrections: each selected bottle gives 30 mg/L.
+# The excluded bottle stays in the record; these are not laboratory QC criteria.
+BOD_BOTTLES = [
+    {
+        "identifier": identifier,
+        "initial_do": "8.00",
+        "final_do": final,
+        "sample_volume": sample,
+        "bottle_volume": "300.0",
+        "seed_correction": "0.50",
+        "seed_reference": "Synthetic seed correction record DEMO-SEED-01",
+        "selected": selected,
+        "reason": reason,
+    }
+    for identifier, final, sample, selected, reason in (
+        ("DEMO-BOD-1", "4.50", "30.0", True, ""),
+        ("DEMO-BOD-2", "6.00", "15.0", True, ""),
+        ("DEMO-BOD-3", "0.00", "60.0", False, "Synthetic full depletion; analyst excluded"),
+    )
+]
+
 QUALIFIERS = [
     ("J", "Estimated value below the reporting limit (demonstration set)", False),
     ("H", "Holding time exceeded (demonstration set)", True),
@@ -129,6 +150,14 @@ METHODS = [
         "code": "DEMO-BOD-AQ",
         "title": "Five-day oxygen demand, aqueous (synthetic demonstration)",
         "analytes": [("BOD, 5-day", "", {m: ("mg/L", "2.0") for m in AQUEOUS})],
+        "calculation": (
+            "bod_bottles",
+            {
+                "rounding_method": "half_even",
+                "rounding_mode": "decimal_places",
+                "rounding_digits": 1,
+            },
+        ),
         "hold": {m: (48, 6) for m in AQUEOUS},
         "qc": {
             "method_blank": (True, 1, 20),

@@ -23,7 +23,7 @@ from core.grids import GridRequest, active_filters
 from core.models import AuditEvent
 from core.widgets import SuggestInput
 
-from . import calculations, holding, importing, selectors, services, worksheets
+from . import bod, calculations, holding, importing, selectors, services, worksheets
 from . import forms as f
 from .models import (
     Batch,
@@ -1222,6 +1222,9 @@ def result_detail(request, pk):
                 else ""
             )
             revision.sheet.check = worksheets.reproduce(revision.sheet)
+            revision.sheet.bottles = (
+                bod.display(revision.sheet.bottle_data) if revision.sheet.bottle_data else []
+            )
     can_correct = (latest is None or latest.status != "submitted") and result.batch_id
     if request.method == "POST":
         services.require_role(request.user, services.ANALYST)

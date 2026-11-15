@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from accounts.models import User
 from accounts.roles import can_authorize_release
-from analytical.models import PreparationRequirement
+from analytical.models import CalculationRule, PreparationRequirement
 from catalog.models import Method, TestDefinition
 from core import lab_profile
 from core.announcements import announcements_for, withdraw_announcement
@@ -55,6 +55,11 @@ def test_demo_seed_uses_synthetic_catalog_and_preserves_existing_data(
             method_id=methods["DEMO-DIGEST-SOIL"], is_active=True
         ).values_list("definition_id", flat=True)
     ) == set(soil_tests.values_list("pk", flat=True))
+    assert set(
+        CalculationRule.objects.filter(definition__method__code="DEMO-BOD-AQ").values_list(
+            "calculation", "rounding_digits"
+        )
+    ) == {("bod_bottles", 1)}
     assert TestDefinition.objects.count() == 24
     assert not Method.objects.filter(code="DEMO-CHEM").exists()
     user = User.objects.get(username="demo_approver")

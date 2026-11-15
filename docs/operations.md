@@ -135,6 +135,8 @@ rule form, import and seed can refuse or pick the wrong row. Create analyte rule
 instance of an older release is running, and deactivate them before running an older release
 against the database. The migration's reverse refuses while any rule names an analyte.
 
+BOD bottle worksheets add the nullable `bottle_data` column in `analytical.0012`. Keep that column during a code rollback: reversing the migration refuses once any bottle snapshot exists. Older code cannot show or reproduce those bottle observations and cannot accept entries for a BOD calculation rule; deactivate that rule before using older code for new entries, and return to a compatible release to inspect retained worksheets. A normal deploy does not reseed; the synthetic BOD example appears at the demonstration’s next scheduled reset.
+
 **Data loss or corruption.** Recover into a new database; never overwrite or discard the
 current one.
 
@@ -154,7 +156,7 @@ blind restore. Take a backup before each deploy that adds migrations.
 `run_acceptance` runs scripted checks of the first journey and the controls it rests on (role
 refusals, client isolation, independent review, release permission, holding time, QC gates,
 a result calculated from its readings, a soil result taken back to the sample on a dry-weight
-basis, a two-endpoint titration with retained burette readings and titrant strength, report
+basis, a two-endpoint titration with retained burette readings and titrant strength, a BOD mean with retained bottle selections and entered seed-correction sources, report
 immutability and amendments, audit events) on
 synthetic records, and writes an evidence
 package for the laboratory to keep. Run it after installing, after each upgrade once the

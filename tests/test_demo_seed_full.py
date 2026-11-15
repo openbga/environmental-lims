@@ -124,6 +124,22 @@ def test_full_seed_builds_a_working_week_once(password, monkeypatch):
             == 1
         )
 
+    bod = ResultRevision.objects.get(
+        result__requested_test__sample__client_sample_id="BOD-01",
+        definition__method__code="DEMO-BOD-AQ",
+    )
+    assert (bod.supplied_text, bod.unit, bod.status) == ("30.0", "mg/L", "draft")
+    bottles = bod.worksheet.bottle_data
+    assert len(bottles) == 3
+    assert bottles[0]["initial_do"] == "8.00"
+    assert bottles[0]["seed_correction"] == "0.50"
+    assert bottles[2]["selected"] is False
+    assert "full depletion" in bottles[2]["reason"]
+    assert worksheets.reproduce(bod.worksheet).matches
+    assert (
+        Result.objects.get(requested_test__sample__client_sample_id="BOD-02").status == "awaiting"
+    )
+
     # Control chart history with exactly one point outside the configured LCS limits.
     series = charts.build_series(lead_water(), "lcs", "recovery")
     assert series.counts["points"] >= 20

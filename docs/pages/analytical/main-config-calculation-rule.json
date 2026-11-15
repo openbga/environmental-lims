@@ -63,7 +63,7 @@
         },
         {
           "label": "Calculation",
-          "description": "Required. Reading times dilution factor, Solids by weight (balance in grams or milligrams), Preparation by volume, Prepared solid as weighed, Prepared solid corrected to dry weight (each of the last two in three unit pairings), Percent solids by weight Percent moisture by weight, Alkalinity by titration to pH 4.5, Low alkalinity by two-endpoint titration or Total hardness by EDTA titration. New entries use the current version; each result keeps the version it was worked with. A calculation that gives one unit is refused for a test whose unit differs, and a dry-weight calculation is refused for a test whose matrix is not soil. Units are not converted; only the spelling of micro may differ (µ, μ or u). Reading times dilution factor and Preparation by volume work for a test in any unit, but Preparation by volume takes a volume of sample and is refused for a soil test. A rule that names a calculation this release no longer has is shown as not in this release and must be changed."
+          "description": "Required. Reading times dilution factor, Solids by weight (balance in grams or milligrams), Preparation by volume, Prepared solid as weighed, Prepared solid corrected to dry weight (each of the last two in three unit pairings), Percent solids by weight Percent moisture by weight, Alkalinity by titration to pH 4.5, Low alkalinity by two-endpoint titration Total hardness by EDTA titration or BOD5 bottle worksheet. New entries use the current version; each result keeps the version it was worked with. A calculation that gives one unit is refused for a test whose unit differs, and a dry-weight calculation is refused for a test whose matrix is not soil. Units are not converted; only the spelling of micro may differ (µ, μ or u). Reading times dilution factor and Preparation by volume work for a test in any unit, but Preparation by volume takes a volume of sample and is refused for a soil test. A rule that names a calculation this release no longer has is shown as not in this release and must be changed."
         },
         {
           "label": "Round to",
@@ -155,7 +155,7 @@
     {
       "title": "Rules and effects",
       "paragraphs": [
-        "With an active rule, manual entry of the test on the batch entry grid and on the result page takes the readings instead of a final result, and a typed final result is refused. The value is worked at full precision and rounded once by this rule. On a soil test, a calculation that means one weight basis (Dry weight, or Wet weight for percent solids and percent moisture) is refused with any other basis. A calculated value below the reporting limit applied needs a qualifier, or the analyst ticks Report as ND (allowed only below the limit).",
+        "With an active rule, manual entry takes readings instead of a final result; BOD5 uses its dedicated bottle worksheet, while other calculations use the batch entry grid and result page, and a typed final result is refused. The value is worked at full precision and rounded once by this rule. On a soil test, a calculation that means one weight basis (Dry weight, or Wet weight for percent solids and percent moisture) is refused with any other basis. A calculated value below the reporting limit applied needs a qualifier, or the analyst ticks Report as ND (allowed only below the limit).",
         "File imports are unchanged: they supply final values kept with their source, get no worksheet and are not recalculated. QC sample measurements are still typed. Typed and imported values are never rounded.",
         "Each calculated revision keeps a worksheet with the readings, the unrounded value, the unrounded reporting limit where the calculation works it out, the rounding applied and this rule's basis. A later change to the rule does not touch earlier worksheets, and a correction adds a new revision with its own worksheet.",
         "The rule is read again when the analyst saves. If a rule was added or deactivated, or its calculation replaced, after the analyst opened the entry grid or the result page, saving is refused with the reason and the analyst reloads: readings typed for one calculation are never worked with another. A change to the rounding alone is not a refusal; it applies from the next save. If the test's unit later stops matching the calculation, a dry-weight calculation stands on a test that is not soil, or this release no longer has the calculation, entry is refused and says an administrator must correct the rule."
@@ -240,6 +240,15 @@
           "description": "Low alkalinity only. Required measured pH after further acid addition, exactly 0.3 below the first endpoint pH. A different pair is refused with the readings kept; no tolerance or interpolation is applied."
         }
       ]
+    },
+    {
+      "title": "BOD5 bottle worksheet",
+      "paragraphs": [
+        "Each bottle value in mg/L is (initial DO − final DO − entered seed correction) × filled bottle volume ÷ sample volume. The arithmetic mean gives each included bottle equal weight, even when volumes differ. The common prior dilution factor multiplies that mean once, and only that final result is rounded by the test rule. Excluded bottles never contribute to the mean.",
+        "Available only for a nonsoil test in mg/L. The laboratory supplies the calculation rule’s Basis and rounding. Record BOD5 bottles opens a separate 1–12 row worksheet, retaining complete included and excluded observations with reasons and per-bottle seed correction evidence. Existing result submission, independent review and release gates remain.",
+        "This is BOD5 arithmetic only. It does not estimate seed demand from controls, subtract dilution-water blank demand, assess incubation or method eligibility, apply automatic bottle QC thresholds, or establish regulatory approval. CBOD5 is outside its scope. The analyst assesses the laboratory method and QC before selection; Include is not an automatic acceptance verdict.",
+        "The reporting limit stays analyst entered and is not scaled. Zero seed correction is explicit for unseeded bottles. Included corrected depletion must be nonnegative, but no depletion/residual DO acceptance threshold or bottle count beyond the 1–12 entry bound is inferred."
+      ]
     }
   ],
   "sources": [
@@ -257,6 +266,16 @@
     "analytical/tests/test_prepared_calculations.py",
     "analytical/tests/test_prepared_pages.py",
     "analytical/tests/test_titration_calculations.py",
-    "analytical/tests/test_titration_pages.py"
+    "analytical/tests/test_titration_pages.py",
+    "analytical/urls.py",
+    "analytical/bod.py",
+    "analytical/bod_forms.py",
+    "analytical/bod_views.py",
+    "analytical/parsing.py",
+    "analytical/preparation.py",
+    "analytical/templates/analytical/result_bottles.html",
+    "analytical/templates/analytical/result_detail.html",
+    "analytical/templates/analytical/batch_entry.html",
+    "analytical/tests/test_bod.py"
   ]
 }

@@ -58,6 +58,10 @@ cannot nest inside this POST form, and the form's sticky action row must stay la
         <tbody>
           {% for form, result, d in rows %}
           <tr id="row-{{ form.prefix }}"{% if form.errors %} class="table-danger"{% endif %}>
+            {% if form.calculation.supports_bottles %}
+            <th scope="row" class="vr-id">{{ form.result_id }}{{ result.requested_test.sample.lab_id }}</th>
+            <td colspan="{% if batch.matrix == 'soil' %}11{% else %}10{% endif %}">{{ d.analyte }} · {{ d.unit }} · BOD5 bottle worksheet{% if can_enter %} · <a href="{% url 'analytical:result-bottles' result.pk %}">Record BOD5 bottles</a>{% endif %}. Enter bottle observations on the dedicated worksheet.</td>
+            {% else %}
             <th scope="row" class="vr-id">{{ form.result_id }}{{ result.requested_test.sample.lab_id }}</th>
             <td>{{ d.analyte }}</td>
             <td><label class="visually-hidden" for="{{ form.prepared_aliquot_id.id_for_label }}">Prepared aliquot</label>{{ form.prepared_aliquot_id }}</td>
@@ -79,6 +83,7 @@ cannot nest inside this POST form, and the form's sticky action row must stay la
             <td>{{ form.qualifiers }}</td>
             <td>{{ form.analysis_started_at }}</td>
             <td>{% if result.latest %}{{ form.reason }}{% else %}<span class="vr-muted">—</span>{% endif %}</td>
+            {% endif %}
           </tr>
           {% if result.status == "returned" %}
           <tr><td colspan="{% if batch.matrix == 'soil' %}12{% else %}11{% endif %}" class="vr-subrow small"><div class="vr-subrow-content">{% status label="Returned" tone="warning" plain=True %} {% if result.latest.review_note %}{{ result.latest.review_note }}{% else %}<span class="vr-muted">No reason recorded</span>{% endif %}{% if result.latest.reviewed_by %}<span class="vr-muted"> · {{ result.latest.reviewed_by.get_full_name|default:result.latest.reviewed_by.get_username }}</span>{% endif %}</div></td></tr>

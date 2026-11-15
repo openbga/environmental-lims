@@ -14,7 +14,7 @@ from decimal import Decimal
 
 from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 
-from . import calculations
+from . import bod, calculations
 from .calculations import Rounding, plain, value_text
 from .models import CalculationRule, ResultKind, ResultWorksheet, WorksheetReading
 from .parsing import MAX_TEXT_LENGTH, parse_decimal, parse_dilution, parse_result_text
@@ -72,8 +72,11 @@ class Worked:
     rule_basis: str = ""
     unrounded_limit: Decimal | None = None  # where the calculation rounds the limit it sets
 
+    bottle_data: list | None = None
+
     def audit(self):
         return {
+            **({"bottle_data": self.bottle_data} if self.bottle_data is not None else {}),
             "calculation": self.calculation.key,
             "calculation_version": self.calculation.version,
             "readings": {reading.key: text for reading, text, _, _ in self.readings},
@@ -175,6 +178,7 @@ def work(
     expected=None,
     result_basis="",
     entry=None,
+    bottle_data=None,
 ):
     """Work one manual entry. Every problem is a ValidationError keyed by form field.
     `expected` is the token of the calculation the page showed, when a page supplied one.
@@ -228,7 +232,13 @@ def work(
                 ]
             }
         )
+    if calculation.supports_bottles:
+        bottle_data, bottles = bod.parse_bottles(bottle_data)
+    elif bottle_data is not None:
+        raise ValidationError({NON_FIELD_ERRORS: ["This calculation does not take bottle rows."]})
     parsed, values, errors = _parse_readings(calculation, readings, entry)
+    if calculation.supports_bottles:
+        values["bottles"] = bottles
     if soil and calculation.soil_basis and result_basis != calculation.soil_basis:
         errors["result_basis"] = [calculation.soil_basis_reason]
     dilution = _dilution(dilution_factor, calculation, errors)
@@ -261,7 +271,9 @@ def work(
                 ]
             }
         ) from None
-    worked = Worked(calculation, parsed, "ND", limit_text, None, rule_basis=rule.basis)
+    worked = Worked(
+        calculation, parsed, "ND", limit_text, None, rule_basis=rule.basis, bottle_data=bottle_data
+    )
     limit_band = None
     if calculation.sets_limit:
         limit, limit_field = outcome.limit, reading_field("base_limit")
@@ -337,6 +349,7 @@ def record(revision, worked):
     calculation = worked.calculation
     worksheet = ResultWorksheet.objects.create(
         revision=revision,
+        bottle_data=worked.bottle_data,
         calculation=calculation.key,
         version=calculation.version,
         title=calculation.title,
@@ -399,6 +412,10 @@ def reproduce(worksheet):
         and revision.result_basis != calculation.soil_basis
     )
     try:
+        if calculation.supports_bottles:
+            values["bottles"] = bod.parse_bottles(worksheet.bottle_data)[1]
+        elif worksheet.bottle_data is not None:
+            return Reproduction(available=True)
         outcome = calculation.run(values, revision.dilution_factor)
         limit_ok, limit_text = True, ""
         if calculation.sets_limit:
@@ -415,7 +432,7 @@ def reproduce(worksheet):
         if outcome.value is None:
             return Reproduction(True, "ND", limit_text, limit_ok and revision.is_nondetect)
         rounded, band = Rounding.from_json(worksheet.rounding).apply(outcome.value)
-    except ArithmeticError, KeyError, TypeError, calculations.CalculationError:
+    except ArithmeticError, KeyError, TypeError, ValidationError, calculations.CalculationError:
         return Reproduction(available=True)
     text = value_text(rounded)
     same_unrounded = calculations.unrounded(outcome.value) == worksheet.unrounded_value
