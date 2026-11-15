@@ -46,11 +46,12 @@
             <tbody>
               {% for reading in sheet.readings.all %}<tr><th scope="row">{{ reading.label }}</th><td class="text-end vr-id">{{ reading.supplied_text }}</td><td>{{ reading.unit }}</td></tr>{% endfor %}
               {% if sheet.unrounded_value is not None %}<tr><th scope="row">Calculated value before rounding</th><td class="text-end vr-id">{{ sheet.unrounded_value|plain_decimal }}</td><td>{{ rev.unit }}</td></tr>{% endif %}
+              {% if sheet.unrounded_limit is not None %}<tr><th scope="row">Reporting limit before rounding</th><td class="text-end vr-id">{{ sheet.unrounded_limit|plain_decimal }}</td><td>{{ rev.unit }}</td></tr>{% endif %}
             </tbody>
           </table>
         </div>
         <dl class="vr-facts">
-          {% fact label="Rounding applied" wide=True %}{% if sheet.rounding_text %}{{ sheet.rounding_text }}{% else %}None: a reading was ND, so there was no value to round{% endif %}{% endfact %}
+          {% fact label="Rounding applied" wide=True %}{% if not sheet.rounding_text %}None: a reading was ND, so there was no value to round{% elif sheet.unrounded_value is None %}{{ sheet.rounding_text }}, applied to the reporting limit. A reading was ND, so there was no value to round{% elif sheet.unrounded_limit is not None %}{{ sheet.rounding_text }}, applied to the value and to the reporting limit{% else %}{{ sheet.rounding_text }}{% endif %}{% endfact %}
           {% if sheet.reported_as_nd %}{% fact label="Reported as ND" wide=True %}The analyst reported the calculated value as ND because it is below the reporting limit applied.{% endfact %}{% endif %}
           {% fact label="Basis of the rule" wide=True value=sheet.rule_basis %}
           {% fact label="Source of the calculation" wide=True value=sheet.source %}

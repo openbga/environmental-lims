@@ -153,7 +153,8 @@ blind restore. Take a backup before each deploy that adds migrations.
 
 `run_acceptance` runs scripted checks of the first journey and the controls it rests on (role
 refusals, client isolation, independent review, release permission, holding time, QC gates,
-a result calculated from its readings, report immutability and amendments, audit events) on
+a result calculated from its readings, a soil result taken back to the sample on a dry-weight
+basis, report immutability and amendments, audit events) on
 synthetic records, and writes an evidence
 package for the laboratory to keep. Run it after installing, after each upgrade once the
 release's migrations have run, and after changing the database server or container image.

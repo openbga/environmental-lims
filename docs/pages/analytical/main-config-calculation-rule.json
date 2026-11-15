@@ -41,10 +41,10 @@
     }
   ],
   "good_to_know": [
-    "There is no default rounding. The application rounds only a calculated value, once, at the end, using the rule you set. Typed and imported results are never rounded.",
+    "There is no default rounding. Your rule rounds a calculated value once, at the end, and the reporting limit a preparation calculation works out. Typed and imported results are never rounded.",
     "Changing or deactivating a rule never touches worksheets already recorded. Each keeps the rounding it was worked with.",
     "A rule applies to manual entry only. File imports still supply final values and get no worksheet.",
-    "A solids calculation can only be chosen for a test whose unit is mg/L. Units are not converted.",
+    "A calculation can only be chosen for a test whose unit it gives, and a dry-weight calculation only for a soil test. Units are not converted.",
     "If you add or deactivate a rule, or choose another calculation, a page an analyst already had open is refused on save. A new rounding simply applies from the next save."
   ],
   "sections": [
@@ -63,11 +63,11 @@
         },
         {
           "label": "Calculation",
-          "description": "Required. Reading times dilution factor, Solids by weight with the balance in grams, or Solids by weight with the balance in milligrams. New entries use the current version; each result keeps the version it was worked with. The two solids calculations give mg/L and are refused for a test whose unit is not mg/L (units are not converted). A rule that names a calculation this release no longer has is shown as not in this release and must be changed."
+          "description": "Required. Reading times dilution factor, Solids by weight (balance in grams or milligrams), Preparation by volume, Prepared solid as weighed, Prepared solid corrected to dry weight (each of the last two in three unit pairings), Percent solids by weight or Percent moisture by weight. New entries use the current version; each result keeps the version it was worked with. A calculation that gives one unit is refused for a test whose unit differs, and a dry-weight calculation is refused for a test whose matrix is not soil. Units are not converted; only the spelling of micro may differ (µ, μ or u). Reading times dilution factor and Preparation by volume work for a test in any unit, but Preparation by volume takes a volume of sample and is refused for a soil test. A rule that names a calculation this release no longer has is shown as not in this release and must be changed."
         },
         {
           "label": "Round to",
-          "description": "Required. Significant figures or Decimal places. This is the laboratory's own choice."
+          "description": "Required. Significant figures or Decimal places. This is the laboratory's own choice. It rounds the calculated value and also a reporting limit the calculation works out (the preparation calculations)."
         },
         {
           "label": "Digits",
@@ -115,18 +115,38 @@
           "description": "The same readings with the weights in mg. Result in mg/L = (dried residue with its filter or dish − filter or dish alone) × 1,000 ÷ sample volume in mL."
         },
         {
-          "label": "What the solids calculations do not do",
-          "description": "They apply no dilution factor (it must be 1) and no blank correction. The reporting limit applied is still typed by the analyst. The source named on each worksheet gives the reference the formula comes from."
+          "label": "Preparation by volume",
+          "description": "Readings: Instrument reading (a number, or ND), Reporting limit in the solution, Sample volume prepared (mL) and Final volume (mL). Result = instrument reading × final volume ÷ sample volume prepared × dilution factor. Works for a test in any unit that is not a soil test."
+        },
+        {
+          "label": "Prepared solid as weighed",
+          "description": "Three pairings of the unit read in the solution to the unit of the result: mg/L to mg/kg, ug/L to ug/kg, ug/L to mg/kg. Readings: Instrument reading (or ND), Reporting limit in the solution, Final volume (mL) and Sample weight (g). Result = instrument reading × final volume in mL ÷ sample weight in g × dilution factor, divided by 1,000 again for ug/L to mg/kg. No percent solids correction: the result is on the basis of the portion as weighed, and the analyst declares wet or dry weight."
+        },
+        {
+          "label": "Prepared solid corrected to dry weight",
+          "description": "The same three pairings and readings, with Sample weight as received (g). The result is the same arithmetic divided by percent solids ÷ 100. Soil tests only. The analyst must declare Dry weight, which the entry offers. Percent solids and its source reference are required: the percent solids comes from the entry's Percent solids field, is not typed a second time as a reading and is kept on the worksheet as a reading."
+        },
+        {
+          "label": "Percent solids by weight, Percent moisture by weight",
+          "description": "Three weights in g: Dish alone, Dish with the sample as received and Dish with the dried sample. Percent solids = (dish with the dried sample − dish alone) ÷ (dish with the sample as received − dish alone) × 100. Percent moisture = (dish with the sample as received − dish with the dried sample) ÷ (dish with the sample as received − dish alone) × 100. Results in %, so the test's unit must be %. Weights in which the dried sample is lighter than the dish, or heavier than the sample as received, are refused at entry. On a soil entry the analyst must declare Wet weight, which the entry offers. The reporting limit is typed, and no dilution factor is applied."
+        },
+        {
+          "label": "What the solids, percent solids and percent moisture calculations do not do",
+          "description": "They apply no dilution factor (it must be 1). Solids by weight also applies no blank correction. The reporting limit applied is still typed by the analyst. The source named on each worksheet gives the reference the formula comes from."
+        },
+        {
+          "label": "What the preparation calculations work out",
+          "description": "Preparation by volume and the prepared solid calculations work out the reporting limit applied: the reporting limit in the solution times the same factors as the result, then rounded by this rule, the same rule as the result. A reading of ND gives ND at that limit. The worksheet keeps the limit before rounding, and Worked again now checks the limit too. A rounding that takes the limit to zero is refused when the result is entered. The percent solids for a dry-weight correction is typed with its source and is not taken from the sample's percent solids result. Volumes and weights are typed with each result and are not recorded once on a prepared aliquot."
         }
       ]
     },
     {
       "title": "Rules and effects",
       "paragraphs": [
-        "With an active rule, manual entry of the test on the batch entry grid and on the result page takes the readings instead of a final result, and a typed final result is refused. The value is worked at full precision and rounded once by this rule. A calculated value below the reporting limit applied needs a qualifier, or the analyst ticks Report as ND (allowed only below the limit).",
-        "File imports are unchanged: they supply final values kept with their source and get no worksheet. Typed and imported values are never rounded.",
-        "Each calculated revision keeps a worksheet with the readings, the unrounded value, the rounding applied and this rule's basis. A later change to the rule does not touch earlier worksheets, and a correction adds a new revision with its own worksheet.",
-        "The rule is read again when the analyst saves. If a rule was added or deactivated, or its calculation replaced, after the analyst opened the entry grid or the result page, saving is refused with the reason and the analyst reloads: readings typed for one calculation are never worked with another. A change to the rounding alone is not a refusal; it applies from the next save. If the test's unit later stops matching a solids calculation, or this release no longer has the calculation, entry is refused and says an administrator must correct the rule."
+        "With an active rule, manual entry of the test on the batch entry grid and on the result page takes the readings instead of a final result, and a typed final result is refused. The value is worked at full precision and rounded once by this rule. On a soil test, a calculation that means one weight basis (Dry weight, or Wet weight for percent solids and percent moisture) is refused with any other basis. A calculated value below the reporting limit applied needs a qualifier, or the analyst ticks Report as ND (allowed only below the limit).",
+        "File imports are unchanged: they supply final values kept with their source, get no worksheet and are not recalculated. QC sample measurements are still typed. Typed and imported values are never rounded.",
+        "Each calculated revision keeps a worksheet with the readings, the unrounded value, the unrounded reporting limit where the calculation works it out, the rounding applied and this rule's basis. A later change to the rule does not touch earlier worksheets, and a correction adds a new revision with its own worksheet.",
+        "The rule is read again when the analyst saves. If a rule was added or deactivated, or its calculation replaced, after the analyst opened the entry grid or the result page, saving is refused with the reason and the analyst reloads: readings typed for one calculation are never worked with another. A change to the rounding alone is not a refusal; it applies from the next save. If the test's unit later stops matching the calculation, a dry-weight calculation stands on a test that is not soil, or this release no longer has the calculation, entry is refused and says an administrator must correct the rule."
       ]
     },
     {
@@ -174,6 +194,8 @@
     "analytical/templates/analytical/form.html",
     "core/concurrency.py",
     "analytical/tests/test_calculations.py",
-    "analytical/tests/test_calculation_pages.py"
+    "analytical/tests/test_calculation_pages.py",
+    "analytical/tests/test_prepared_calculations.py",
+    "analytical/tests/test_prepared_pages.py"
   ]
 }

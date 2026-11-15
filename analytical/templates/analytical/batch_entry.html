@@ -31,8 +31,8 @@ cannot nest inside this POST form, and the form's sticky action row must stay la
   <legend class="visually-hidden">Result entry{% if not can_enter %} (read only: only analysts can enter results){% endif %}</legend>
   <div class="row g-3 mb-3"><div class="col-md-5">{{ defaults.default_analysis_started_at.as_field_group }}</div></div>
   <p class="vr-form-note" role="note"><strong>Saving covers the {{ rows|length }} row{{ rows|length|pluralize }} shown on this page{% if page_obj.paginator.num_pages > 1 %} (page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}){% endif %}.</strong> Rows on other pages are not changed. If any row here has an error, nothing on this page is saved and what you typed is kept. Reason is required only when a result already exists.</p>
-  {% if batch.matrix == "soil" %}<p class="vr-form-note">Choose wet or dry weight for every soil result entered. Enter the final result and reporting limit on that basis; no conversion is performed. Percent solids and its source are optional and must come from an actual supplied measurement.</p>{% endif %}
-  {% if any_calculated %}<p class="vr-form-note">Rows marked <strong>Calculated</strong> take the readings as read at the bench, not a final result. Saving works out the result from them and rounds it once by the laboratory's rule; the readings stay on record with the result.</p>{% endif %}
+  {% if batch.matrix == "soil" %}<p class="vr-form-note">Choose wet or dry weight for every soil result entered. A typed result and its reporting limit are entered on that basis; no conversion is performed. Percent solids is optional beside a typed result, and it must come with its source from an actual measurement.</p>{% endif %}
+  {% if any_calculated %}<p class="vr-form-note">Rows marked <strong>Calculated</strong> take the readings as read at the bench, not a final result. Saving works out the result from them and rounds it once by the laboratory's rule; the readings stay on record with the result.{% if batch.matrix == "soil" %} Where a calculation means one weight basis, the row offers it. A result corrected to dry weight needs the sample's percent solids and its source.{% endif %}</p>{% endif %}
   <details class="mb-3"><summary>How to enter results</summary>
     <p class="vr-form-note mt-2">Type the result exactly as read: a number, or <strong>ND</strong> for a non-detect. Values are stored exactly; entries needing rounding are rejected. The reporting limit applied defaults to the method limit times the dilution; check it. Units come from the test and are not converted. Times are laboratory local time.</p>
     {% if qualifiers %}<p class="vr-form-note mb-1">Qualifier codes you can use ({{ qualifiers|length }}):</p>
@@ -65,16 +65,16 @@ cannot nest inside this POST form, and the form's sticky action row must stay la
             <td>{% if result.latest %}<span class="vr-muted small">{% with rev=result.latest %}{% include "analytical/_revision_value.html" %}{% endwith %} · {{ result.get_status_display }}</span>{% else %}<span class="vr-muted">—</span>{% endif %}</td>
             {% if batch.matrix == "soil" %}<td>
               <label class="visually-hidden" for="{{ form.result_basis.id_for_label }}">Result basis</label>{{ form.result_basis }}
-              <details class="mt-2"{% if form.percent_solids.errors or form.solids_reference.errors %} open{% endif %}><summary class="small">Supplied percent solids (optional)</summary>
+              <details class="mt-2"{% if form.needs_solids or form.percent_solids.errors or form.solids_reference.errors %} open{% endif %}><summary class="small">{% if form.needs_solids %}Percent solids for the dry-weight correction (required){% else %}Supplied percent solids (optional){% endif %}</summary>
                 {{ form.percent_solids.as_field_group }}{{ form.solids_reference.as_field_group }}
               </details>
             </td>{% endif %}
             <td>{% if form.calculation %}
               <div class="vr-muted small">Calculated: {{ form.calculation.label }}{{ form.calculation_token }}</div>
-              <div class="row g-2 flex-nowrap">{% for field in form.reading_fields %}<div class="col">{{ field.as_field_group }}</div>{% endfor %}</div>
+              <div class="row g-2 {% if form.reading_fields|length > 3 %}row-cols-2{% else %}flex-nowrap{% endif %}">{% for field in form.reading_fields %}<div class="col">{{ field.as_field_group }}</div>{% endfor %}</div>
               {{ form.report_nd.as_field_group }}
             {% else %}{{ form.supplied_text }}{% endif %}</td>
-            <td>{% if form.calculation.sets_limit %}<span class="vr-muted small">Calculated: limit before dilution × dilution</span>{% else %}{{ form.reporting_limit_applied }}{% endif %}</td>
+            <td>{% if form.calculation.sets_limit %}<span class="vr-muted small">Calculated: {{ form.calculation.limit_note }}</span>{% else %}{{ form.reporting_limit_applied }}{% endif %}</td>
             <td>{{ form.dilution_factor }}{% if form.calculation and not form.calculation.uses_dilution %}<span class="vr-muted small">Not used</span>{% endif %}</td>
             <td>{{ form.qualifiers }}</td>
             <td>{{ form.analysis_started_at }}</td>

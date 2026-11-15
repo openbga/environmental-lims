@@ -1272,14 +1272,20 @@ class CalculationRule(models.Model):
         calculation = calculations.current(self.calculation)
         if calculation is None:
             errors["calculation"] = "Choose a calculation."
-        elif (
-            self.definition_id
-            and calculation.result_unit
-            and self.definition.unit != calculation.result_unit
-        ):
+        elif self.definition_id and not calculation.gives(self.definition.unit):
             errors["calculation"] = (
                 f"This calculation gives {calculation.result_unit}; the test's unit is "
                 f"{self.definition.unit}. Units are not converted."
+            )
+        elif self.definition_id and calculation.soil_only and self.definition.matrix != "soil":
+            errors["calculation"] = (
+                "This calculation corrects a soil result to dry weight with its percent "
+                f"solids; the test's matrix is {self.definition.get_matrix_display().lower()}."
+            )
+        elif self.definition_id and calculation.liquid_only and self.definition.matrix == "soil":
+            errors["calculation"] = (
+                "This calculation takes a volume of sample; this is a soil test. Choose a "
+                "prepared solid calculation, which takes the weight prepared."
             )
         errors.update(_digit_errors(self.rounding_mode, self.rounding_digits, "rounding_digits"))
         upper = (self.upper_rounding_mode, self.upper_rounding_digits)
@@ -1361,6 +1367,14 @@ class ResultWorksheet(models.Model):
         help_text="The analyst reported a calculated value below the reporting limit as ND.",
     )
     rule_basis = models.TextField(blank=True)
+    unrounded_limit = models.DecimalField(
+        null=True,
+        blank=True,
+        max_digits=44,
+        decimal_places=20,
+        help_text="Reporting limit before rounding, where the calculation works the limit "
+        "out and rounds it. Empty otherwise.",
+    )
 
     class Meta:
         ordering = ["revision_id"]

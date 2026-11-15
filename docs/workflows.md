@@ -194,6 +194,29 @@ Calculations available:
 | --- | --- | --- | --- |
 | Reading times dilution factor | Instrument reading (or ND), reporting limit before dilution, dilution factor | Reading × dilution factor | Limit before dilution × dilution factor |
 | Solids by weight, balance in grams or in milligrams | Dried residue with its filter or dish, filter or dish alone, sample volume in mL | (Residue weight) × 1,000,000 ÷ mL for grams, × 1,000 ÷ mL for milligrams, in mg/L | Typed by the analyst |
+| Preparation by volume | Instrument reading (or ND), reporting limit in the solution, sample volume prepared and final volume in mL, dilution factor | Reading × final volume ÷ sample volume × dilution factor, in the unit of the test | Limit in the solution × the same factors, rounded like the result |
+| Prepared solid as weighed (mg/L to mg/kg, ug/L to ug/kg, ug/L to mg/kg) | Instrument reading (or ND), reporting limit in the solution, final volume in mL, sample weight in g, dilution factor | Reading × final volume ÷ sample weight × dilution factor (÷ 1,000 from ug/L to mg/kg), on the basis of the portion as weighed | Limit in the solution × the same factors, rounded like the result |
+| Prepared solid corrected to dry weight (the same three pairings) | The same, with the weight as received, and the percent solids and its source from the entry | The same ÷ (percent solids ÷ 100), on a dry-weight basis | Limit in the solution × the same factors, rounded like the result |
+| Percent solids by weight, percent moisture by weight | Dish alone, dish with the sample as received, dish with the dried sample, in g | Dried sample ÷ sample as received × 100, or water lost ÷ sample as received × 100, in % | Typed by the analyst |
+
+A preparation calculation takes the reading back to the sample with the amounts actually
+prepared, and takes the reporting limit with it. The limit it works out is rounded by the test's
+rounding rule, the same rule as the result, and the worksheet keeps the limit before rounding;
+a rounding that would take the limit to zero is refused at entry. Working a worksheet again
+checks the limit as well as the value.
+
+For soil, the correction to dry weight is a calculation the laboratory chooses for the test, never
+something inferred from the basis: a method that weighs the portion as received and divides by
+percent solids uses a "corrected to dry weight" calculation, and a method that dries the portion
+before weighing uses "as weighed" and declares dry weight. A corrected result must be entered
+as dry weight with the percent solids and where it came from, and the percent solids is kept on
+the worksheet with the other readings. An "as weighed" calculation never applies percent
+solids, even where one is recorded beside the result: declaring dry weight there says that the
+portion was dried before it was weighed. Percent solids and percent moisture are shares of the
+sample as received and are entered as wet weight; weights in which the dried sample is lighter
+than the dish or heavier than the sample as received are refused. The entry pages offer the
+basis the calculation means; the analyst can still change it and is then told why it does not
+fit. A preparation by volume takes a volume of sample and cannot be chosen for a soil test.
 
 Rounding is the laboratory's own rule and has no default: significant figures or decimal
 places, an optional second rounding from a size the laboratory names (for example whole numbers
@@ -206,13 +229,24 @@ or the analyst reports it as ND; the readings and the calculated value stay on r
 way. A reading of ND in the dilution calculation gives ND at the diluted limit.
 
 Limits: a rule covers one test and one calculation, and its results are always worked from
-readings in manual entry. File imports are not recalculated or rounded: they supply final
-values, kept with their source. QC sample measurements are still typed. The solids calculation
-gives mg/L only, applies no blank correction and no dilution factor, and does not scale the
-reporting limit with the volume used. Preparation factors, percent moisture and dry-weight
-correction for soil, and worksheets for BOD and titrations are not built. The arithmetic of a
-calculation version is part of the release: a laboratory checks it against its method before
-use, and the demonstration rule is synthetic.
+readings in manual entry, so one test is either corrected to dry weight or not. File imports are
+not recalculated or rounded: they supply final values, kept with their source. QC sample
+measurements are still typed. The solids calculation gives mg/L only, applies no blank
+correction and no dilution factor, and does not scale the reporting limit with the volume used.
+The preparation amounts are typed with each result; they are not recorded once on a prepared
+aliquot and shared by its tests. The percent solids of a dry-weight result is typed with its
+source; it is not taken from the sample's percent solids result, and a later correction of that
+result does not flag the results worked with the earlier value. The limit in the solution is
+typed; the catalog reporting limit is not scaled from nominal amounts. The limit worked out is rounded
+by the same rule as the result, which can round it down as well as up; a laboratory that rounds
+its limits another way cannot set that yet. A calculation gives one
+unit from one unit: the three pairings above for solids, the unit of the test for a preparation
+by volume and percent for solids and moisture. Units are matched by name, and only the spelling
+of micro (µ, μ or u) may differ. Each reading is used as typed, so a method that rounds the
+solution concentration first is followed by typing the rounded concentration. Worksheets for
+BOD and titrations are not built. The arithmetic of a calculation version is part of the
+release: a laboratory checks it against its method before use, and the demonstration rules are
+synthetic.
 
 ## MDL studies
 
@@ -227,8 +261,11 @@ recorded; they are never reclassified.
 ## Soil results
 
 New internal soil observations require an explicit wet- or dry-weight basis. Optional supplied
-percent solids must include its measurement/source reference; blank means not recorded. Manual
-entry and imports preserve the final value and applied reporting limit without conversion.
+percent solids must include its measurement/source reference; blank means not recorded. Typed
+and imported results preserve the final value and applied reporting limit without conversion.
+The one conversion is a result worked from readings by a calculation that corrects to dry weight
+(see Calculated results): it requires the dry-weight basis and the percent solids with its
+source, and keeps both with the worksheet.
 Earlier observations retain their unknown basis; corrections record new metadata without
 rewriting prior revisions or issued PDFs. External results remain as supplied.
 

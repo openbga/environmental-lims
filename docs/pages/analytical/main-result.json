@@ -24,14 +24,15 @@
     {
       "title": "Enter or correct a result worked from readings",
       "steps": [
-        "Type the readings the form asks for, where a result would be. Add a qualifier, or tick [[Report as ND]], if the value will fall below the reporting limit applied.",
+        "Type the readings the form asks for, where a result would be. For a dry-weight calculation also fill in [[Percent solids]] and [[Solids source reference]].",
+        "Add a qualifier, or tick [[Report as ND]], if the value will fall below the reporting limit applied.",
         "Select [[Enter result]] or [[Correct result]]. The result is worked from the readings and rounded once by the laboratory's rule."
       ]
     },
     {
       "title": "Check how a calculated result was worked",
       "steps": [
-        "Find the revision. Under its facts, read the worksheet: the readings as typed, the value before rounding and the rounding applied.",
+        "Find the revision. Under its facts, read the worksheet: the readings as typed, the value and the reporting limit before rounding where shown, and the rounding applied.",
         "Read [[Worked again now]] to see whether the stored readings still give the recorded result."
       ]
     },
@@ -44,7 +45,7 @@
   ],
   "good_to_know": [
     "A correction adds a new revision. Approved and returned revisions stay as they were, and issued reports are not changed.",
-    "A calculated revision keeps its worksheet. A correction adds a revision with its own worksheet, and a later change to the calculation rule never alters an earlier one.",
+    "A calculated revision keeps its worksheet. A correction adds a revision with its own worksheet, and a later change to the rule or the percent solids never alters an earlier one.",
     "While the latest revision awaits review, it cannot be corrected. A reviewer must decide it first.",
     "Each revision keeps the qualifiers, method and reporting limit it was entered with.",
     "A sample held or rejected at receipt cannot take new results."
@@ -162,15 +163,19 @@
         },
         {
           "label": "Reading, As typed, Unit",
-          "description": "Every reading exactly as typed, with the unit it was read in. For a dilution calculation ND can be a reading."
+          "description": "Every reading exactly as typed, with the unit it was read in. For the dilution and preparation calculations ND can be a reading. A dry-weight calculation lists Percent solids (%) among the readings: the value from the Percent solids field of the entry, not a second box."
         },
         {
           "label": "Calculated value before rounding",
           "description": "The value at full precision, before the rounding was applied, in the unit of the revision (up to 20 decimal places). Not shown when a reading was ND."
         },
         {
+          "label": "Reporting limit before rounding",
+          "description": "Shown where the calculation works out the reporting limit and rounds it (preparation by volume and the prepared solid calculations): the limit at full precision before the test's rounding was applied, in the unit of the revision. Not shown for the other calculations."
+        },
+        {
           "label": "Rounding applied",
-          "description": "The laboratory's rounding as it was when the result was entered, for example 3 significant figures, half to even, including the second rounding when it applied. Reads None when a reading was ND."
+          "description": "The laboratory's rounding as it was when the result was entered, for example 3 significant figures, half to even, including the second rounding when it applied. Where the calculation also rounds its reporting limit it adds applied to the value and to the reporting limit. When a reading was ND and the limit was rounded it says the rounding was applied to the reporting limit and there was no value to round. Reads None when a reading was ND and the calculation does not round the limit."
         },
         {
           "label": "Reported as ND",
@@ -186,7 +191,7 @@
         },
         {
           "label": "Worked again now",
-          "description": "The page recomputes the result from the stored readings, the stored calculation version and the stored rounding. Same result means it matches the recorded value (and reporting limit where the calculation sets it). Different result means it does not; tell the laboratory's administrator. If this release no longer holds that calculation version, it says so and the recorded result stands."
+          "description": "The page recomputes the result from the stored readings, the stored calculation version and the stored rounding. Same result means it matches the recorded value, and the reporting limit with its rounding where the calculation works the limit out. Different result means it does not; tell the laboratory's administrator. If this release no longer holds that calculation version, it says so and the recorded result stands."
         }
       ]
     },
@@ -199,7 +204,7 @@
         },
         {
           "label": "Readings",
-          "description": "For a test with an active calculation rule, one required box for each reading of its calculation, with the unit: Instrument reading and Reporting limit before dilution (offered from the catalog limit), or Dried residue with its filter or dish, Filter or dish alone and Sample volume. Typed as read, never rounded. A note under the form names the calculation, its version and its formula."
+          "description": "For a test with an active calculation rule, one required box for each reading of its calculation, with the unit, typed as read and never rounded. Dilution: Instrument reading and Reporting limit before dilution (offered from the catalog limit). Solids by weight: Dried residue with its filter or dish, Filter or dish alone and Sample volume. Preparation by volume: Instrument reading, Reporting limit in the solution, Sample volume prepared (mL) and Final volume (mL). Prepared solid (as weighed or corrected to dry weight): Instrument reading, Reporting limit in the solution, Final volume (mL) and Sample weight (g), or Sample weight as received for the dry-weight correction. Percent solids and percent moisture: Dish alone, Dish with the sample as received and Dish with the dried sample (g). The limit in the solution is typed; it is not filled in. A note under the form names the calculation, its version and its formula."
         },
         {
           "label": "Report as ND",
@@ -211,11 +216,11 @@
         },
         {
           "label": "Reporting limit applied",
-          "description": "Required positive per-result limit; defaults to the current test definition's limit when configured, not the prior revision's applied limit. Not shown for the dilution calculation: the limit is worked out from Reporting limit before dilution and the dilution factor."
+          "description": "Required positive per-result limit; defaults to the current test definition's limit when configured, not the prior revision's applied limit. Not shown for the dilution calculation or the preparation calculations: the limit is worked out from the reading Reporting limit before dilution or Reporting limit in the solution and the other factors, and the preparation calculations round it like the result."
         },
         {
           "label": "Dilution factor",
-          "description": "Required; initially 1. Not shown for the solids calculations, which apply no dilution factor (it is saved as 1)."
+          "description": "Required; initially 1. Not shown for the solids calculations, percent solids and percent moisture, which apply no dilution factor (it is saved as 1)."
         },
         {
           "label": "Qualifiers",
@@ -227,15 +232,15 @@
         },
         {
           "label": "Result basis",
-          "description": "For soil only: Wet weight or Dry weight is required. New soil observations cannot use Not applicable."
+          "description": "For soil only: Wet weight or Dry weight is required. New soil observations cannot use Not applicable. For a calculation that means one basis the form offers it: Dry weight for a prepared solid corrected to dry weight, Wet weight for percent solids and percent moisture. Another basis is refused with what you typed kept. For a prepared solid as weighed you declare wet or dry weight."
         },
         {
           "label": "Percent solids",
-          "description": "Optional exact supplied percentage from 0 through 100."
+          "description": "Optional exact supplied percentage from 0 through 100. Required for a calculation corrected to dry weight, where it must be greater than zero, is the value the correction is worked with and is kept on the worksheet as a reading. It is typed here with its source, not taken from the sample's percent solids result."
         },
         {
           "label": "Solids source reference",
-          "description": "Required with supplied percent solids, at most 240 characters; cannot be supplied without a percentage."
+          "description": "Required with supplied percent solids, at most 240 characters; cannot be supplied without a percentage. Always required with a calculation corrected to dry weight."
         },
         {
           "label": "Comments",
@@ -253,7 +258,7 @@
         "Use a plain decimal number, optionally signed or in scientific notation, or ND (case-insensitive) for a non-detect. Zero is a detected numeric observation, never an inferred non-detect. Comparison symbols, units, thousands separators and values needing rounding are rejected. Result text is limited to 60 characters; numeric observations support 14 integer digits and 10 decimal places.",
         "Reporting limit must be positive. Dilution must be positive with at most four decimal places and at most ten integer digits. A detected value below its applied reporting limit needs at least one active qualifier or must be entered as ND where appropriate; the application does not choose that interpretation for you. Units come from the test; nothing is converted.",
         "Analysis cannot precede sample receipt or applicable preparation, and cannot be more than two minutes ahead of the current time. Preparation cannot precede collection, including composite end. Local form times use the deployment’s laboratory time zone; ambiguous/nonexistent daylight-saving local times are rejected.",
-        "For soil, choose Wet weight or Dry weight for every new observation. Enter the final result and reporting limit on that same basis; no conversion is performed. Percent solids is optional exact supplied data between 0 and 100 inclusive, and requires its source reference. A reference without percent solids is invalid. Nonsoil results use Not applicable and reject supplied solids metadata.",
+        "For soil, choose Wet weight or Dry weight for every new observation. For a typed result, enter the final result and reporting limit on that same basis; no conversion is performed. Percent solids is optional exact supplied data between 0 and 100 inclusive, and requires its source reference, unless a dry-weight calculation needs it (then it is required and must be greater than zero). A reference without percent solids is invalid. Nonsoil results use Not applicable and reject supplied solids metadata.",
         "An active independent preparation requirement needs an explicit available aliquot for this sample/test, matrix and required preparation method/version. It must have a recorded start, and analysis cannot precede completion when recorded, otherwise start. Choosing the same aliquot means repeat analysis; choosing a new physical aliquot means re-preparation. No identity is inferred from a legacy batch timestamp."
       ]
     },
@@ -305,6 +310,8 @@
     "analytical/calculations.py",
     "analytical/worksheets.py",
     "analytical/tests/test_calculations.py",
-    "analytical/tests/test_calculation_pages.py"
+    "analytical/tests/test_calculation_pages.py",
+    "analytical/tests/test_prepared_calculations.py",
+    "analytical/tests/test_prepared_pages.py"
   ]
 }

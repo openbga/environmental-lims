@@ -1,6 +1,7 @@
 """`seed_demo --full`: a synthetic working week made through the domain services, once."""
 
 from collections import Counter
+from decimal import Decimal
 
 import pytest
 from django.apps import apps
@@ -8,7 +9,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from accounts.models import User
-from analytical import charts
+from analytical import charts, worksheets
 from analytical.models import (
     Batch,
     MDLCalculation,
@@ -85,6 +86,23 @@ def test_full_seed_builds_a_working_week_once(password, monkeypatch):
     assert blocked and len(blocked) < len(review)
     assert not QCCorrectiveAction.objects.exists()
     assert Batch.objects.filter(kind="preparation").exists()
+
+    # A soil result worked from its extract reading to dry weight with the percent solids of
+    # the same sample, which was worked from its weights and reviewed first.
+    nitrate = ResultRevision.objects.get(
+        result__requested_test__sample__client_sample_id="DB-N01",
+        definition__method__code="DEMO-NITRATE-SOIL",
+    )
+    solids = ResultRevision.objects.get(
+        result__requested_test__sample__client_sample_id="DB-N01",
+        definition__method__code="DEMO-SOLIDS-SOIL",
+    )
+    assert (solids.supplied_text, solids.unit, solids.status) == ("81.6", "%", "approved")
+    assert (nitrate.supplied_text, nitrate.result_basis) == ("22.4", "dry")
+    assert nitrate.reporting_limit_applied == Decimal("0.609")
+    assert nitrate.percent_solids == solids.value
+    assert solids.batch.number in nitrate.solids_reference
+    assert worksheets.reproduce(nitrate.worksheet).matches
 
     # Control chart history with exactly one point outside the configured LCS limits.
     series = charts.build_series(lead_water(), "lcs", "recovery")

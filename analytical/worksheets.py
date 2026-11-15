@@ -5,7 +5,8 @@ the test's CalculationRule. `record` stores the worksheet beside the new revisio
 works a stored worksheet again from its own readings, calculation version and rounding
 snapshot, which is how a reported value is shown to be reproducible.
 
-Error keys are form field names: a reading with key `gross` reports under `reading_gross`.
+Error keys are form field names: a reading with key `gross` reports under `reading_gross`,
+and a reading the entry itself records (percent solids) under that entry field.
 """
 
 from dataclasses import dataclass, field
@@ -69,6 +70,7 @@ class Worked:
     rounding: dict = field(default_factory=dict)
     reported_as_nd: bool = False
     rule_basis: str = ""
+    unrounded_limit: Decimal | None = None  # where the calculation rounds the limit it sets
 
     def audit(self):
         return {
@@ -80,17 +82,33 @@ class Worked:
             else plain(calculations.unrounded(self.unrounded)),
             "rounding": self.rounding,
             "reported_as_nd": self.reported_as_nd,
+            **(
+                {}
+                if self.unrounded_limit is None
+                else {"unrounded_limit": plain(calculations.unrounded(self.unrounded_limit))}
+            ),
         }
 
 
-def _parse_readings(calculation, readings):
+def _parse_readings(calculation, readings, entry):
+    """Read each input exactly as typed. `entry` holds the entry's own fields, for the
+    readings a calculation takes from them (Reading.entry_field)."""
     errors, parsed, values = {}, [], {}
     supplied = dict(readings or {})
     for reading in calculation.inputs:
-        text = supplied.pop(reading.key, "")
-        text = "" if text is None else str(text)
-        name = reading_field(reading.key)
+        if reading.entry_field:
+            text, name = (entry or {}).get(reading.entry_field), reading.entry_field
+        else:
+            text, name = supplied.pop(reading.key, ""), reading_field(reading.key)
         try:
+            if isinstance(text, float):
+                raise ValidationError(
+                    f"Supply {reading.label[0].lower()}{reading.label[1:]} as exact decimal "
+                    "text, not a float."
+                )
+            text = "" if text is None else str(text)
+            if reading.entry_field and not text.strip():
+                raise ValidationError(f"{reading.label} is required by this calculation.")
             if len(text) > MAX_TEXT_LENGTH:
                 raise ValidationError(
                     f"{reading.label} must be at most {MAX_TEXT_LENGTH} characters."
@@ -155,9 +173,13 @@ def work(
     report_nd=False,
     has_qualifier=False,
     expected=None,
+    result_basis="",
+    entry=None,
 ):
     """Work one manual entry. Every problem is a ValidationError keyed by form field.
-    `expected` is the token of the calculation the page showed, when a page supplied one."""
+    `expected` is the token of the calculation the page showed, when a page supplied one.
+    `result_basis` and `entry` (the entry's own fields, such as percent solids) are what the
+    analyst recorded with the result; some calculations read them."""
     calculation = calculations.current(rule.calculation)
     if calculation is None:
         raise ValidationError(
@@ -168,12 +190,31 @@ def work(
                 ]
             }
         )
-    if calculation.result_unit and calculation.result_unit != definition.unit:
+    if not calculation.gives(definition.unit):
         raise ValidationError(
             {
                 NON_FIELD_ERRORS: [
                     f"The calculation gives {calculation.result_unit}; the test's unit is now "
                     f"{definition.unit}. An administrator must correct the calculation rule."
+                ]
+            }
+        )
+    soil = definition.matrix == "soil"
+    if calculation.soil_only and not soil:
+        raise ValidationError(
+            {
+                NON_FIELD_ERRORS: [
+                    "The calculation corrects a soil result to dry weight; this test is not a "
+                    "soil test. An administrator must correct the calculation rule."
+                ]
+            }
+        )
+    if calculation.liquid_only and soil:
+        raise ValidationError(
+            {
+                NON_FIELD_ERRORS: [
+                    "The calculation takes a volume of sample; this is a soil test. An "
+                    "administrator must correct the calculation rule."
                 ]
             }
         )
@@ -187,33 +228,73 @@ def work(
                 ]
             }
         )
-    parsed, values, errors = _parse_readings(calculation, readings)
+    parsed, values, errors = _parse_readings(calculation, readings, entry)
+    if soil and calculation.soil_basis and result_basis != calculation.soil_basis:
+        errors["result_basis"] = [calculation.soil_basis_reason]
     dilution = _dilution(dilution_factor, calculation, errors)
     limit_text = (reporting_limit_applied or "").strip()
     if calculation.sets_limit and limit_text:
+        starts_from = next(r.label for r in calculation.inputs if r.key == "base_limit")
         errors["reporting_limit_applied"] = [
             "This calculation sets the reporting limit applied. Leave it blank and give the "
-            "limit before dilution with the readings."
+            f"{starts_from[0].lower()}{starts_from[1:]} with the readings."
         ]
     if errors:
         raise ValidationError(errors)
-    outcome = calculation.run(values, dilution)
+    try:
+        outcome = calculation.run(values, dilution)
+        # Rounding and the record of the unrounded values need a size that can be worked.
+        rounded_here = [outcome.value, outcome.limit if calculation.rounds_limit else None]
+        for number in rounded_here:
+            if number is not None:
+                rule.rounding.apply(number)
+                calculations.unrounded(number)
+    except calculations.CalculationError as exc:
+        at = reading_field(exc.field) if exc.field else NON_FIELD_ERRORS
+        raise ValidationError({at: [str(exc)]}) from None
+    except ArithmeticError:
+        raise ValidationError(
+            {
+                NON_FIELD_ERRORS: [
+                    "These readings work out to a number too large to round and store. Check "
+                    "the readings and their units."
+                ]
+            }
+        ) from None
+    worked = Worked(calculation, parsed, "ND", limit_text, None, rule_basis=rule.basis)
+    limit_band = None
     if calculation.sets_limit:
-        limit_text = plain(outcome.limit)
-        limit = _storable(limit_text, "The reporting limit applied", reading_field("base_limit"))
+        limit, limit_field = outcome.limit, reading_field("base_limit")
+        if calculation.rounds_limit:
+            limit, limit_band = rule.rounding.apply(outcome.limit)
+            if limit <= 0:
+                raise ValidationError(
+                    {
+                        limit_field: [
+                            "The reporting limit applied works out to "
+                            f"{plain(calculations.unrounded(outcome.limit))}, which this test's "
+                            f"rounding ({rule.rounding.describe()}) takes to zero. An "
+                            "administrator must set a rounding that keeps the limit."
+                        ]
+                    }
+                )
+            worked.unrounded_limit = outcome.limit
+            # Kept even when a reading is ND: the limit was still rounded by this rule.
+            worked.rounding = _rounding_snapshot(rule, limit_band=limit_band)
+        worked.limit_text = limit_text = plain(limit)
+        limit = _storable(limit_text, "The reporting limit applied", limit_field)
     else:
         try:
             limit = parse_decimal(limit_text, "Reporting limit applied")
         except ValidationError:
             limit = None  # the ordinary entry check reports a missing or malformed limit
-    worked = Worked(calculation, parsed, "ND", limit_text, None, rule_basis=rule.basis)
     if outcome.value is None:
-        return worked  # a reading was ND: reported as ND at the limit, nothing to round
+        return worked  # a reading was ND: reported as ND at the limit, no value to round
     rounded, band = rule.rounding.apply(outcome.value)
     text = value_text(rounded)
     _storable(text, "The calculated value", NON_FIELD_ERRORS)
     worked.unrounded = outcome.value
-    worked.rounding = rule.rounding.as_json(band)
+    worked.rounding = _rounding_snapshot(rule, band, limit_band)
     below = limit is not None and limit > 0 and rounded < limit
     if report_nd:
         if not below:
@@ -242,6 +323,15 @@ def work(
     return worked
 
 
+def _rounding_snapshot(rule, band=None, limit_band=None):
+    """The rule as applied: `band` is the range the value fell in, `limit_band` the range the
+    limit fell in where the calculation rounds the limit it sets."""
+    snapshot = rule.rounding.as_json(band)
+    if limit_band:
+        snapshot["limit_band"] = limit_band
+    return snapshot
+
+
 def record(revision, worked):
     """Store the worksheet of a new calculated revision. Caller holds the transaction."""
     calculation = worked.calculation
@@ -258,6 +348,9 @@ def record(revision, worked):
         rounding=worked.rounding,
         reported_as_nd=worked.reported_as_nd,
         rule_basis=worked.rule_basis,
+        unrounded_limit=None
+        if worked.unrounded_limit is None
+        else calculations.unrounded(worked.unrounded_limit),
     )
     WorksheetReading.objects.bulk_create(
         WorksheetReading(
@@ -294,16 +387,35 @@ def reproduce(worksheet):
         return Reproduction(available=False)
     revision = worksheet.revision
     values = {reading.key: reading.value for reading in worksheet.readings.all()}
+    # What the calculation read from the entry is on the revision too, and the basis it means
+    # is the basis the revision declares: the worksheet and its result must say the same.
+    record_ok = all(
+        values.get(reading.key) == getattr(revision, reading.entry_field)
+        for reading in calculation.inputs
+        if reading.entry_field
+    ) and not (
+        revision.matrix == "soil"
+        and calculation.soil_basis
+        and revision.result_basis != calculation.soil_basis
+    )
     try:
         outcome = calculation.run(values, revision.dilution_factor)
         limit_ok, limit_text = True, ""
         if calculation.sets_limit:
-            limit_text = plain(outcome.limit)
-            limit_ok = outcome.limit == revision.reporting_limit_applied
+            limit = outcome.limit
+            if calculation.rounds_limit:
+                limit, limit_band = Rounding.from_json(worksheet.rounding).apply(outcome.limit)
+                limit_ok = (
+                    limit_band == worksheet.rounding.get("limit_band")
+                    and calculations.unrounded(outcome.limit) == worksheet.unrounded_limit
+                )
+            limit_text = plain(limit)
+            limit_ok = limit_ok and limit == revision.reporting_limit_applied
+        limit_ok = limit_ok and record_ok
         if outcome.value is None:
             return Reproduction(True, "ND", limit_text, limit_ok and revision.is_nondetect)
         rounded, band = Rounding.from_json(worksheet.rounding).apply(outcome.value)
-    except ArithmeticError, KeyError, TypeError:
+    except ArithmeticError, KeyError, TypeError, calculations.CalculationError:
         return Reproduction(available=True)
     text = value_text(rounded)
     same_unrounded = calculations.unrounded(outcome.value) == worksheet.unrounded_value
