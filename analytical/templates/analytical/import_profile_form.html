@@ -18,7 +18,7 @@
       <div class="col-md-6">{{ form.date_format.as_field_group }}</div>
       {% if form.is_active %}<div class="col-md-3">{{ form.is_active.as_field_group }}</div>{% endif %}
     </div>
-    <p class="vr-form-note mt-3 mb-0"><strong>Long:</strong> one result per row (sample, analyte, result). <strong>Wide:</strong> one sample per row and one column for each analyte you list below. Comma or tab delimited UTF-8 text only; Excel files are not supported. Imports keep the parsed results, the mapping and the file's digest, not the uploaded file: keep your source file.</p>
+    <p class="vr-form-note mt-3 mb-0"><strong>Long:</strong> one result per row (sample, analyte, result). <strong>Wide:</strong> one sample per row and one column for each analyte you list below. Use comma or tab delimited UTF-8 text, or a values-only XLSX worksheet. Select the worksheet when uploading; the delimiter applies only to text files. XLSX identifiers and timestamps must be text; numeric display formatting is not imported. Imports keep the parsed results, the mapping and the file's digest, not the uploaded file: keep your source file.</p>
   </fieldset>
 
   <fieldset class="vr-form-section">

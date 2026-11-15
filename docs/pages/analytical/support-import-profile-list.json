@@ -4,7 +4,7 @@
     "analytical:import-profile-list"
   ],
   "title": "Import mappings",
-  "purpose": "Find reusable descriptions of long or wide comma/tab-delimited result files before previewing them against an analytical batch.",
+  "purpose": "Find reusable column mappings for long or wide CSV/TSV result files and XLSX worksheets before previewing them against a batch.",
   "summary": "Find the saved mappings that describe your results files, column by column, for import into an analytical batch.",
   "tasks": [
     {
@@ -78,7 +78,7 @@
         },
         {
           "label": "Delimiter",
-          "description": "Comma or Tab."
+          "description": "Comma or Tab for text files; ignored when importing an XLSX worksheet. The same column mapping can be used for either source."
         },
         {
           "label": "State",
@@ -117,6 +117,8 @@
     "analytical/selectors.py",
     "analytical/tests/test_import_profiles.py",
     "analytical/templates/analytical/import_profile_list.html",
-    "core/grids.py"
+    "core/grids.py",
+    "analytical/workbook_import.py",
+    "analytical/tests/test_workbook_import.py"
   ]
 }
