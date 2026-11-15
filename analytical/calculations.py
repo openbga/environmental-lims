@@ -370,6 +370,211 @@ _WET_REASON = (
     "Percent solids and percent moisture are shares of the sample as received. Choose Wet weight."
 )
 
+# -------------------------------------------------------------------------- titrations
+
+
+def _titration_volume(readings, endpoint="final"):
+    for key in ("initial", endpoint):
+        if readings[key] < 0:
+            raise CalculationError("A burette reading cannot be negative.", key)
+    if readings[endpoint] < readings["initial"]:
+        raise CalculationError(
+            "The endpoint burette reading cannot be less than the initial reading. "
+            "This worksheet does not account for burette refills.",
+            endpoint,
+        )
+    return readings[endpoint] - readings["initial"]
+
+
+def _titration(*, alkalinity=False, low=False):
+    def work(readings, dilution):
+        # Validate the denominators and strengths here as well as through Reading, so an
+        # unusable stored worksheet reports the actual reading at fault when reproduced.
+        for key, label in (("sample_volume", "Sample volume"), ("normality", "Titrant normality")):
+            if readings[key] <= 0:
+                raise CalculationError(f"{label} must be greater than zero.", key)
+        volume = _titration_volume(readings)
+        if low:
+            first = _titration_volume(readings, "first_endpoint")
+            if readings["final"] <= readings["first_endpoint"]:
+                raise CalculationError(
+                    "The final burette reading must exceed the first endpoint reading: "
+                    "acid is added between the two endpoints.",
+                    "final",
+                )
+            if not Decimal("4.3") <= readings["first_ph"] <= Decimal("4.7"):
+                raise CalculationError(
+                    "The first endpoint pH must be from 4.3 to 4.7 for this calculation.",
+                    "first_ph",
+                )
+            if readings["final_ph"] != readings["first_ph"] - Decimal("0.3"):
+                raise CalculationError(
+                    "The final endpoint pH must be exactly 0.3 below the first endpoint pH "
+                    "for this calculation.",
+                    "final_ph",
+                )
+            # C is the TOTAL volume from the initial reading, not the addition after B.
+            # Do not force 2B-C to be nonnegative: that would impose an alkalinity policy.
+            volume = 2 * first - volume
+        elif alkalinity and readings["final_ph"] != Decimal("4.5"):
+            raise CalculationError(
+                "The endpoint pH must be 4.5 for this calculation; other endpoint procedures "
+                "are not included.",
+                "final_ph",
+            )
+        return Outcome(volume * readings["normality"] * 50_000 / readings["sample_volume"])
+
+    return work
+
+
+_BURETTE_INITIAL = Reading(
+    "initial",
+    "Initial burette reading",
+    "mL",
+    help="As read before titration. Use one uninterrupted burette run; no refill is inferred.",
+    non_negative=True,
+)
+_BURETTE_FINAL = Reading(
+    "final",
+    "Final burette reading",
+    "mL",
+    help="As read at the endpoint, on the same burette run as the initial reading.",
+    non_negative=True,
+)
+_ALKALINITY_SAMPLE = Reading(
+    "sample_volume",
+    "Sample volume",
+    "mL",
+    help="Volume of the unaltered sample titrated; do not add dilution water.",
+    positive=True,
+)
+_HARDNESS_SAMPLE = Reading(
+    "sample_volume",
+    "Sample volume",
+    "mL",
+    help="Original sample aliquot titrated, excluding any added reagent or dilution water.",
+    positive=True,
+)
+_ALKALINITY_NORMALITY = Reading(
+    "normality",
+    "Standardized acid normality",
+    "N",
+    help="Actual standardized acid strength in equivalents per liter; "
+    "no nominal strength is assumed.",
+    positive=True,
+)
+_ALKALINITY_SOURCE = (
+    "EPA Method 310.1 (issued 1971, editorial revision 1978), sections 6.2 and 7.1: "
+    "A × N × 50,000 ÷ sample mL, titrated to pH 4.5. Read 2026-11-15 from the EPA archive "
+    "https://semspub.epa.gov/work/03/160260.pdf (printed pages 310.1-1 to 310.1-3). "
+    "Only the pH 4.5 procedure is included; not the mineral-acid pH 3.9 variant. "
+    "The sample is unaltered; no dilution factor or reporting-limit change is applied. "
+    "This is the historical method equation, not a claim of current regulatory approval."
+)
+_TITRATIONS = (
+    Calculation(
+        key="alkalinity_titration",
+        version=1,
+        title="Alkalinity by titration to pH 4.5",
+        formula="Alkalinity (mg/L as CaCO3) = (final − initial burette reading), in mL × "
+        "standardized acid normality × 50,000 ÷ sample volume in mL. Endpoint pH is 4.5. "
+        "No dilution factor or reporting-limit change is applied.",
+        source=_ALKALINITY_SOURCE,
+        inputs=(
+            _BURETTE_INITIAL,
+            _BURETTE_FINAL,
+            _ALKALINITY_SAMPLE,
+            _ALKALINITY_NORMALITY,
+            Reading(
+                "final_ph",
+                "Endpoint pH",
+                "pH",
+                help="Measured endpoint pH: 4.5 for this procedure.",
+            ),
+        ),
+        work=_titration(alkalinity=True),
+        result_unit="mg/L as CaCO3",
+        liquid_only=True,
+    ),
+    Calculation(
+        key="alkalinity_low_titration",
+        version=1,
+        title="Low alkalinity by two-endpoint titration",
+        formula="Alkalinity (mg/L as CaCO3) = (2 × B − C) × standardized acid normality × "
+        "50,000 ÷ sample volume in mL. B = first endpoint − initial burette reading; "
+        "C = final − initial burette reading (total titrant), all in mL. First endpoint pH "
+        "is 4.3–4.7; final pH is exactly 0.3 lower. No dilution factor or reporting-limit "
+        "change is applied.",
+        source="EPA Method 310.1 (issued 1971, editorial revision 1978), sections 6.3 and 7.2: "
+        "(2B − C) × N × 50,000 ÷ sample mL. B and C are total titrant to the first and "
+        "second endpoints. Section 6.3 describes samples below 20 mg/L, a 100–200 mL sample, "
+        "a first pH of 4.3–4.7 and a second pH exactly 0.3 lower. Read 2026-11-15 from "
+        "https://semspub.epa.gov/work/03/160260.pdf (printed pages 310.1-2 and 310.1-3). "
+        "The sample is unaltered; do not add dilution water. No dilution factor or "
+        "reporting-limit change is applied. This worksheet checks the "
+        "endpoint pH pair, not method suitability or laboratory acceptance. This is the "
+        "historical method equation, not a claim of current regulatory approval.",
+        inputs=(
+            _BURETTE_INITIAL,
+            Reading(
+                "first_endpoint",
+                "First endpoint burette reading",
+                "mL",
+                help="As read at the first recorded pH, on the same burette run.",
+                non_negative=True,
+            ),
+            _BURETTE_FINAL,
+            _ALKALINITY_SAMPLE,
+            _ALKALINITY_NORMALITY,
+            Reading(
+                "first_ph",
+                "First endpoint pH",
+                "pH",
+                help="Measured first endpoint pH, from 4.3 to 4.7.",
+            ),
+            Reading(
+                "final_ph",
+                "Final endpoint pH",
+                "pH",
+                help="Measured pH after adding acid: exactly 0.3 below the first endpoint pH.",
+            ),
+        ),
+        work=_titration(low=True),
+        result_unit="mg/L as CaCO3",
+        liquid_only=True,
+    ),
+    Calculation(
+        key="hardness_edta_titration",
+        version=1,
+        title="Total hardness by EDTA titration",
+        formula="Total hardness (mg/L as CaCO3) = (final − initial burette reading), in mL × "
+        "standardized EDTA normality × 50,000 ÷ sample volume in mL. No dilution factor, "
+        "blank correction or reporting-limit change is applied.",
+        source="EPA Method 130.2 (editorial revisions 1978 and 1982), section 8: A × N × "
+        "50,000 ÷ sample mL, where A is mL EDTA and N is its normality. Read 2026-11-15 "
+        "from https://www.nemi.gov/methods/method_pdf/4684/. Enter actual standardized "
+        "normality; no nominal strength is assumed. No preparation, dilution or blank "
+        "correction is included; the separate low-hardness blank procedure is not included. "
+        "This is the historical method equation, not a claim of current regulatory approval.",
+        inputs=(
+            _BURETTE_INITIAL,
+            _BURETTE_FINAL,
+            _HARDNESS_SAMPLE,
+            Reading(
+                "normality",
+                "Standardized EDTA normality",
+                "N",
+                help="Actual standardized EDTA strength in equivalents per liter, not molarity "
+                "or mg CaCO3 per mL; no nominal strength is assumed.",
+                positive=True,
+            ),
+        ),
+        work=_titration(),
+        result_unit="mg/L as CaCO3",
+        liquid_only=True,
+    ),
+)
+
 _REGISTERED = (
     Calculation(
         key="dilution",
@@ -479,6 +684,7 @@ _REGISTERED = (
         soil_basis="wet",
         soil_basis_reason=_WET_REASON,
     ),
+    *_TITRATIONS,
 )
 
 REGISTRY = {(c.key, c.version): c for c in _REGISTERED}

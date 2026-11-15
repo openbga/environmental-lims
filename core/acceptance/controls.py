@@ -756,3 +756,83 @@ def dry_weight_result(run):
         f"{'the same as' if again.matches else 'NOT the same as'} the record",
         "the same result and limit",
     )
+
+
+@step(
+    "C10",
+    "A titration keeps its burette and pH readings and its actual titrant strength",
+    requirement="Titration results keep the original readings, calculation version and the "
+    "laboratory's rounding so the reported value can be worked out again "
+    "(docs/product.md, titration worksheets).",
+    expected="The synthetic low-alkalinity test uses burette readings 0.20, 1.50 and 1.70 mL, "
+    "200.0 mL sample and 0.0200 N acid to report 5.5 mg/L as CaCO3. A final pH that is not "
+    "0.3 below the first is refused without saving. The accepted worksheet retains each "
+    "original reading and reproduces the reported result.",
+    depends=("O03",),
+)
+def titration_result(run):
+    analyst = account(run, "analyst")
+    now = timezone.now().replace(second=0, microsecond=0)
+    tests = tests_for("DEMO-LOW-ALK-AQ", "water")
+    sample = receive(
+        run,
+        run["order_a"],
+        "TITRATION-A1",
+        tests,
+        collected_at=now - timedelta(hours=3),
+        received_at=now - timedelta(hours=2),
+        preservation_check="Synthetic: cooled; no chemical preservation",
+        containers=[
+            {
+                "description": "Synthetic 500 mL HDPE",
+                "condition": "Intact",
+                "preservation": "Cool; no chemical preservative (synthetic)",
+            }
+        ],
+    )
+    batch = bench.create_batch(actor=analyst, method=tests[0].method, matrix="water")
+    bench.add_tests_to_batch(
+        actor=analyst,
+        batch_id=batch.pk,
+        requested_test_ids=list(sample.requested_tests.values_list("pk", flat=True)),
+    )
+    result = Result.objects.get(requested_test__sample=sample)
+    readings = {
+        "initial": "0.20",
+        "first_endpoint": "1.50",
+        "final": "1.70",
+        "sample_volume": "200.0",
+        "normality": "0.0200",
+        "first_ph": "4.60",
+        "final_ph": "4.30",
+    }
+    entry = dict(
+        actor=analyst,
+        result_id=result.pk,
+        supplied_text="",
+        reporting_limit_applied="0.5",
+        dilution_factor="1",
+        analysis_started_at=now - timedelta(minutes=30),
+    )
+    refused = False
+    try:
+        bench.enter_result(**entry, readings={**readings, "final_ph": "4.20"})
+    except ValidationError as exc:
+        refused = "reading_final_ph" in exc.message_dict
+    run.check(
+        refused and not result.revisions.exists(),
+        "The wrong pH drop was refused without a result revision",
+    )
+    revision = bench.enter_result(**entry, readings=readings)
+    stored = dict(revision.worksheet.readings.values_list("key", "supplied_text"))
+    again = worksheets.reproduce(revision.worksheet)
+    run.check(
+        (revision.supplied_text, revision.unit, revision.source)
+        == ("5.5", "mg/L as CaCO3", "calculated")
+        and stored == readings
+        and again.matches
+        and again.value_text == "5.5",
+        f"Reported {revision.supplied_text} {revision.unit}; all seven supplied readings "
+        "retained, and the recorded calculation and rounding give the same result",
+        "5.5 mg/L as CaCO3, with all readings retained and reproducible",
+    )

@@ -54,6 +54,9 @@ TECHNIQUES = {
     "DEMO-TSS-AQ": "gravimetric",
     "DEMO-SOLIDS-SOIL": "gravimetric",
     "DEMO-NITRATE-SOIL": "colorimetric",
+    "DEMO-ALKALINITY-AQ": "titration",
+    "DEMO-LOW-ALK-AQ": "titration",
+    "DEMO-HARDNESS-AQ": "titration",
 }
 ANALYTE_GROUPS = {
     "Lead": "metals",
@@ -65,6 +68,8 @@ ANALYTE_GROUPS = {
     "BOD, 5-day": "demand",
     "Total suspended solids": "solids",
     "Percent solids": "solids",
+    "Alkalinity as CaCO3": "general",
+    "Total hardness as CaCO3": "general",
 }
 METHODS = [
     {
@@ -231,6 +236,63 @@ METHODS = [
         "limits": {"lcs": ("85", "115"), "ccv": ("90", "110"), "ms": ("75", "125"), "rpd": "20"},
     },
 ]
+
+
+# Three independent demonstrations of the titration worksheets. The equations have public
+# sources; these catalog entries, limits, rounding and QC requirements are invented.
+for code, title, analyte, calculation, limit in (
+    (
+        "DEMO-ALKALINITY-AQ",
+        "Alkalinity by titration",
+        "Alkalinity as CaCO3",
+        "alkalinity_titration",
+        "1.0",
+    ),
+    (
+        "DEMO-LOW-ALK-AQ",
+        "Low alkalinity by two-endpoint titration",
+        "Alkalinity as CaCO3",
+        "alkalinity_low_titration",
+        "0.5",
+    ),
+    (
+        "DEMO-HARDNESS-AQ",
+        "Total hardness by EDTA titration",
+        "Total hardness as CaCO3",
+        "hardness_edta_titration",
+        "1.0",
+    ),
+):
+    METHODS.append(
+        {
+            "code": code,
+            "title": f"{title}, aqueous (synthetic demonstration)",
+            "analytes": [(analyte, "", {"water": ("mg/L as CaCO3", limit)})],
+            "hold": {"water": (24 * 14, 24)},
+            "calculation": (
+                calculation,
+                {
+                    "rounding_method": "half_even",
+                    "rounding_mode": "decimal_places",
+                    "rounding_digits": 1,
+                },
+            ),
+            "qc": {
+                "method_blank": (True, 1, 20),
+                "lcs": (True, 1, 20),
+                "matrix_spike": (False, 1, 20),
+                "matrix_spike_duplicate": (False, 1, 20),
+                "lab_duplicate": (False, 1, 10),
+                "calibration_verification": (False, 1, 10),
+            },
+            "limits": {
+                "lcs": ("85", "115"),
+                "ccv": ("90", "110"),
+                "ms": ("75", "125"),
+                "rpd": "20",
+            },
+        }
+    )
 
 
 def _limit_rows(spec, reporting_limit):

@@ -63,7 +63,7 @@
         },
         {
           "label": "Calculation",
-          "description": "Required. Reading times dilution factor, Solids by weight (balance in grams or milligrams), Preparation by volume, Prepared solid as weighed, Prepared solid corrected to dry weight (each of the last two in three unit pairings), Percent solids by weight or Percent moisture by weight. New entries use the current version; each result keeps the version it was worked with. A calculation that gives one unit is refused for a test whose unit differs, and a dry-weight calculation is refused for a test whose matrix is not soil. Units are not converted; only the spelling of micro may differ (µ, μ or u). Reading times dilution factor and Preparation by volume work for a test in any unit, but Preparation by volume takes a volume of sample and is refused for a soil test. A rule that names a calculation this release no longer has is shown as not in this release and must be changed."
+          "description": "Required. Reading times dilution factor, Solids by weight (balance in grams or milligrams), Preparation by volume, Prepared solid as weighed, Prepared solid corrected to dry weight (each of the last two in three unit pairings), Percent solids by weight Percent moisture by weight, Alkalinity by titration to pH 4.5, Low alkalinity by two-endpoint titration or Total hardness by EDTA titration. New entries use the current version; each result keeps the version it was worked with. A calculation that gives one unit is refused for a test whose unit differs, and a dry-weight calculation is refused for a test whose matrix is not soil. Units are not converted; only the spelling of micro may differ (µ, μ or u). Reading times dilution factor and Preparation by volume work for a test in any unit, but Preparation by volume takes a volume of sample and is refused for a soil test. A rule that names a calculation this release no longer has is shown as not in this release and must be changed."
         },
         {
           "label": "Round to",
@@ -137,6 +137,18 @@
         {
           "label": "What the preparation calculations work out",
           "description": "Preparation by volume and the prepared solid calculations work out the reporting limit applied: the reporting limit in the solution times the same factors as the result, then rounded by this rule, the same rule as the result. A reading of ND gives ND at that limit. The worksheet keeps the limit before rounding, and Worked again now checks the limit too. A rounding that takes the limit to zero is refused when the result is entered. The percent solids for a dry-weight correction is typed with its source and is not taken from the sample's percent solids result. Volumes and weights are typed with each result and are not recorded once on a prepared aliquot."
+        },
+        {
+          "label": "Alkalinity by titration to pH 4.5",
+          "description": "Initial and final burette readings (mL), Sample volume (mL), Standardized acid normality (N), and Endpoint pH. Result = (final minus initial) × normality × 50,000 ÷ sample volume, in mg/L as CaCO3. The recorded endpoint pH must be 4.5."
+        },
+        {
+          "label": "Low alkalinity by two-endpoint titration",
+          "description": "Initial, First endpoint and Final burette readings (mL), Sample volume (mL), Standardized acid normality (N), First endpoint pH and Final endpoint pH. Result = (2B minus C) × normality × 50,000 ÷ sample volume, in mg/L as CaCO3. B and C are cumulative volumes from the initial reading. The first pH must be 4.3–4.7 and the final pH exactly 0.3 lower. The calculation is chosen per test, never inferred from concentration."
+        },
+        {
+          "label": "Total hardness by EDTA titration",
+          "description": "Initial and Final burette readings (mL), Sample volume (mL), and Standardized EDTA normality (N, equivalents per liter). Result = (final minus initial) × normality × 50,000 ÷ sample volume, in mg/L as CaCO3. Do not enter molarity or mg CaCO3 per mL as normality. No blank correction or dilution is applied."
         }
       ]
     },
@@ -181,6 +193,53 @@
           "description": "Existing rules show their latest 20 audit events, displayed oldest to newest, with action, actor, time and reason. No history section appears before any events exist."
         }
       ]
+    },
+    {
+      "title": "Titration readings and limits",
+      "paragraphs": [
+        "Alkalinity by titration to pH 4.5, Low alkalinity by two-endpoint titration and Total hardness by EDTA titration produce mg/L as CaCO3. The test must use that exact unit and cannot be soil. The laboratory chooses the calculation per test; a result never switches the procedure automatically.",
+        "Use one uninterrupted burette run. Readings cannot be negative or go backward; a refill is not inferred. The low-alkalinity final burette reading must exceed the first endpoint reading. The single-endpoint equations permit equal initial and final readings.",
+        "These worksheets apply no dilution factor (saved as 1), preparation factor or blank correction. Enter the reporting limit that applies to the result; it is not scaled. Readings must be numbers, not ND. A calculated value below the limit needs a qualifier or Report as ND, with the readings and calculated value retained. A negative low-alkalinity value is not changed to zero.",
+        "The sources are historical EPA method equations, not a statement of current regulatory approval. The pH 3.9 mineral-acid procedure and the separate low-hardness blank procedure are not included. The laboratory checks titrant standardization, endpoint suitability and method acceptance. Low alkalinity describes below 20 mg/L and a 100–200 mL portion in its source; the application does not determine that suitability or enforce those bounds."
+      ],
+      "items": [
+        {
+          "label": "Initial burette reading",
+          "description": "Required mL reading before adding titrant. It is subtracted from each endpoint reading, so the burette need not start at zero."
+        },
+        {
+          "label": "Final burette reading",
+          "description": "Required mL reading at the final endpoint, on the same burette run. For alkalinity to pH 4.5 and hardness, titrant volume is final minus initial. For low alkalinity it gives C, the total volume from the initial reading, not the additional volume after the first endpoint."
+        },
+        {
+          "label": "First endpoint burette reading",
+          "description": "Low alkalinity only. Required mL reading at the first endpoint. B is this reading minus the initial reading; the equation uses 2B minus C, not B minus C."
+        },
+        {
+          "label": "Sample volume",
+          "description": "Required positive mL of original sample aliquot titrated. For either alkalinity worksheet use an unaltered sample, with no added dilution water. For hardness exclude reagents and water added in the titration vessel from the original aliquot volume. No separate preparation dilution correction is applied."
+        },
+        {
+          "label": "Standardized acid normality",
+          "description": "Alkalinity only. Required positive actual standardized acid strength in N (equivalents per liter). No nominal strength is assumed."
+        },
+        {
+          "label": "Standardized EDTA normality",
+          "description": "Hardness only. Required positive actual standardized EDTA strength in N (equivalents per liter), not molarity or mg CaCO3 per mL. No nominal strength is assumed."
+        },
+        {
+          "label": "Endpoint pH",
+          "description": "Alkalinity to pH 4.5 only. Required measured endpoint pH, exactly 4.5 for this equation; 4.50 is equivalent. Another endpoint is refused with the entered readings kept. No acceptance tolerance is inferred."
+        },
+        {
+          "label": "First endpoint pH",
+          "description": "Low alkalinity only. Required measured first endpoint pH, from 4.3 through 4.7 inclusive."
+        },
+        {
+          "label": "Final endpoint pH",
+          "description": "Low alkalinity only. Required measured pH after further acid addition, exactly 0.3 below the first endpoint pH. A different pair is refused with the readings kept; no tolerance or interpolation is applied."
+        }
+      ]
     }
   ],
   "sources": [
@@ -196,6 +255,8 @@
     "analytical/tests/test_calculations.py",
     "analytical/tests/test_calculation_pages.py",
     "analytical/tests/test_prepared_calculations.py",
-    "analytical/tests/test_prepared_pages.py"
+    "analytical/tests/test_prepared_pages.py",
+    "analytical/tests/test_titration_calculations.py",
+    "analytical/tests/test_titration_pages.py"
   ]
 }
