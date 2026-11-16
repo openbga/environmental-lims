@@ -1,0 +1,129 @@
+{
+  "id": "commercial-invoice-create",
+  "routes": [
+    "commercial:invoice-create"
+  ],
+  "title": "New draft invoice",
+  "purpose": "Prepare an internal draft from the current requested tests on this received chain of custody and an active price list.",
+  "summary": "Prepare an internal draft from the current requested tests on this received chain of custody and an active price list.",
+  "tasks": [
+    {
+      "title": "Prepare the draft",
+      "steps": [
+        "Review [[Current received tests]], including the sample dispositions.",
+        "Choose a [[Price list]] that prices every displayed test.",
+        "Select [[Create draft invoice]], then review the copied billing details and USD amounts."
+      ]
+    },
+    {
+      "title": "Resolve a missing price",
+      "steps": [
+        "Read the missing-test message beside [[Price list]].",
+        "Choose another active list or record the missing prices in Price lists, then retry."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Every test must have a recorded price. Missing prices are never treated as zero.",
+    "The draft copies current billing details and prices when created. Later source changes do not update it.",
+    "Held and rejected samples can appear. Inclusion does not establish that their work is chargeable.",
+    "If this order already has an active draft, open that draft instead."
+  ],
+  "sections": [
+    {
+      "title": "Access and purpose",
+      "paragraphs": [
+        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. No tax, due date, payment, quote pricing or accounting entry is calculated."
+      ]
+    },
+    {
+      "title": "Source and price selection",
+      "items": [
+        {
+          "label": "Chain of custody / client / project",
+          "description": "The source order and its client/project appear above the form; the order reference opens its record."
+        },
+        {
+          "label": "Price list",
+          "description": "Required active list. Current USD prices are read when creating the draft, and the list name and revision are saved. Inactive lists are refused. If no active list is available, create or activate one in Price lists."
+        },
+        {
+          "label": "Current received tests",
+          "description": "Lab ID, client sample ID, receipt disposition and requested test identify every current requested test on received samples. No planned but unreceived sample contributes a line."
+        },
+        {
+          "label": "Create draft invoice",
+          "description": "Creates the billing snapshot, exact line amounts and attributed history together, then opens the draft. No tests, a cancelled order, more than 200 tests, missing prices, oversized totals or an existing active draft prevents creation. A concurrent source change requires reloading and review."
+        }
+      ]
+    },
+    {
+      "title": "Billing snapshot",
+      "items": [
+        {
+          "label": "Client name / Account code",
+          "description": "The client name is required, up to 160 characters; account code is optional, up to 40. Copied from the client at creation and editable on the draft. Editing these labels does not change the source order or its client relationship."
+        },
+        {
+          "label": "Invoice-to contact / Invoice email",
+          "description": "Optional contact name, up to 160 characters, and a valid email address. Initially copied from the invoice contact and email; blank invoice values use the primary contact and email. Nothing is emailed."
+        },
+        {
+          "label": "Billing address",
+          "description": "Initially the invoice address, or the client mailing address when blank. Optional text, up to 4000 characters when edited. Line breaks are preserved."
+        },
+        {
+          "label": "Payment terms",
+          "description": "Optional: Due on receipt, Net 15 days, Net 30 days, Net 45 days, Net 60 days or Prepaid. Initially the client terms. Information only; no due date or payment is calculated."
+        },
+        {
+          "label": "Purchase order",
+          "description": "Optional text up to 60 characters. Initially the order PO, or the project standing PO when the order has none. A missing PO is not a draft-creation gate."
+        }
+      ]
+    },
+    {
+      "title": "Source and history",
+      "paragraphs": [
+        "The draft keeps its source chain of custody, project, sample identities, requested test identities, method/version, matrix, unit, disposition and selected price-list name/revision. Each current requested test on a received sample creates one line, initially quantity 1. Held, rejected and qualified samples are included with their disposition; the preparer decides whether work is chargeable. Later source corrections, withdrawn tests and price changes do not update the draft.",
+        "There can be one active draft per order and at most 200 lines. Every source line is retained; lines cannot be added, removed or reassigned. Cancel a draft and create a replacement to take a new source snapshot. A cancelled draft and its history remain readable. Invoice billing data never changes custody, results or released reports."
+      ]
+    },
+    {
+      "title": "Form states and navigation",
+      "items": [
+        {
+          "label": "Errors and concurrent changes",
+          "description": "Errors appear above the form or beside the field, with submitted values preserved. A source or revision change requires reloading and reviewing the current record before retrying. No partial draft or audit event is saved on failure."
+        },
+        {
+          "label": "Cancel / Close form",
+          "description": "Leave without saving. A dialog with changed input offers Keep editing or Discard changes. This ordinary Cancel action does not cancel an existing draft invoice."
+        },
+        {
+          "label": "Maximize / Restore size / Try again",
+          "description": "Resize a dialog without saving, or retry a failed dialog load. On narrow screens the dialog uses the full screen. Wait for saving to finish before continuing."
+        },
+        {
+          "label": "Draft invoices / draft number",
+          "description": "Breadcrumb links return to the directory or draft record without saving."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "commercial/urls.py",
+    "commercial/invoice_views.py",
+    "commercial/invoice_forms.py",
+    "commercial/invoices.py",
+    "commercial/models.py",
+    "commercial/permissions.py",
+    "commercial/pricing.py",
+    "commercial/templates/commercial/invoice_create.html",
+    "commercial/templates/commercial/_invoice_notice.html",
+    "core/form_surfaces.py",
+    "core/templatetags/navigation.py",
+    "commercial/tests/test_invoices.py",
+    "e2e/test_invoice_drafts.py"
+  ]
+}

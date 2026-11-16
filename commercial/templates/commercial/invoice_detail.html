@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load commercial_extras ui %}
+{% block breadcrumbs %}{% url 'commercial:invoice-list' as list_url %}{% breadcrumbs section="Draft invoices" section_url=list_url current=draft.number %}{% endblock %}
+{% block page_heading %}<span class="vr-id">{{ draft.number }}</span>{% endblock %}
+{% block page_meta %}{% page_meta %}<li>{% status label=draft.get_status_display tone="neutral" plain=True %}</li><li>Internal only</li><li>{{ draft.client_name }}</li><li>{{ draft.total|usd }} USD</li>{% endpage_meta %}{% endblock %}
+{% block page_actions %}{% if draft.status == "draft" %}<a class="btn btn-outline-danger" href="{% url 'commercial:invoice-cancel' draft.pk %}">Cancel draft invoice</a><a class="btn btn-primary" href="{% url 'commercial:invoice-edit' draft.pk %}">Edit</a>{% endif %}{% endblock %}
+{% block content %}
+{% include "commercial/_invoice_notice.html" %}
+{% if draft.status == "cancelled" %}{% notice tone="neutral" label="Cancelled" %}{{ draft.cancelled_at|date:"Y-m-d H:i T" }} by {{ draft.cancelled_by.get_full_name|default:draft.cancelled_by.get_username }}: {{ draft.cancel_reason }}{% endnotice %}{% endif %}
+{% record_layout %}
+{% fill lead %}{% panel title="Billing snapshot" heading_id="billing-heading" class="mb-3" %}<dl class="vr-facts">
+  {% fact label="Client name" value=draft.client_name %}{% fact label="Account code" value=draft.account_code %}
+  {% fact label="Invoice-to contact" value=draft.billing_contact_name %}{% fact label="Invoice email" value=draft.billing_email %}
+  {% fact label="Billing address" value=draft.billing_address|linebreaksbr wide=True %}
+  {% fact label="Payment terms" value=draft.get_payment_terms_display %}{% fact label="Purchase order" value=draft.po_number %}
+  {% fact label="Chain of custody" %}<a href="{% url 'receipt:order-detail' draft.order_id %}">{{ draft.order_reference }}</a>{% endfact %}
+  {% fact label="Project" value=draft.project_name %}
+  {% fact label="Price list" %}{{ draft.price_list_name }} · revision {{ draft.price_list_revision }}{% endfact %}
+  {% fact label="Created" %}<time datetime="{{ draft.created_at|date:'c' }}">{{ draft.created_at|date:"Y-m-d H:i T" }}</time> by {{ draft.created_by.get_full_name|default:draft.created_by.get_username }}{% endfact %}
+</dl>{% endpanel %}{% endfill %}
+{% panel title="Draft lines" heading_id="lines-heading" table=True count=lines|length class="mb-3" %}
+<div class="vr-table-wrap"><table class="table vr-table" aria-labelledby="lines-heading"><thead><tr><th scope="col">Source sample</th><th scope="col">Source requested test</th><th scope="col">Description</th><th scope="col" class="text-end">Quantity</th><th scope="col" class="text-end">Unit price (USD)</th><th scope="col" class="text-end">Amount (USD)</th></tr></thead><tbody>
+{% for line in lines %}<tr><th scope="row"><span class="vr-id">{{ line.lab_id }}</span><div class="small vr-muted">{{ line.client_sample_id }} · {{ line.get_sample_disposition_display }}</div></th><td class="vr-wrap">{{ line.test_description }}</td><td class="vr-wrap">{{ line.description }}</td><td class="text-end">{{ line.quantity }}</td><td class="text-end vr-nowrap">{{ line.unit_price|usd }}</td><td class="text-end vr-nowrap">{{ line.amount|usd }}</td></tr>{% endfor %}
+</tbody><tfoot><tr><th scope="row" colspan="5" class="text-end">Draft total (USD)</th><td class="text-end vr-nowrap">{{ draft.total|usd }}</td></tr></tfoot></table></div>{% endpanel %}
+{% history_panel events=history %}{% endhistory_panel %}
+{% endrecord_layout %}
+{% endblock %}
+{% block record_foot %}{% record_foot identifier=draft.number %}{% endblock %}

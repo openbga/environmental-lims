@@ -46,6 +46,114 @@ class PriceListItem(models.Model):
         ]
 
 
+class InvoiceDraft(models.Model):
+    """Internal billing worksheet; never an issued invoice or a client balance."""
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        CANCELLED = "cancelled", "Cancelled"
+
+    number = models.CharField(max_length=20, unique=True)
+    order = models.ForeignKey(Order, on_delete=models.PROTECT, related_name="invoice_drafts")
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.DRAFT)
+    revision = models.PositiveIntegerField(default=1)
+    price_list = models.ForeignKey(
+        PriceList, on_delete=models.PROTECT, related_name="invoice_drafts"
+    )
+    price_list_name = models.CharField(max_length=120)
+    price_list_revision = models.PositiveIntegerField()
+    order_reference = models.CharField(max_length=120)
+    project_name = models.CharField(max_length=160)
+    client_name = models.CharField(max_length=160)
+    account_code = models.CharField(max_length=40, blank=True)
+    billing_contact_name = models.CharField(max_length=160, blank=True)
+    billing_email = models.EmailField(blank=True)
+    billing_address = models.TextField(blank=True)
+    payment_terms = models.CharField(max_length=16, blank=True, choices=Client.PaymentTerms.choices)
+    po_number = models.CharField(max_length=60, blank=True)
+    total = models.DecimalField(max_digits=14, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"
+    )
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancelled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    cancel_reason = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["order"],
+                condition=models.Q(status="draft"),
+                name="invoice_one_active_draft",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(total__gte=0), name="invoice_total_nonnegative"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    status="draft",
+                    cancelled_at__isnull=True,
+                    cancelled_by__isnull=True,
+                    cancel_reason="",
+                )
+                | (
+                    models.Q(
+                        status="cancelled", cancelled_at__isnull=False, cancelled_by__isnull=False
+                    )
+                    & ~models.Q(cancel_reason="")
+                ),
+                name="invoice_cancel_attributed",
+            ),
+        ]
+
+    def __str__(self):
+        return self.number
+
+
+class InvoiceDraftLine(models.Model):
+    draft = models.ForeignKey(InvoiceDraft, on_delete=models.PROTECT, related_name="lines")
+    position = models.PositiveSmallIntegerField()
+    # A requested test can later be withdrawn. Its original identity and labels stay here.
+    source_requested_test_id = models.PositiveBigIntegerField()
+    sample = models.ForeignKey(Sample, on_delete=models.PROTECT, related_name="invoice_draft_lines")
+    definition = models.ForeignKey(
+        TestDefinition, on_delete=models.PROTECT, related_name="invoice_draft_lines"
+    )
+    lab_id = models.CharField(max_length=32)
+    client_sample_id = models.CharField(max_length=120)
+    sample_disposition = models.CharField(max_length=20, choices=Sample.Disposition.choices)
+    test_description = models.CharField(max_length=400)
+    method_code = models.CharField(max_length=60)
+    method_version = models.CharField(max_length=40)
+    matrix = models.CharField(max_length=20, choices=Sample.Matrix.choices)
+    unit = models.CharField(max_length=40)
+    description = models.CharField(max_length=400)
+    quantity = models.PositiveIntegerField(default=1)
+    unit_price = models.DecimalField(**MONEY)
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        ordering = ["draft_id", "position", "pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["draft", "source_requested_test_id"], name="invoice_source_test_unique"
+            ),
+            models.UniqueConstraint(fields=["draft", "position"], name="invoice_line_position"),
+            models.CheckConstraint(
+                condition=models.Q(quantity__gte=1, quantity__lte=2147483647, unit_price__gte=0),
+                name="invoice_line_values",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(amount=models.F("quantity") * models.F("unit_price")),
+                name="invoice_line_amount",
+            ),
+        ]
+
+
 class Quote(models.Model):
     class Status(models.TextChoices):
         DRAFT = "draft", "Draft"

@@ -140,6 +140,12 @@ without a hold. Keep the additive schema on a code rollback. Older code does not
 notices, so staff must check account instructions separately until compatible code returns.
 No normal deployment or migration changes an existing client's hold or resets demo data.
 
+Draft invoices add two tables in `commercial.0005`. Reversing refuses once a draft exists;
+keep them during a code rollback. Older code can continue running but cannot show or edit
+these drafts. Return to compatible code to
+use the retained billing snapshots and audit history. Include the tables in normal database
+backups; a deploy neither creates invoices nor resets the demonstration.
+
 BOD bottle worksheets add the nullable `bottle_data` column in `analytical.0012`. Keep that column during a code rollback: reversing the migration refuses once any bottle snapshot exists. Older code cannot show or reproduce those bottle observations and cannot accept entries for a BOD calculation rule; deactivate that rule before using older code for new entries, and return to a compatible release to inspect retained worksheets. A normal deploy does not reseed; the synthetic BOD example appears at the demonstration’s next scheduled reset.
 
 Run calibration evidence adds `analytical.0013`: an immutable calibration table and nullable

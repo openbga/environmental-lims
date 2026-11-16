@@ -46,6 +46,12 @@ their errors return as messages on this page.
 {% if order.project.client.po_required and not order.po_number and not order.is_cancelled %}
 {% notice tone="warning" label="Purchase order missing" %}{{ order.project.client }} requires a purchase order on each chain of custody.{% if can_receive %} Add it with Edit details.{% endif %}{% endnotice %}
 {% endif %}
+{% if can_invoice %}
+{% panel title="Draft invoices" heading_id="invoice-heading" class="mb-3" %}
+<p>Internal USD billing worksheets snapshot the current received tests and an explicitly chosen active price list.</p>
+<div class="d-flex flex-wrap gap-2">{% if active_invoice_draft %}<a class="btn btn-outline-secondary" href="{% url 'commercial:invoice-detail' active_invoice_draft.pk %}">{{ active_invoice_draft.number }}</a>{% elif order.is_cancelled %}<span class="vr-muted">This chain of custody is cancelled; a draft cannot be created.</span>{% elif samples %}<a class="btn btn-outline-secondary" href="{% url 'commercial:invoice-create' order.pk %}">New draft invoice</a>{% else %}<span class="vr-muted">Receive samples before creating a draft invoice.</span>{% endif %}<a class="btn btn-outline-secondary" href="{% url 'commercial:invoice-list' %}">Draft invoices</a></div>
+{% endpanel %}
+{% endif %}
 {% panel title="Order details" heading_id="order-details-heading" class="mb-3" %}
     <dl class="vr-facts">
       {% fact label="Turnaround" %}{{ order.get_priority_display }}{% if order.project.turnaround_days %} <span class="vr-muted small">project standard {{ order.project.turnaround_days }} days</span>{% endif %}{% endfact %}

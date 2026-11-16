@@ -174,6 +174,26 @@ the flag retains the note for staff unless explicitly changed. The 500-character
 notice-only behavior are product choices, not billing or regulatory requirements. There is no
 balance calculation, invoice, automatic payment action or accounting integration in this increment.
 
+Draft invoices, added 2026-11-16, let project managers and administrators prepare charges from
+the current requested tests on a received order and an explicitly selected active price list.
+Every test needs a recorded price. Amounts use exact USD decimals, and each draft retains the
+source test identities, sample dispositions, price-list revision and billing details used to
+prepare it. The order PO takes precedence over the project's standing PO; a blank invoice
+address uses the client's mailing address. Blank invoice contact/email use the primary contact/email.
+Later source changes do not update a draft.
+Staff review the included work and may edit the billing details, descriptions, quantities and
+prices with a reason. Inclusion does not establish that a test is chargeable, completed or
+analytically accepted. One active draft per order and a 200-line limit are product bounds.
+Creation, edits and cancellation retain attributed history and reject stale submissions;
+cancelled drafts remain available internally. Drafts cannot be issued, paid or viewed by
+clients. Quote pricing, additional fees/discount lines, tax, due dates, payments, issued
+invoices and accounting export remain roadmap work.
+
+The distinction between editable preparation and a finalized invoice follows a common
+software workflow ([Stripe invoice lifecycle](https://docs.stripe.com/invoicing/overview),
+checked 2026-11-16). The snapshot timing, retained cancellations and bounds above are this
+product's choices, not accounting or regulatory requirements. No Stripe integration is used.
+
 Deliverable and reporting targets for milestones 2 to 4. All are exploratory. A recipient accepts an EDD only against its own current specification and reference values, so no format here is claimed as accepted until tested against one named recipient's spec.
 
 | Target | What it is | Notes |

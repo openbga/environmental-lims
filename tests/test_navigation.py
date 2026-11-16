@@ -264,6 +264,7 @@ ROLE_MENUS = {
     | {
         "quotes",
         "price-lists",
+        "invoice-drafts",
         "client-submissions",
         "clients",
         "projects",

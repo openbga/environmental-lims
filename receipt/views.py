@@ -12,7 +12,7 @@ from django.utils.dateparse import parse_datetime
 from django.utils.html import format_html
 from django.views.decorators.http import require_POST
 
-from accounts.roles import RECEIPT_ROLES, require_role, require_staff
+from accounts.roles import RECEIPT_ROLES, has_role, require_role, require_staff
 from analytical.preservation_services import preservation_history
 from core.models import AuditEvent
 
@@ -424,6 +424,10 @@ def order_detail(request, pk):
         "receipt/order_detail.html",
         {
             "page_title": order.coc_reference,
+            "can_invoice": has_role(request.user, "project_manager"),
+            "active_invoice_draft": order.invoice_drafts.filter(status="draft").first()
+            if has_role(request.user, "project_manager")
+            else None,
             "order": order,
             "label_form": LabelOptionsForm(auto_id="vr-labels-%s"),
             "samples": order.samples.prefetch_related("containers").order_by("lab_id"),

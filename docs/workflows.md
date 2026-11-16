@@ -37,8 +37,18 @@ on the client. It shows a staff notice at receipt and on the release preview, as
 check with the project manager. This is information only: it does not block either action or
 replace sample dispositions, QC checks or release authority. Clearing the hold retains its note
 unless it is edited; the reason and old/new values stay in the client's history. Hold notes do
-not appear in the client portal, report snapshots, PDFs or deliverables. Invoices and accounting
-exports remain roadmap work.
+not appear in the client portal, report snapshots, PDFs or deliverables.
+
+## Draft invoices
+
+Project managers and administrators prepare an internal draft from a received chain of custody
+and an explicitly selected active price list. Each current requested test contributes one line;
+missing prices prevent creation. The draft records its billing details, source identities and
+prices at creation, so changes to the order, client, requested tests or price list do not silently
+change its amounts. Sample disposition is evidence for the preparer to consider, not a billing
+decision. Staff can change billing details and line descriptions, quantities and prices with a
+reason, or cancel a draft while preserving its history. Only one active draft is allowed per
+order. Drafts stay internal; issued invoices, quote pricing and accounting exports remain planned.
 
 ## Spreadsheet import of setup records
 

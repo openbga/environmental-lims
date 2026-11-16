@@ -69,7 +69,7 @@
         },
         {
           "label": "Project manager",
-          "description": "Clients, Projects, Quotes and Price lists support client and quotation work; Spreadsheet import loads clients and projects from CSV files. Client submissions, Chains of custody, Sample storage and Delivery schedule are shared with custodians. Samples is shared with custodians and reviewers."
+          "description": "Clients, Projects, Quotes and Price lists support client and quotation work. Draft invoices prepares internal charges from received work; Spreadsheet import loads clients and projects from CSV files. Client submissions, Chains of custody, Sample storage and Delivery schedule are shared with custodians. Samples is shared with custodians and reviewers."
         },
         {
           "label": "Custodian",
