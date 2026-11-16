@@ -1,6 +1,6 @@
 ---
 name: build-page
-description: How to build or change any Smart Roots LIMS page, form, dialog or template the house way. Covers page types and the shared `{% load ui %}` components for each, form controls through the Django widgets (including the remote select with a registered lookup), tokens and Bootstrap Icons only, list columns and per-user preferences, panel spacing, and the must-see facts of a page. Use it whenever you add or edit a Django template, view context for a template, form or widget, list or grid, record page, dialog or app.css/JS used by pages, even for a "small" markup change. Then run document-page.
+description: How to build or change any OpenBGA Environmental LIMS page, form, dialog or template the house way. Covers page types and the shared `{% load ui %}` components for each, form controls through the Django widgets (including the remote select with a registered lookup), tokens and Bootstrap Icons only, list columns and per-user preferences, panel spacing, and the must-see facts of a page. Use it whenever you add or edit a Django template, view context for a template, form or widget, list or grid, record page, dialog or app.css/JS used by pages, even for a "small" markup change. Then run document-page.
 ---
 
 # Build or change a page

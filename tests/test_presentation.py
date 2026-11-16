@@ -8,7 +8,7 @@ import pytest
 from django.conf import settings as django_settings
 
 PRESENTATION = Path(django_settings.WHITENOISE_ROOT) / "about"
-PUBLISHED_URL = "https://openbga.github.io/smart-roots-lims/"
+PUBLISHED_URL = "https://openbga.github.io/environmental-lims/"
 
 
 # Closing a streamed file runs Django's connection clean-up, which may touch a connection left
@@ -21,9 +21,9 @@ def test_public_presentation_and_assets_are_served_by_whitenoise(client, setting
     response = client.get("/about/")
     assert response.status_code == 200
     html = b"".join(response.streaming_content).decode()
-    assert "Smart Roots LIMS" in html and "AGPL-3.0-only" in html
+    assert "OpenBGA Environmental LIMS" in html and "AGPL-3.0-only" in html
     assert 'href="https://bgasoft.com"' in html
-    assert 'href="https://github.com/openbga/smart-roots-lims"' in html
+    assert 'href="https://github.com/openbga/environmental-lims"' in html
     for path, content_type in (
         ("/about/assets/site.css", "text/css"),
         ("/about/assets/mark.svg", "image/svg+xml"),

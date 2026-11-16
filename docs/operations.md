@@ -234,7 +234,7 @@ rate limits. Inside the container, write to a mounted directory the image's user
 can write, or the package is lost when the container exits; on a hosted service, copy the
 package off the instance before the shell closes.
 
-The package, in a new or empty directory (default: `smart-roots-acceptance-<UTC time>` in the
+The package, in a new or empty directory (default: `environmental-lims-acceptance-<UTC time>` in the
 current directory, never inside the static or website directories). The run creates the
 directory and tests that it can write there before anything else:
 

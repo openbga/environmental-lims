@@ -16,14 +16,14 @@
     {
       "title": "Sign in with an issued account",
       "steps": [
-        "Select the Smart Roots name at the top to go to sign in."
+        "Select the OpenBGA Environmental LIMS name at the top to go to sign in."
       ]
     }
   ],
   "good_to_know": [
     "This page has no registration form or sign-up action.",
     "Staff and client accounts are both issued by the laboratory.",
-    "The Smart Roots name at the top returns to the application."
+    "The OpenBGA Environmental LIMS name at the top returns to the application."
   ],
   "sections": [
     {

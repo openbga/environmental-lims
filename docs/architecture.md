@@ -137,7 +137,7 @@ serves collected static assets. No Redis, worker, separate frontend host or pers
 The public presentation at `/about/` ships with the same service. Only its static HTML and
 assets live under the [dedicated WhiteNoise root](https://whitenoise.readthedocs.io/en/stable/django.html#whitenoise-root);
 the workspace stays at `/` behind sign-in. The project also publishes those files, unchanged, to
-GitHub Pages at <https://openbga.github.io/smart-roots-lims/>; its links are relative so both addresses work.
+GitHub Pages at <https://openbga.github.io/environmental-lims/>; its links are relative so both addresses work.
 Build assets and collectstatic during image build; migrate once in a serialized pre-deploy step.
 Use backward-compatible migrations while old/new instances overlap; destructive changes need
 a staged migration and verified restore path. Rollback of code does not undo a database migration.
@@ -158,11 +158,21 @@ Report PDFs in the DB participate in the same recovery point. Real-data use need
 runbook and tested recovery, not merely a successful demo deployment.
 
 The Render Blueprint describes the web service, database, generated secret and required inputs.
-The README button targets `https://render.com/deploy?repo=https://github.com/openbga/smart-roots-lims/tree/main`.
+The README button targets `https://render.com/deploy?repo=https://github.com/openbga/environmental-lims/tree/main`.
 It names `main` because Render otherwise deploys the repository's default branch, which is `develop`.
 A private fork is supported after granting the Render GitHub App access to it;
 the deployer still reviews/approves resources. Set `autoDeployTrigger: off` for distributed button
 instances. See [button requirements](https://render.com/docs/deploy-to-render).
+
+Identifiers kept from the former name, Smart Roots LIMS (renamed 2026-11-16 to OpenBGA Environmental
+LIMS; repository `openbga/smart-roots-lims` is now `openbga/environmental-lims`). They name existing
+deployed resources, so renaming them would create new resources or strand data: the Render services,
+database and demo-reset job `smart-roots-lims`, `smart-roots-lims-db` and `smart-roots-lims-demo-reset`
+(the hosted demo stays at `smart-roots-lims.onrender.com`), the database name and user `vibe_roots`,
+the `roots.*` logger names that log filters match, and the internal seed of the acceptance run's
+advisory-lock key in `core/acceptance/scratch.py`.
+The old GitHub address redirects to the new one; GitHub Pages does not redirect, so the presentation
+is published only at the new address.
 CLI v2.36.0 documentation uses `render login`, workspace selection and
 `render blueprints validate render.yaml`; platform validation needs authenticated workspace
 context. Automation uses `RENDER_API_KEY`; validation does not create deployment resources.

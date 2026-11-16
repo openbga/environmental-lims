@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load catalog_extras laboratory_extras ui %}
-{% block title %}{{ batch.number }} · Batches &amp; QC · Smart Roots LIMS{% endblock %}
+{% block title %}{{ batch.number }} · Batches &amp; QC · OpenBGA Environmental LIMS{% endblock %}
 {% block breadcrumbs %}{% url 'analytical:batch-list' as list_url %}{% breadcrumbs section="Batches & QC" section_url=list_url current=batch.number %}{% endblock %}
 {% block page_heading %}<span class="vr-id">{{ batch.number }}</span>{% endblock %}
 {% block page_meta %}{% page_meta %}

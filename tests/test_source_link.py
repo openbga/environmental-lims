@@ -9,7 +9,7 @@ from django.urls import reverse
 from accounts.models import User
 from receipt.models import Client
 
-DEFAULT_SOURCE = "https://github.com/openbga/smart-roots-lims"
+DEFAULT_SOURCE = "https://github.com/openbga/environmental-lims"
 
 
 def source_link(url):

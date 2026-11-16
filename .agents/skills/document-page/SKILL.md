@@ -1,6 +1,6 @@
 ---
 name: document-page
-description: Write or update the in-app operator help (the Help drawer: summary, common tasks, good to know, and the full field and action reference) for a Smart Roots LIMS page, from its source, forms, models and tests. Use it whenever a change adds or alters a page, form, dialog, tab, displayed field or column, action, permission, filter, empty or error state, or the workflow rule behind any of them, even if the user only asked for the code change. Also use it to add help for a new route, fix a failing tests/test_page_docs.py, or audit help coverage.
+description: Write or update the in-app operator help (the Help drawer: summary, common tasks, good to know, and the full field and action reference) for a OpenBGA Environmental LIMS page, from its source, forms, models and tests. Use it whenever a change adds or alters a page, form, dialog, tab, displayed field or column, action, permission, filter, empty or error state, or the workflow rule behind any of them, even if the user only asked for the code change. Also use it to add help for a new route, fix a failing tests/test_page_docs.py, or audit help coverage.
 ---
 
 # Document a page
