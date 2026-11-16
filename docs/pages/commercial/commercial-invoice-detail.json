@@ -1,0 +1,129 @@
+{
+  "id": "commercial-invoice-detail",
+  "routes": [
+    "commercial:invoice-detail"
+  ],
+  "title": "Draft invoice",
+  "purpose": "Review an internal draft’s saved billing details, source tests, exact USD amounts and change history; edit it or record its cancellation.",
+  "summary": "Review an internal draft’s saved billing details, source tests, exact USD amounts and change history; edit it or record its cancellation.",
+  "tasks": [
+    {
+      "title": "Check the prepared charges",
+      "steps": [
+        "Review [[Billing snapshot]] and [[Draft lines]] against the intended work.",
+        "Select [[Edit]] to correct billing details, descriptions, quantities or prices with a reason."
+      ]
+    },
+    {
+      "title": "Cancel a draft",
+      "steps": [
+        "Select [[Cancel draft invoice]].",
+        "Record why it is no longer needed and confirm. Its snapshot and history stay available."
+      ]
+    },
+    {
+      "title": "Review the source order",
+      "steps": [
+        "Select the reference under [[Chain of custody]] to open the current order."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Source labels and amounts are snapshots. Current receipt records and prices can differ.",
+    "The total is a draft amount in USD, not a balance due.",
+    "Cancelled drafts retain their amounts and history but cannot be edited or cancelled again.",
+    "No part of this draft is visible in the client portal."
+  ],
+  "sections": [
+    {
+      "title": "Access and purpose",
+      "paragraphs": [
+        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. No tax, due date, payment, quote pricing or accounting entry is calculated."
+      ]
+    },
+    {
+      "title": "Billing snapshot",
+      "items": [
+        {
+          "label": "Client name / Account code",
+          "description": "The client name is required, up to 160 characters; account code is optional, up to 40. Copied from the client at creation and editable on the draft. Editing these labels does not change the source order or its client relationship."
+        },
+        {
+          "label": "Invoice-to contact / Invoice email",
+          "description": "Optional contact name, up to 160 characters, and a valid email address. Initially copied from the invoice contact and email; blank invoice values use the primary contact and email. Nothing is emailed."
+        },
+        {
+          "label": "Billing address",
+          "description": "Initially the invoice address, or the client mailing address when blank. Optional text, up to 4000 characters when edited. Line breaks are preserved."
+        },
+        {
+          "label": "Payment terms",
+          "description": "Optional: Due on receipt, Net 15 days, Net 30 days, Net 45 days, Net 60 days or Prepaid. Initially the client terms. Information only; no due date or payment is calculated."
+        },
+        {
+          "label": "Purchase order",
+          "description": "Optional text up to 60 characters. Initially the order PO, or the project standing PO when the order has none. A missing PO is not a draft-creation gate."
+        }
+      ]
+    },
+    {
+      "title": "Draft record and lines",
+      "items": [
+        {
+          "label": "Status / Internal only / Total",
+          "description": "The header identifies Draft or Cancelled, saved client name and exact USD total."
+        },
+        {
+          "label": "Chain of custody / Project",
+          "description": "Saved source order reference with a link to the current order, and saved project name."
+        },
+        {
+          "label": "Price list / Created",
+          "description": "Saved list name/revision, creation time and responsible staff member."
+        },
+        {
+          "label": "Source sample / Source requested test",
+          "description": "Saved lab ID, client sample ID and disposition, plus the analyte, method/version, matrix and result unit. These source labels remain fixed when descriptions or billing amounts are edited."
+        },
+        {
+          "label": "Description / Quantity / Unit price (USD)",
+          "description": "The editable charge description, positive integer count and nonnegative whole-cent USD price. An explicitly entered zero price is allowed."
+        },
+        {
+          "label": "Amount (USD) / Draft total (USD)",
+          "description": "Each amount is quantity multiplied by unit price; total is their exact sum. Values are bounded to the stored precision and never converted through binary floating point."
+        },
+        {
+          "label": "Edit / Cancel draft invoice",
+          "description": "Available only while the draft is active. Editing and cancellation require a reason and recheck its revision."
+        },
+        {
+          "label": "Cancelled / History",
+          "description": "Cancellation shows actor, time and reason. History records creation and each saved or cancelled change with actor, time, reason and prior/new values."
+        }
+      ]
+    },
+    {
+      "title": "Source and history",
+      "paragraphs": [
+        "The draft keeps its source chain of custody, project, sample identities, requested test identities, method/version, matrix, unit, disposition and selected price-list name/revision. Each current requested test on a received sample creates one line, initially quantity 1. Held, rejected and qualified samples are included with their disposition; the preparer decides whether work is chargeable. Later source corrections, withdrawn tests and price changes do not update the draft.",
+        "There can be one active draft per order and at most 200 lines. Every source line is retained; lines cannot be added, removed or reassigned. Cancel a draft and create a replacement to take a new source snapshot. A cancelled draft and its history remain readable. Invoice billing data never changes custody, results or released reports."
+      ]
+    }
+  ],
+  "sources": [
+    "commercial/urls.py",
+    "commercial/invoice_views.py",
+    "commercial/invoice_forms.py",
+    "commercial/invoices.py",
+    "commercial/models.py",
+    "commercial/permissions.py",
+    "commercial/pricing.py",
+    "commercial/templates/commercial/invoice_detail.html",
+    "commercial/templates/commercial/_invoice_notice.html",
+    "core/form_surfaces.py",
+    "core/templatetags/navigation.py",
+    "commercial/tests/test_invoices.py",
+    "e2e/test_invoice_drafts.py"
+  ]
+}

@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block breadcrumbs %}{% url 'commercial:invoice-list' as list_url %}{% url 'commercial:invoice-detail' draft.pk as record_url %}{% breadcrumbs section="Draft invoices" section_url=list_url record=draft.number record_url=record_url current="Cancel draft invoice" %}{% endblock %}
+{% block content %}
+{% notice tone="warning" label="Keep the record" %}Cancelling {{ draft.number }} retains its billing snapshot, lines and audit history. A replacement draft can then be created from the order's current received tests.{% endnotice %}
+{% url 'commercial:invoice-detail' draft.pk as cancel_url %}
+{% form_page form=form cancel_url=cancel_url submit_label="Cancel draft invoice" destructive=True %}{% endform_page %}
+{% endblock %}

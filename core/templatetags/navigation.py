@@ -67,6 +67,18 @@ STAFF_NAV = (
         ("commercial:price-list-create", "commercial:price-list-edit"),
     ),
     NavItem(
+        "invoice-drafts",
+        "Draft invoices",
+        "commercial:invoice-list",
+        "receipt",
+        (
+            "commercial:invoice-create",
+            "commercial:invoice-detail",
+            "commercial:invoice-edit",
+            "commercial:invoice-cancel",
+        ),
+    ),
+    NavItem(
         "client-submissions",
         "Client submissions",
         "commercial:submission-list",
@@ -390,7 +402,7 @@ PORTAL_NAV = (
 # expanded by effective_roles; release authority is checked separately on each request.
 STAFF_SECTIONS = (
     ("home", "", ("dashboard",)),
-    ("sales", "Sales", ("quotes", "price-lists", "client-submissions")),
+    ("sales", "Sales", ("quotes", "price-lists", "invoice-drafts", "client-submissions")),
     ("intake", "Intake", ("clients", "projects", "orders", "samples", "storage")),
     (
         "bench",
@@ -422,6 +434,7 @@ STAFF_MENU_ROLES = {
     "dashboard": ROLES,
     "quotes": QUOTE_ROLES,
     "price-lists": PRICING_ROLES,
+    "invoice-drafts": PRICING_ROLES,
     "client-submissions": RECEIPT_ROLES,
     "clients": ("project_manager",),
     "projects": ("project_manager",),

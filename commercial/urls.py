@@ -1,9 +1,18 @@
 from django.urls import path
 
-from . import views
+from . import invoice_views, views
 
 app_name = "commercial"
 urlpatterns = [
+    path("invoice-drafts/", invoice_views.invoice_list, name="invoice-list"),
+    path(
+        "invoice-drafts/orders/<uuid:order_pk>/new/",
+        invoice_views.invoice_create,
+        name="invoice-create",
+    ),
+    path("invoice-drafts/<int:pk>/", invoice_views.invoice_detail, name="invoice-detail"),
+    path("invoice-drafts/<int:pk>/edit/", invoice_views.invoice_edit, name="invoice-edit"),
+    path("invoice-drafts/<int:pk>/cancel/", invoice_views.invoice_cancel, name="invoice-cancel"),
     path("price-lists/", views.price_list_list, name="price-list-list"),
     path("price-lists/new/", views.price_list_edit, name="price-list-create"),
     path("price-lists/<int:pk>/", views.price_list_edit, name="price-list-edit"),

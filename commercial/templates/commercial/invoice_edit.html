@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block breadcrumbs %}{% url 'commercial:invoice-list' as list_url %}{% url 'commercial:invoice-detail' draft.pk as record_url %}{% breadcrumbs section="Draft invoices" section_url=list_url record=draft.number record_url=record_url current="Edit" %}{% endblock %}
+{% block page_meta %}{% page_meta %}<li>Draft · internal only</li><li>{{ draft.number }}</li><li>{{ draft.client_name }}</li>{% endpage_meta %}{% endblock %}
+{% block content %}
+{% include "commercial/_invoice_notice.html" %}
+{% url 'commercial:invoice-detail' draft.pk as cancel_url %}
+{% form_page form=form formset=formset formset_label="draft lines" cancel_url=cancel_url submit_label="Save draft" class="vr-form-wide" %}
+{% for legend, fields in form.grouped %}<fieldset class="vr-form-section"><legend>{{ legend }}</legend><div class="row g-3">{% for field in fields %}<div class="{% if field.name == 'billing_address' or field.name == 'reason' %}col-12{% else %}col-md-6{% endif %}">{{ field.as_field_group }}</div>{% endfor %}</div></fieldset>{% endfor %}
+<fieldset class="vr-form-section"><legend>Draft lines</legend><p class="form-text">Every source test stays in the snapshot. Edit the description, positive whole-number quantity or nonnegative USD price with a reason. An explicit zero price is permitted.</p>
+{{ formset.management_form }}
+{% if formset.non_form_errors %}<ul class="vr-field-errors">{% for error in formset.non_form_errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+<div class="vr-table-wrap"><table class="table vr-table"><caption class="visually-hidden">Draft invoice lines</caption><thead><tr><th scope="col">Source sample and test</th><th scope="col">Description</th><th scope="col" class="text-end">Quantity</th><th scope="col" class="text-end">Unit price (USD)</th></tr></thead><tbody>
+{% for lform in formset %}<tr><th scope="row"><span class="vr-id">{{ lform.source_line.lab_id }}</span><div class="small vr-muted">{{ lform.source_line.client_sample_id }} · {{ lform.source_line.get_sample_disposition_display }}</div><div class="small">{{ lform.source_line.test_description }}</div>{% for hidden in lform.hidden_fields %}{{ hidden }}{% if hidden.errors %}<ul class="vr-field-errors">{% for error in hidden.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}{% endfor %}</th>
+{% for field in lform.visible_fields %}<td><label class="visually-hidden" for="{{ field.id_for_label }}">{{ field.label }}, line {{ forloop.parentloop.counter }}</label>{{ field }}{% if field.errors %}<ul class="vr-field-errors" id="{{ field.auto_id }}_error">{% for error in field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</td>{% endfor %}</tr>{% endfor %}
+</tbody></table></div></fieldset>
+{% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+{% endform_page %}
+{% endblock %}

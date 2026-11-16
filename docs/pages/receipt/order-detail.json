@@ -32,6 +32,13 @@
       "steps": [
         "Select [[Cancel chain of custody]] and give the [[Reason]]. This works only while no sample has been received."
       ]
+    },
+    {
+      "title": "Prepare internal charges",
+      "steps": [
+        "In [[Draft invoices]], select [[New draft invoice]] and choose an active price list.",
+        "If a draft already exists, select its ID number to review or edit it."
+      ]
     }
   ],
   "good_to_know": [
@@ -226,6 +233,19 @@
         "An active client account hold shows a notice and its internal note above the page content. Check with the project manager before continuing. Project managers and administrators set or clear it on the client record with a reason; old and new values remain in the client history.",
         "The notice is informational. It does not block receipt or report release, alter sample disposition or replace existing analytical checks and release permission. The page reads the current hold when loaded. Hold notes are not included in the client portal, report snapshots, PDFs or deliverables; earlier issued reports remain unchanged."
       ]
+    },
+    {
+      "title": "Draft invoices",
+      "items": [
+        {
+          "label": "Draft invoices",
+          "description": "Project managers and administrators see the internal billing panel and can open the draft directory. Other staff do not see it."
+        },
+        {
+          "label": "New draft invoice / ID number",
+          "description": "After physical receipt, create a draft from the order’s current requested tests and an explicit active price list. Every test needs a price. An existing active draft is linked instead; cancel it before making a replacement. Empty or cancelled orders cannot start a draft. The source record and custody remain unchanged."
+        }
+      ]
     }
   ],
   "sources": [
@@ -244,6 +264,9 @@
     "templates/receipt/order_edit.html",
     "receipt/tests/test_master_data.py",
     "templates/receipt/_account_hold.html",
-    "receipt/tests/test_account_hold.py"
+    "receipt/tests/test_account_hold.py",
+    "commercial/invoice_views.py",
+    "commercial/invoices.py",
+    "commercial/models.py"
   ]
 }
