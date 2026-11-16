@@ -163,6 +163,17 @@ instrument responses are allowed. Source references remain the laboratory's resp
 US method sources checked 2026-11-15: [EPA 200.7 Rev. 4.4](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P10177CN.txt)
 and [EPA 6010D Rev. 5](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P1017DDQ.txt).
 
+Account-hold notices, added 2026-11-16, are the first invoicing increment. Project managers
+and administrators can mark a client on hold and record a staff note. Client edits retain the
+actor, reason and old/new values and reject stale changes. Staff see the current notice while
+receiving samples and on the report-release preview. It is informational: the laboratory decides
+what to do, and neither receipt nor release is automatically blocked. The flag is distinct from
+client inactivity, sample disposition, QC holds and explicit release authority. Notes remain
+internal and are excluded from client pages, report snapshots, PDFs and deliverables. Clearing
+the flag retains the note for staff unless explicitly changed. The 500-character note bound and
+notice-only behavior are product choices, not billing or regulatory requirements. There is no
+balance calculation, invoice, automatic payment action or accounting integration in this increment.
+
 Deliverable and reporting targets for milestones 2 to 4. All are exploratory. A recipient accepts an EDD only against its own current specification and reference values, so no format here is claimed as accepted until tested against one named recipient's spec.
 
 | Target | What it is | Notes |

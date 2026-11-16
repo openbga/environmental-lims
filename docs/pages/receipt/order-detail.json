@@ -36,7 +36,7 @@
   ],
   "good_to_know": [
     "The delivery target is the date agreed with the client. It is not a holding-time deadline.",
-    "Purchase order missing is a reminder only. It does not block receipt.",
+    "Purchase order missing and Account hold are staff reminders only. Neither blocks receipt; check an account hold with the project manager.",
     "Once a sample is on an issued report, the reference can no longer be corrected.",
     "A chain of custody opened from a client submission is cancelled or reinstated on that submission.",
     "Printing labels changes nothing on the sample or its custody."
@@ -219,6 +219,13 @@
           "description": "Chronological list, shown only after a first change, of each Edit details save with its actor, time and reason. The previous and new values are kept in the audit record, not listed here."
         }
       ]
+    },
+    {
+      "title": "Account hold notice",
+      "paragraphs": [
+        "An active client account hold shows a notice and its internal note above the page content. Check with the project manager before continuing. Project managers and administrators set or clear it on the client record with a reason; old and new values remain in the client history.",
+        "The notice is informational. It does not block receipt or report release, alter sample disposition or replace existing analytical checks and release permission. The page reads the current hold when loaded. Hold notes are not included in the client portal, report snapshots, PDFs or deliverables; earlier issued reports remain unchanged."
+      ]
     }
   ],
   "sources": [
@@ -235,6 +242,8 @@
     "receipt/tests/test_receipt_edits.py",
     "receipt/tests/test_labels.py",
     "templates/receipt/order_edit.html",
-    "receipt/tests/test_master_data.py"
+    "receipt/tests/test_master_data.py",
+    "templates/receipt/_account_hold.html",
+    "receipt/tests/test_account_hold.py"
   ]
 }

@@ -25,7 +25,7 @@ records; it does not certify compliance or accreditation.
   laboratory's address, logo and certificate numbers, amendments and a client portal where each
   client sees only its own work.
 - **Operations:** price lists and versioned quotes, client-submitted COCs, delivery scheduling,
-  labels and subcontracted results.
+  labels, subcontracted results and staff account-hold notices at receipt and report release.
 - **Laboratory records:** materials, lots and stock movements, equipment, training,
   nonconformance, and physical sample retention and disposal.
 

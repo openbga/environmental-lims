@@ -135,6 +135,11 @@ rule form, import and seed can refuse or pick the wrong row. Create analyte rule
 instance of an older release is running, and deactivate them before running an older release
 against the database. The migration's reverse refuses while any rule names an analyte.
 
+Client account-hold notices add defaulted columns in `receipt.0013`; existing clients start
+without a hold. Keep the additive schema on a code rollback. Older code does not show these
+notices, so staff must check account instructions separately until compatible code returns.
+No normal deployment or migration changes an existing client's hold or resets demo data.
+
 BOD bottle worksheets add the nullable `bottle_data` column in `analytical.0012`. Keep that column during a code rollback: reversing the migration refuses once any bottle snapshot exists. Older code cannot show or reproduce those bottle observations and cannot accept entries for a BOD calculation rule; deactivate that rule before using older code for new entries, and return to a compatible release to inspect retained worksheets. A normal deploy does not reseed; the synthetic BOD example appears at the demonstration’s next scheduled reset.
 
 Run calibration evidence adds `analytical.0013`: an immutable calibration table and nullable

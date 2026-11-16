@@ -14,6 +14,7 @@
 <a class="btn btn-outline-secondary" href="{% url 'reporting:report-preview-pdf' report.pk %}?fp={{ assembly.fingerprint }}" target="_blank" rel="noopener">{% icon name="file-earmark-pdf" %}Open PDF preview</a>
 {% endblock %}
 {% block content %}
+{% include "receipt/_account_hold.html" with account_client=report.project.client only %}
 {% if release_errors %}
 {% notice tone="danger" blocking=True id="release-errors" focus=True %}
     <p class="mb-1"><strong>Nothing was released.</strong></p>

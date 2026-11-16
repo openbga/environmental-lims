@@ -34,6 +34,8 @@ CLIENT_FIELDS = (
     "billing_address",
     "payment_terms",
     "po_required",
+    "account_hold",
+    "account_hold_note",
     "report_preferences",
     "notes",
 )

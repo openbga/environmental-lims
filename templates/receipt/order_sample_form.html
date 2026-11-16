@@ -17,6 +17,7 @@ without JavaScript the extra rows rendered by the formset still work.
   <li>{% with n=order.samples.count %}{{ n }} sample{{ n|pluralize }} received so far{% endwith %}</li>
 {% endpage_meta %}{% endblock %}
 {% block content %}
+{% include "receipt/_account_hold.html" with account_client=order.project.client only %}
 {% with formset=container_formset prefix=container_formset.prefix %}
 {% if defaults %}
 {% notice tone="info" label="Defaults" id="reused-defaults" %}
