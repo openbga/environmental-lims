@@ -26,7 +26,7 @@
       "title": "Use accepted quote prices",
       "steps": [
         "Choose [[Accepted quote version]] for this client and project, or a quote without a project.",
-        "Use a quote with one line per test and exactly the received quantities. Fees, discounts and extra or missing tests are refused.",
+        "Match each test and its received quantity. Quoted fees and discounts copy once; extra or missing tests are refused.",
         "Select [[Create draft invoice]] and check the retained quote reference and copied prices."
       ]
     }
@@ -58,7 +58,7 @@
         },
         {
           "label": "Accepted quote version",
-          "description": "Optional alternative to Price list; select exactly one source. Search quote number or frozen issued title. Choices are accepted issued versions for the order client, limited to this project or quotes without a project; the version must match the recorded client acceptance. Options load 20 at a time, newest quote first. No choices means there is no eligible accepted version; use an active price list or finish the quote workflow. The full quote must contain one test line per definition, exactly matching all received test definitions and counts. Duplicate, missing, extra, fee and discount lines are refused with a field error; there is no price-list fallback. The valid-until date applies to acceptance; a previously accepted quote remains selectable after that date."
+          "description": "Optional alternative to Price list; select exactly one source. Search quote number or frozen issued title. Choices are accepted issued versions for the order client, limited to this project or quotes without a project; the version must match the recorded client acceptance. Options load 20 at a time, newest quote first. No choices means there is no eligible accepted version; use an active price list or finish the quote workflow. The full quote must contain one test line per definition, exactly matching all received test definitions and counts. Duplicate, missing and extra test lines are refused with a field error; there is no price-list fallback. Each quoted fee or discount copies once after the test lines, retaining its kind, description, quantity, signed price and source quote line. The valid-until date applies to acceptance; a previously accepted quote remains selectable after that date."
         },
         {
           "label": "Current received tests",
@@ -66,7 +66,7 @@
         },
         {
           "label": "Create draft invoice",
-          "description": "Creates the billing snapshot, exact line amounts and attributed history together, then opens the draft. No tests, a cancelled order, more than 200 tests, missing prices, oversized totals or an existing active draft prevents creation. A concurrent source change requires reloading and review. Quote eligibility and full-order matching are checked again under locks before saving. Each source test gets quantity one and its quoted description/unit price. No cumulative quote usage or ledger is updated; quote terms and client reference do not replace order billing fields."
+          "description": "Creates the billing snapshot, exact line amounts and attributed history together, then opens the draft. No tests, a cancelled order, more than 200 combined test, fee and discount lines, missing prices, negative or oversized totals or an existing active draft prevents creation. A concurrent source change requires reloading and review. Quote eligibility and full-order matching are checked again under locks before saving. Each source test gets quantity one and its quoted description/unit price. No cumulative quote usage or ledger is updated; quote terms and client reference do not replace order billing fields."
         }
       ]
     },
@@ -98,8 +98,8 @@
     {
       "title": "Source and history",
       "paragraphs": [
-        "The draft keeps its source chain of custody, project, sample identities, requested test identities, method/version, matrix, unit, disposition and selected price-list name/revision or accepted quote version, acceptance snapshot and source quote lines. Each current requested test on a received sample creates one line, initially quantity 1. Held, rejected and qualified samples are included with their disposition; the preparer decides whether work is chargeable. Later source corrections, withdrawn tests and price changes do not update the draft.",
-        "There can be one active draft per order and at most 200 lines. Every source line is retained; lines cannot be added, removed or reassigned. Cancel a draft and create a replacement to take a new source snapshot. A cancelled draft and its history remain readable. Invoice billing data never changes custody, results or released reports."
+        "The draft keeps its source chain of custody, project, sample identities, requested test identities, method/version, matrix, unit, disposition and selected price-list name/revision or accepted quote version, acceptance snapshot and source quote lines. Each current requested test on a received sample creates one line, initially quantity 1. Each fee or discount from an accepted quote creates one additional line with its original quantity and signed price, without a sample or test identity. Held, rejected and qualified samples are included with their disposition; the preparer decides whether work is chargeable. Later source corrections, withdrawn tests and price changes do not update the draft.",
+        "There can be one active draft per order and at most 200 combined test, fee and discount lines. Every source line and its kind are retained; lines cannot be added, removed or reassigned. Cancel a draft and create a replacement to take a new source snapshot. A cancelled draft and its history remain readable. Invoice billing data never changes custody, results or released reports."
       ]
     },
     {
@@ -139,6 +139,7 @@
     "commercial/tests/test_invoices.py",
     "e2e/test_invoice_drafts.py",
     "commercial/tests/test_invoice_quote_lookup.py",
-    "core/lookups.py"
+    "core/lookups.py",
+    "e2e/test_invoice_quote.py"
   ]
 }

@@ -70,16 +70,35 @@ def _quote_source(order, quote_version_id, tests):
     except Quote.DoesNotExist, QuoteVersion.DoesNotExist, ValueError, TypeError, ValidationError:
         raise ValidationError(error) from None
     version.quote = quote
-    lines = list(version.lines.select_for_update())
-    by_test = {}
+    lines = list(version.lines.select_for_update()[: MAX_LINES + 1])
+    if len(lines) > MAX_LINES:
+        raise ValidationError(
+            {"quote_version": f"A draft invoice may have at most {MAX_LINES} lines."}
+        )
+    by_test, adjustments = {}, []
     for line in lines:
-        if line.kind != QuoteLine.Kind.TEST or not line.test_id:
+        if (
+            line.kind not in InvoiceDraftLine.Kind.values
+            or (line.kind == QuoteLine.Kind.TEST) != bool(line.test_id)
+            or not line.description.strip()
+        ):
             raise ValidationError(
                 {
-                    "quote_version": "The entire quote must contain test lines only; "
-                    "fees and discounts cannot price this draft."
+                    "quote_version": "The quote contains an invalid source line; "
+                    "correct its scope first."
                 }
             )
+        try:
+            amount = _money(line.unit_price, line.quantity, line.position, kind=line.kind)
+        except ValidationError as exc:
+            raise ValidationError({"quote_version": exc.messages}) from exc
+        if line.amount != amount:
+            raise ValidationError(
+                {"quote_version": "A quote line amount does not match its price and quantity."}
+            )
+        if line.kind != QuoteLine.Kind.TEST:
+            adjustments.append(line)
+            continue
         if line.test_id in by_test:
             raise ValidationError(
                 {
@@ -103,7 +122,14 @@ def _quote_source(order, quote_version_id, tests):
                 "requested tests of that definition."
             }
         )
-    return version, by_test
+    if len(tests) + len(adjustments) > MAX_LINES:
+        raise ValidationError(
+            {
+                "quote_version": f"A draft invoice may have at most {MAX_LINES} lines, "
+                "including fees and discounts."
+            }
+        )
+    return version, by_test, adjustments
 
 
 def source_tests(order, *, lock=False):
@@ -148,21 +174,31 @@ def _state(draft):
     return {**snapshot(draft), "lines": [snapshot(line) for line in draft.lines.all()]}
 
 
-def _money(price, quantity, position):
+def _money(price, quantity, position, *, kind=InvoiceDraftLine.Kind.TEST):
     if type(quantity) is not int or not 1 <= quantity <= MAX_QUANTITY:
         raise ValidationError(f"Line {position}: quantity must be a positive whole number.")
-    if not isinstance(price, Decimal) or not price.is_finite() or not 0 <= price <= MAX_PRICE:
-        raise ValidationError(f"Line {position}: enter a nonnegative, bounded price in USD.")
+    if not isinstance(price, Decimal) or not price.is_finite() or abs(price) > MAX_PRICE:
+        raise ValidationError(f"Line {position}: enter a bounded price in USD.")
+    if kind == InvoiceDraftLine.Kind.ADJUSTMENT:
+        if price > 0:
+            raise ValidationError(f"Line {position}: a discount price must be zero or negative.")
+    elif kind in (InvoiceDraftLine.Kind.TEST, InvoiceDraftLine.Kind.FEE):
+        if price < 0:
+            raise ValidationError(f"Line {position}: a test or fee price must be nonnegative.")
+    else:
+        raise ValidationError(f"Line {position}: the source line kind is invalid.")
     if price != price.quantize(CENTS):
         raise ValidationError(f"Line {position}: prices must be whole cents in USD.")
     amount = price * quantity
-    if amount > MAX_AMOUNT:
+    if abs(amount) > MAX_AMOUNT:
         raise ValidationError(f"Line {position}: this amount is too large to record.")
     return amount
 
 
 def _total(lines):
     total = sum((line.amount for line in lines), Decimal("0.00"))
+    if total < 0:
+        raise ValidationError("Discounts exceed the draft's charges; the total cannot be negative.")
     if total > MAX_AMOUNT:
         raise ValidationError("The draft total is too large to record; split the source order.")
     return total
@@ -209,9 +245,9 @@ def create_invoice_draft(
         )
     if len(tests) > MAX_LINES:
         raise ValidationError(f"A draft invoice may have at most {MAX_LINES} received tests.")
-    quote_lines = {}
+    quote_lines, adjustments = {}, []
     if quote_version_id is not None:
-        version, quote_lines = _quote_source(order, quote_version_id, tests)
+        version, quote_lines, adjustments = _quote_source(order, quote_version_id, tests)
         quote = version.quote
         pricing_source = {
             "price_list": None,
@@ -274,6 +310,7 @@ def create_invoice_draft(
             InvoiceDraftLine(
                 draft=draft,
                 position=position,
+                kind=InvoiceDraftLine.Kind.TEST,
                 source_requested_test_id=requested.pk,
                 source_quote_line=quote_line,
                 sample=sample,
@@ -290,6 +327,19 @@ def create_invoice_draft(
                 quantity=1,
                 unit_price=price,
                 amount=_money(price, 1, position),
+            )
+        )
+    for position, source in enumerate(adjustments, len(lines) + 1):
+        lines.append(
+            InvoiceDraftLine(
+                draft=draft,
+                position=position,
+                kind=source.kind,
+                source_quote_line=source,
+                description=source.description,
+                quantity=source.quantity,
+                unit_price=source.unit_price,
+                amount=_money(source.unit_price, source.quantity, position, kind=source.kind),
             )
         )
     draft.total = _total(lines)
@@ -348,7 +398,7 @@ def save_invoice_draft(*, actor, draft_id, expected_revision, billing, lines, re
             data.get("quantity"),
             data.get("unit_price"),
         )
-        line.amount = _money(line.unit_price, line.quantity, line.position)
+        line.amount = _money(line.unit_price, line.quantity, line.position, kind=line.kind)
         line.full_clean()
     draft.total = _total(existing)
     draft.revision += 1

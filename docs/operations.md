@@ -152,6 +152,13 @@ provenance exists. Earlier code can still create list-priced drafts but cannot c
 or edit quote-priced drafts. Use compatible code for those records. Existing invoices and issued
 quotes are not rewritten, and deployment does not seed or reset data.
 
+Quote fee and discount lines add a defaulted kind in `commercial.0007` and allow their
+sample/test references to be empty. Existing lines remain tests, and a database default supports
+previous code inserting test lines during deployment. Reversal refuses once a fee or discount
+line exists, including cancelled drafts. Keep the schema on code rollback and use compatible
+code to view or edit drafts with these lines: earlier code cannot correctly present or edit them.
+This migration does not change accepted quotes or existing draft amounts, and does not reset data.
+
 BOD bottle worksheets add the nullable `bottle_data` column in `analytical.0012`. Keep that column during a code rollback: reversing the migration refuses once any bottle snapshot exists. Older code cannot show or reproduce those bottle observations and cannot accept entries for a BOD calculation rule; deactivate that rule before using older code for new entries, and return to a compatible release to inspect retained worksheets. A normal deploy does not reseed; the synthetic BOD example appears at the demonstration’s next scheduled reset.
 
 Run calibration evidence adds `analytical.0013`: an immutable calibration table and nullable

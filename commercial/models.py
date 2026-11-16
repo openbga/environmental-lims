@@ -141,10 +141,18 @@ class InvoiceDraft(models.Model):
 
 
 class InvoiceDraftLine(models.Model):
+    class Kind(models.TextChoices):
+        TEST = "test", "Test"
+        FEE = "fee", "Fee"
+        ADJUSTMENT = "adjustment", "Discount"
+
     draft = models.ForeignKey(InvoiceDraft, on_delete=models.PROTECT, related_name="lines")
     position = models.PositiveSmallIntegerField()
+    kind = models.CharField(
+        max_length=12, choices=Kind.choices, default=Kind.TEST, db_default="test"
+    )
     # A requested test can later be withdrawn. Its original identity and labels stay here.
-    source_requested_test_id = models.PositiveBigIntegerField()
+    source_requested_test_id = models.PositiveBigIntegerField(null=True, blank=True)
     source_quote_line = models.ForeignKey(
         "QuoteLine",
         null=True,
@@ -152,18 +160,26 @@ class InvoiceDraftLine(models.Model):
         on_delete=models.PROTECT,
         related_name="invoice_draft_lines",
     )
-    sample = models.ForeignKey(Sample, on_delete=models.PROTECT, related_name="invoice_draft_lines")
-    definition = models.ForeignKey(
-        TestDefinition, on_delete=models.PROTECT, related_name="invoice_draft_lines"
+    sample = models.ForeignKey(
+        Sample, null=True, blank=True, on_delete=models.PROTECT, related_name="invoice_draft_lines"
     )
-    lab_id = models.CharField(max_length=32)
-    client_sample_id = models.CharField(max_length=120)
-    sample_disposition = models.CharField(max_length=20, choices=Sample.Disposition.choices)
-    test_description = models.CharField(max_length=400)
-    method_code = models.CharField(max_length=60)
-    method_version = models.CharField(max_length=40)
-    matrix = models.CharField(max_length=20, choices=Sample.Matrix.choices)
-    unit = models.CharField(max_length=40)
+    definition = models.ForeignKey(
+        TestDefinition,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="invoice_draft_lines",
+    )
+    lab_id = models.CharField(max_length=32, blank=True)
+    client_sample_id = models.CharField(max_length=120, blank=True)
+    sample_disposition = models.CharField(
+        max_length=20, choices=Sample.Disposition.choices, blank=True
+    )
+    test_description = models.CharField(max_length=400, blank=True)
+    method_code = models.CharField(max_length=60, blank=True)
+    method_version = models.CharField(max_length=40, blank=True)
+    matrix = models.CharField(max_length=20, choices=Sample.Matrix.choices, blank=True)
+    unit = models.CharField(max_length=40, blank=True)
     description = models.CharField(max_length=400)
     quantity = models.PositiveIntegerField(default=1)
     unit_price = models.DecimalField(**MONEY)
@@ -177,8 +193,40 @@ class InvoiceDraftLine(models.Model):
             ),
             models.UniqueConstraint(fields=["draft", "position"], name="invoice_line_position"),
             models.CheckConstraint(
-                condition=models.Q(quantity__gte=1, quantity__lte=2147483647, unit_price__gte=0),
+                condition=models.Q(quantity__gte=1, quantity__lte=2147483647),
                 name="invoice_line_values",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        kind="test",
+                        source_requested_test_id__isnull=False,
+                        sample__isnull=False,
+                        definition__isnull=False,
+                        unit_price__gte=0,
+                    )
+                    | (
+                        models.Q(
+                            source_requested_test_id__isnull=True,
+                            sample__isnull=True,
+                            definition__isnull=True,
+                            source_quote_line__isnull=False,
+                            lab_id="",
+                            client_sample_id="",
+                            sample_disposition="",
+                            test_description="",
+                            method_code="",
+                            method_version="",
+                            matrix="",
+                            unit="",
+                        )
+                        & (
+                            models.Q(kind="fee", unit_price__gte=0)
+                            | models.Q(kind="adjustment", unit_price__lte=0)
+                        )
+                    )
+                ),
+                name="invoice_line_kind_source",
             ),
             models.CheckConstraint(
                 condition=models.Q(amount=models.F("quantity") * models.F("unit_price")),

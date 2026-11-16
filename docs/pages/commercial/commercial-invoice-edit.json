@@ -24,7 +24,7 @@
   ],
   "good_to_know": [
     "Every original source line stays in the draft. You cannot add, remove or reassign a line.",
-    "Enter whole cents in USD and a positive whole-number quantity. Zero price is allowed when deliberately entered.",
+    "Enter whole cents and positive whole-number quantities. Test and fee prices are nonnegative; discounts are zero or negative. The total cannot be negative.",
     "Saving changes neither the source order nor the price list.",
     "If another person changes or cancels the draft, reload and review before saving."
   ],
@@ -64,8 +64,12 @@
       "title": "Charge edits and save",
       "items": [
         {
+          "label": "Kind",
+          "description": "Fixed Test, Fee or Discount. Fees and discounts come from accepted quote lines and have no sample or requested test. The quote number, version and source line remain visible through edits and cancellation. Discounts are signed amounts, not percentages."
+        },
+        {
           "label": "Source sample and test",
-          "description": "Read-only lab ID, client sample ID, disposition and test identity show what the line originally represented."
+          "description": "Read-only lab ID, client sample ID, disposition and test identity show what the line originally represented. Fee and discount rows show No sample or requested test instead of sample or test details."
         },
         {
           "label": "Description",
@@ -73,11 +77,11 @@
         },
         {
           "label": "Quantity",
-          "description": "Required whole number from 1 to 2,147,483,647. Starts at 1 for each source test; does not change the sample or test count."
+          "description": "Required whole number from 1 to 2,147,483,647. Starts at 1 for each source test; quoted fees and discounts retain their quoted quantity. Does not change the source quantity or sample/test count."
         },
         {
           "label": "Unit price (USD)",
-          "description": "Required nonnegative amount in whole cents, at most 9,999,999,999.99 USD. No automatic replacement from a price list occurs on edit."
+          "description": "Required amount in whole cents, at most 9,999,999,999.99 USD in magnitude. Tests and fees use nonnegative prices; discounts use zero or negative prices. Prices are never automatically replaced from the source."
         },
         {
           "label": "Reason for change",
@@ -85,15 +89,15 @@
         },
         {
           "label": "Save draft",
-          "description": "Checks every line and the revision and recomputes amounts and total exactly. Each line and the total must fit 999,999,999,999.99 USD. Saves changes and history together, then opens the draft record. Cancelled drafts cannot be edited."
+          "description": "Checks every line and the revision and recomputes amounts and total exactly. Each line must fit 999,999,999,999.99 USD in magnitude; the total must be between zero and that limit. A negative total or a price with the wrong sign is refused. Saves changes and history together, then opens the draft record. Cancelled drafts cannot be edited."
         }
       ]
     },
     {
       "title": "Source and history",
       "paragraphs": [
-        "The draft keeps its source chain of custody, project, sample identities, requested test identities, method/version, matrix, unit, disposition and selected price-list name/revision or accepted quote version, acceptance snapshot and source quote lines. Each current requested test on a received sample creates one line, initially quantity 1. Held, rejected and qualified samples are included with their disposition; the preparer decides whether work is chargeable. Later source corrections, withdrawn tests and price changes do not update the draft.",
-        "There can be one active draft per order and at most 200 lines. Every source line is retained; lines cannot be added, removed or reassigned. Cancel a draft and create a replacement to take a new source snapshot. A cancelled draft and its history remain readable. Invoice billing data never changes custody, results or released reports."
+        "The draft keeps its source chain of custody, project, sample identities, requested test identities, method/version, matrix, unit, disposition and selected price-list name/revision or accepted quote version, acceptance snapshot and source quote lines. Each current requested test on a received sample creates one line, initially quantity 1. Each fee or discount from an accepted quote creates one additional line with its original quantity and signed price, without a sample or test identity. Held, rejected and qualified samples are included with their disposition; the preparer decides whether work is chargeable. Later source corrections, withdrawn tests and price changes do not update the draft.",
+        "There can be one active draft per order and at most 200 combined test, fee and discount lines. Every source line and its kind are retained; lines cannot be added, removed or reassigned. Cancel a draft and create a replacement to take a new source snapshot. A cancelled draft and its history remain readable. Invoice billing data never changes custody, results or released reports."
       ]
     },
     {
@@ -138,6 +142,7 @@
     "core/templatetags/navigation.py",
     "commercial/tests/test_invoices.py",
     "e2e/test_invoice_drafts.py",
-    "commercial/tests/test_invoice_quote_lookup.py"
+    "commercial/tests/test_invoice_quote_lookup.py",
+    "e2e/test_invoice_quote.py"
   ]
 }

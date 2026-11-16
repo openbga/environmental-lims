@@ -662,8 +662,7 @@ def test_cancelled_draft_cancel_page_redirects_but_post_rechecks_state(
     assert AuditEvent.objects.filter(action="invoice_draft.cancelled").count() == 1
 
 
-@pytest.fixture
-def accepted_invoice_quote(lab):
+def accepted_quote(lab, adjustments=()):
     quote = quotes.create_quote(
         actor=lab["pm"],
         token=None,
@@ -683,17 +682,20 @@ def accepted_invoice_quote(lab):
         scope_notes="Quote scope",
         terms="QUOTE-ONLY-TERMS",
         lines=[
-            {
-                "kind": "test",
-                "test": lab["tests"][key],
-                "description": description,
-                "quantity": 1,
-                "unit_price": Decimal(price),
-            }
-            for key, description, price in [
-                ("lead", "Agreed lead analysis", "0.10"),
-                ("copper", "Agreed copper analysis", "1.25"),
-            ]
+            *adjustments,
+            *[
+                {
+                    "kind": "test",
+                    "test": lab["tests"][key],
+                    "description": description,
+                    "quantity": 1,
+                    "unit_price": Decimal(price),
+                }
+                for key, description, price in [
+                    ("lead", "Agreed lead analysis", "0.10"),
+                    ("copper", "Agreed copper analysis", "1.25"),
+                ]
+            ],
         ],
     )
     quotes.issue_quote(
@@ -706,6 +708,32 @@ def accepted_invoice_quote(lab):
         client_reference="QUOTE-ONLY-PO",
     )
     return QuoteVersion.objects.select_related("quote").get(quote=quote, number=1)
+
+
+@pytest.fixture
+def accepted_invoice_quote(lab):
+    return accepted_quote(lab)
+
+
+@pytest.fixture
+def accepted_adjusted_quote(lab):
+    return accepted_quote(
+        lab,
+        adjustments=[
+            {
+                "kind": kind,
+                "description": description,
+                "quantity": quantity,
+                "unit_price": Decimal(price),
+            }
+            for kind, description, quantity, price in [
+                ("fee", "Synthetic handling", 3, "0.10"),
+                ("adjustment", "Synthetic agreed discount", 2, "-0.05"),
+                ("fee", "Synthetic waived fee", 1, "0.00"),
+                ("adjustment", "Synthetic zero discount", 1, "0.00"),
+            ]
+        ],
+    )
 
 
 def from_quote(lab, received, version, **overrides):
@@ -799,7 +827,7 @@ def test_quote_source_rechecks_client_project_acceptance_and_issue(
 
 
 @pytest.mark.parametrize(
-    "change", ["empty", "missing", "extra", "duplicate", "fee", "adjustment", "quantity"]
+    "change", ["empty", "missing", "extra", "duplicate", "fee_with_test", "blank_fee", "quantity"]
 )
 def test_entire_quote_test_scope_must_match_without_omission(
     lab, received, accepted_invoice_quote, change
@@ -809,16 +837,16 @@ def test_entire_quote_test_scope_must_match_without_omission(
         version.lines.all().delete()
     elif change == "missing":
         version.lines.last().delete()
-    elif change in ("extra", "duplicate", "fee", "adjustment"):
+    elif change in ("extra", "duplicate", "fee_with_test", "blank_fee"):
         test = lab["tests"]["nitrate"] if change == "extra" else lab["tests"]["lead"]
-        kind = change if change in ("fee", "adjustment") else "test"
-        price = Decimal("-0.10") if change == "adjustment" else Decimal("0.10")
+        kind = "fee" if change in ("fee_with_test", "blank_fee") else "test"
+        price = Decimal("0.10")
         QuoteLine.objects.create(
             version=version,
             position=3,
             kind=kind,
-            test=test if kind == "test" else None,
-            description="Unsupported scope",
+            test=test if change != "blank_fee" else None,
+            description="" if change == "blank_fee" else "Unsupported scope",
             quantity=1,
             unit_price=price,
             amount=price,
@@ -852,28 +880,28 @@ def test_invoice_requires_exactly_one_valid_source(
 
 
 def test_quote_creation_rechecks_stale_receipt_and_rolls_back_audit_failure(
-    lab, received, accepted_invoice_quote
+    lab, received, accepted_adjusted_quote
 ):
     order = Order.objects.select_related("project__client").get(pk=received.order_id)
     stale = invoices.source_state(order)
     Sample.objects.filter(pk=received.pk).update(revision=2)
     with pytest.raises(ValidationError, match="samples changed"):
-        from_quote(lab, received, accepted_invoice_quote, expected_source_state=stale)
+        from_quote(lab, received, accepted_adjusted_quote, expected_source_state=stale)
     with (
         patch("commercial.invoices.record_event", side_effect=RuntimeError("audit unavailable")),
         pytest.raises(RuntimeError),
     ):
-        from_quote(lab, received, accepted_invoice_quote)
+        from_quote(lab, received, accepted_adjusted_quote)
     assert not InvoiceDraft.objects.exists() and not InvoiceDraftLine.objects.exists()
 
 
 @pytest.mark.parametrize("role", ["analyst", "custodian", "a", "b"])
 def test_quote_invoice_creation_refuses_unqualified_actor(
-    lab, received, accepted_invoice_quote, role
+    lab, received, accepted_adjusted_quote, role
 ):
     actor = lab[role]["user"] if role in ("a", "b") else lab[role]
     with pytest.raises(PermissionDenied):
-        from_quote(lab, received, accepted_invoice_quote, actor=actor)
+        from_quote(lab, received, accepted_adjusted_quote, actor=actor)
 
 
 def test_quote_form_xor_scope_errors_preserve_selection_and_detail_provenance(
@@ -949,3 +977,336 @@ def test_invoice_quote_invalid_primary_key_renders_inline_error(client, lab, rec
     assert response.context["form"].errors["quote_version"]
     assert response.context["form"]["quote_version"].value() == selected
     assert not InvoiceDraft.objects.exists()
+
+
+def test_quoted_fees_and_discounts_transfer_once_after_tests_with_exact_provenance(
+    lab, received, accepted_adjusted_quote
+):
+    version = accepted_adjusted_quote
+    draft = from_quote(lab, received, version)
+    rows = list(draft.lines.all())
+    assert draft.total == version.total == Decimal("1.55")
+    assert [row.kind for row in rows] == ["test", "test", "fee", "adjustment", "fee", "adjustment"]
+    assert [row.position for row in rows] == list(range(1, 7))
+    sources = list(version.lines.exclude(kind="test"))
+    for row, source in zip(rows[2:], sources, strict=True):
+        assert (
+            row.source_quote_line_id,
+            row.description,
+            row.quantity,
+            row.unit_price,
+            row.amount,
+        ) == (source.pk, source.description, source.quantity, source.unit_price, source.amount)
+        assert (
+            row.source_requested_test_id is None
+            and row.sample_id is None
+            and row.definition_id is None
+        )
+        assert not any(
+            getattr(row, field)
+            for field in (
+                "lab_id",
+                "client_sample_id",
+                "sample_disposition",
+                "test_description",
+                "method_code",
+                "method_version",
+                "matrix",
+                "unit",
+            )
+        )
+    assert rows[2].amount == Decimal("0.30") and rows[3].amount == Decimal("-0.10")
+    event = AuditEvent.objects.get(action="invoice_draft.created")
+    assert event.after["total"] == "1.55"
+    assert event.after["lines"][3]["kind"] == "adjustment"
+    assert event.after["lines"][3]["source_quote_line"] == sources[1].pk
+    assert event.after["lines"][3]["source_requested_test_id"] is None
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "unknown",
+        "fee_test",
+        "fee_negative",
+        "discount_positive",
+        "quantity",
+        "cents",
+        "price",
+        "amount",
+        "mismatch",
+    ],
+)
+def test_every_malformed_quote_line_is_refused_without_omission(
+    lab, received, accepted_adjusted_quote, change
+):
+    version = accepted_adjusted_quote
+    lines = list(version.lines.all())
+    line = lines[0]
+    if change == "unknown":
+        line.kind = "other"
+    elif change == "fee_test":
+        line.test_id = lab["tests"]["lead"].pk
+    elif change == "fee_negative":
+        line.unit_price = Decimal("-0.01")
+    elif change == "discount_positive":
+        lines[1].unit_price = Decimal("0.01")
+    elif change == "quantity":
+        line.quantity = invoices.MAX_QUANTITY + 1
+    elif change == "cents":
+        line.unit_price = Decimal("0.001")
+    elif change == "price":
+        line.unit_price = invoices.MAX_PRICE + Decimal("0.01")
+    elif change == "amount":
+        line.unit_price, line.quantity = invoices.MAX_PRICE, 1000
+    else:
+        line.amount += Decimal("0.01")
+    with (
+        patch.object(type(version.lines), "select_for_update", return_value=lines),
+        pytest.raises(ValidationError),
+    ):
+        from_quote(lab, received, version)
+    assert not InvoiceDraft.objects.exists() and not InvoiceDraftLine.objects.exists()
+    assert not AuditEvent.objects.filter(action="invoice_draft.created").exists()
+
+
+def test_adjusted_quote_line_limit_includes_each_fee_and_discount(
+    lab, received, accepted_adjusted_quote
+):
+    with (
+        patch("commercial.invoices.MAX_LINES", 5),
+        pytest.raises(ValidationError, match="at most 5"),
+    ):
+        from_quote(lab, received, accepted_adjusted_quote)
+    assert not InvoiceDraft.objects.exists()
+    with patch("commercial.invoices.MAX_LINES", 6):
+        assert from_quote(lab, received, accepted_adjusted_quote).lines.count() == 6
+
+
+def test_adjusted_quote_expanded_tests_and_fees_share_line_limit(
+    lab, received, accepted_adjusted_quote
+):
+    RequestedTest.objects.create(sample=received, definition=lab["tests"]["nitrate"])
+    QuoteLine.objects.create(
+        version=accepted_adjusted_quote,
+        position=7,
+        kind="test",
+        test=lab["tests"]["nitrate"],
+        description="Additional received test",
+        quantity=1,
+        unit_price=Decimal("0.10"),
+        amount=Decimal("0.10"),
+    )
+    # Two requested tests of one definition expand one quote line into two draft rows.
+    order = Order.objects.get(pk=received.order_id)
+    second_sample = Sample.objects.get(pk=received.pk)
+    second_sample.pk = None
+    second_sample.lab_id = "SYN-INVOICE-SECOND"
+    second_sample.save()
+    RequestedTest.objects.create(sample=second_sample, definition=lab["tests"]["lead"])
+    lead = accepted_adjusted_quote.lines.get(test=lab["tests"]["lead"])
+    lead.quantity, lead.amount = 2, Decimal("0.20")
+    lead.save()
+    assert order.samples.count() == 2
+    with (
+        patch("commercial.invoices.MAX_LINES", 7),
+        pytest.raises(ValidationError, match="including fees and discounts"),
+    ):
+        from_quote(lab, received, accepted_adjusted_quote)
+    assert not InvoiceDraft.objects.exists()
+    with patch("commercial.invoices.MAX_LINES", 8):
+        draft = from_quote(lab, received, accepted_adjusted_quote)
+    assert draft.lines.count() == 8 and draft.total == Decimal("1.75")
+    assert (
+        draft.lines.filter(kind="fee").count() == draft.lines.filter(kind="adjustment").count() == 2
+    )
+
+
+def test_negative_quote_total_refuses_creation_atomically(lab, received, accepted_adjusted_quote):
+    discount = accepted_adjusted_quote.lines.filter(kind="adjustment").first()
+    QuoteLine.objects.filter(pk=discount.pk).update(
+        unit_price=Decimal("-1.00"), amount=Decimal("-2.00")
+    )
+    with pytest.raises(ValidationError, match="total cannot be negative"):
+        from_quote(lab, received, accepted_adjusted_quote)
+    assert not InvoiceDraft.objects.exists() and not InvoiceDraftLine.objects.exists()
+    assert not AuditEvent.objects.filter(action="invoice_draft.created").exists()
+
+
+@pytest.mark.parametrize(
+    "kind,price,quantity",
+    [
+        ("fee", Decimal("-0.01"), 1),
+        ("adjustment", Decimal("0.01"), 1),
+        ("adjustment", Decimal("-1.00"), 2),
+        ("adjustment", -invoices.MAX_PRICE, 1000),
+        ("adjustment", Decimal("-0.001"), 1),
+    ],
+)
+def test_reasoned_adjustment_edits_reject_sign_bounds_and_negative_total_atomically(
+    lab, received, accepted_adjusted_quote, kind, price, quantity
+):
+    draft = from_quote(lab, received, accepted_adjusted_quote)
+    before = invoices._state(draft)
+    lines = [
+        {
+            "id": row.pk,
+            "description": row.description,
+            "quantity": row.quantity,
+            "unit_price": row.unit_price,
+        }
+        for row in draft.lines.all()
+    ]
+    target = next(row for row in draft.lines.all() if row.kind == kind)
+    for row in lines:
+        if row["id"] == target.pk:
+            row.update(unit_price=price, quantity=quantity, kind="test")
+    with pytest.raises(ValidationError):
+        save(lab, draft, lines=lines)
+    draft.refresh_from_db()
+    assert invoices._state(draft) == before
+    assert not AuditEvent.objects.filter(action="invoice_draft.saved").exists()
+
+
+def test_adjustment_edits_and_cancellation_preserve_kind_and_every_source_line(
+    lab, received, accepted_adjusted_quote
+):
+    draft = from_quote(lab, received, accepted_adjusted_quote)
+    fields = [
+        "id",
+        "kind",
+        "source_quote_line_id",
+        "source_requested_test_id",
+        "sample_id",
+        "definition_id",
+    ]
+    provenance = list(draft.lines.values(*fields))
+    lines = [
+        {
+            "id": row.pk,
+            "description": "Negotiated " + row.description,
+            "quantity": row.quantity,
+            "unit_price": Decimal("-0.10") if row.kind == "adjustment" else row.unit_price,
+            "kind": "fee",
+            "source_quote_line_id": 999999,
+            "sample_id": received.pk,
+        }
+        for row in draft.lines.all()
+    ]
+    updated = save(lab, draft, lines=lines)
+    assert updated.total == Decimal("1.35")
+    assert list(updated.lines.values(*fields)) == provenance
+    event = AuditEvent.objects.get(action="invoice_draft.saved")
+    assert event.before["lines"][3]["unit_price"] == "-0.05"
+    assert event.after["lines"][3]["unit_price"] == "-0.10"
+    with pytest.raises(ValidationError, match="changed"):
+        save(lab, draft, lines=lines)
+    with pytest.raises(ValidationError, match="every original source line"):
+        save(lab, updated, lines=lines[:-1])
+    invoices.cancel_invoice_draft(
+        actor=lab["pm"], draft_id=draft.pk, expected_revision=2, reason="Replace scope"
+    )
+    assert list(draft.lines.values(*fields)) == provenance
+    assert len(AuditEvent.objects.get(action="invoice_draft.cancelled").after["lines"]) == 6
+
+
+def test_adjustment_save_rolls_back_when_audit_fails(lab, received, accepted_adjusted_quote):
+    draft = from_quote(lab, received, accepted_adjusted_quote)
+    before = invoices._state(draft)
+    with (
+        patch("commercial.invoices.record_event", side_effect=RuntimeError("audit unavailable")),
+        pytest.raises(RuntimeError),
+    ):
+        save(lab, draft)
+    draft.refresh_from_db()
+    assert invoices._state(draft) == before
+
+
+def test_discount_form_errors_follow_source_id_and_keep_signed_values(
+    client, lab, received, accepted_adjusted_quote
+):
+    draft = from_quote(lab, received, accepted_adjusted_quote)
+    client.force_login(lab["pm"])
+    url = reverse("commercial:invoice-edit", args=[draft.pk])
+    response = client.get(url)
+    assert response.context["formset"][3]["unit_price"].value() == Decimal("-0.05")
+    data = edit_post(draft)
+    # Reordering submitted IDs cannot turn a discount into a positive fee.
+    first_id, discount_id = data["lines-0-id"], data["lines-3-id"]
+    data["lines-0-id"], data["lines-3-id"] = discount_id, first_id
+    response = client.post(url, data)
+    assert response.status_code == 200
+    assert "zero or negative" in str(response.context["formset"][0].errors["unit_price"])
+    assert "nonnegative" in str(response.context["formset"][3].errors["unit_price"])
+    assert response.context["formset"][0].source_line.kind == "adjustment"
+    assert str(response.context["formset"][3]["unit_price"].value()) == "-0.05"
+    data = edit_post(draft)
+    data["lines-3-unit_price"] = "-0.10"
+    response = client.post(url, data)
+    assert response.status_code == 302
+    draft.refresh_from_db()
+    assert draft.total == Decimal("1.45")
+    html = client.get(response.url).content.decode()
+    assert (
+        "Discount" in html and "Fee" in html and "No sample" in html and "No requested test" in html
+    )
+    assert f"{accepted_adjusted_quote.quote.number} · version 1 · quote line 2" in html
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "kind",
+        "source_requested_test_id",
+        "sample_id",
+        "definition_id",
+        "source_quote_line_id",
+        "lab_id",
+        "client_sample_id",
+        "sample_disposition",
+        "test_description",
+        "method_code",
+        "method_version",
+        "matrix",
+        "unit",
+        "unit_price",
+        "quantity",
+        "amount",
+    ],
+)
+def test_database_rejects_invalid_fee_identity_labels_sign_and_arithmetic(
+    lab, received, accepted_adjusted_quote, field
+):
+    draft = from_quote(lab, received, accepted_adjusted_quote)
+    fee = draft.lines.filter(kind="fee").first()
+    changes = {
+        field: {
+            "kind": "other",
+            "source_requested_test_id": draft.lines.first().source_requested_test_id,
+            "sample_id": received.pk,
+            "definition_id": lab["tests"]["lead"].pk,
+            "source_quote_line_id": None,
+            "sample_disposition": "proceed",
+            "matrix": "water",
+            "unit_price": Decimal("-0.10"),
+            "quantity": 0,
+            "amount": Decimal("0.31"),
+        }.get(field, "fabricated")
+    }
+    if field == "unit_price":
+        changes["amount"] = Decimal("-0.30")
+    with pytest.raises(IntegrityError), transaction.atomic():
+        InvoiceDraftLine.objects.filter(pk=fee.pk).update(**changes)
+
+
+def test_database_rejects_positive_discount_and_negative_draft_total(
+    lab, received, accepted_adjusted_quote
+):
+    draft = from_quote(lab, received, accepted_adjusted_quote)
+    discount = draft.lines.filter(kind="adjustment").first()
+    with pytest.raises(IntegrityError), transaction.atomic():
+        InvoiceDraftLine.objects.filter(pk=discount.pk).update(
+            unit_price=Decimal("0.05"), amount=Decimal("0.10")
+        )
+    with pytest.raises(IntegrityError), transaction.atomic():
+        InvoiceDraft.objects.filter(pk=draft.pk).update(total=Decimal("-0.01"))

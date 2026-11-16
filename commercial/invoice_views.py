@@ -142,6 +142,7 @@ def invoice_edit(request, pk):
     form = InvoiceEditForm(request.POST or None, draft=draft)
     formset = InvoiceLineFormSet(
         request.POST or None,
+        source_lines=lines,
         prefix="lines",
         initial=[
             {
@@ -168,8 +169,6 @@ def invoice_edit(request, pk):
         else:
             messages.success(request, "Draft saved; prior values retained in history.")
             return redirect("commercial:invoice-detail", pk=pk)
-    for row, source in zip(formset, lines, strict=False):
-        row.source_line = source
     return render(
         request,
         "commercial/invoice_edit.html",
