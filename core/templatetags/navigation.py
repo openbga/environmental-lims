@@ -158,6 +158,8 @@ STAFF_NAV = (
         (
             "analytical:batch-create",
             "analytical:batch-detail",
+            "analytical:calibration-create",
+            "analytical:calibration-detail",
             "analytical:batch-add-tests",
             "analytical:batch-entry",
             "analytical:batch-import",

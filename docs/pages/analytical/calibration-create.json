@@ -1,0 +1,93 @@
+{
+  "id": "analytical-calibration-create",
+  "routes": [
+    "analytical:calibration-create"
+  ],
+  "title": "Record calibration",
+  "purpose": "Keep the instrument-reported curve, standard points and source for one test in this analytical batch.",
+  "summary": "Record a curve supplied by an instrument, with its standard points and source. Analysts and administrators can record evidence; the application does not fit the curve or decide method acceptance.",
+  "tasks": [
+    {
+      "title": "Record a curve",
+      "steps": [
+        "Choose [[Test]] and enter a unique [[Calibration reference]] for this batch.",
+        "Fill in [[Calibration time]], [[Instrument-reported model]], [[Response unit]] and [[Source reference]].",
+        "Enter [[Standard points (CSV)]] with the header standard,concentration,response, then select [[Record calibration]]."
+      ]
+    },
+    {
+      "title": "Correct a recorded curve",
+      "steps": [
+        "Record a new curve with a different [[Calibration reference]].",
+        "Open the affected result and enter a new revision with the intended calibration and a correction reason. Earlier evidence stays unchanged."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The application keeps instrument-reported evidence. It does not calculate a fit, check fit quality or establish method acceptance.",
+    "Concentrations use the unit shown with [[Test]]. Responses use [[Response unit]]. Negative responses are allowed; negative concentrations are refused.",
+    "The record cannot be edited or deleted. A different record never silently replaces evidence on an earlier result.",
+    "Closing the batch freezes membership only; you can still record calibration evidence."
+  ],
+  "sections": [
+    {
+      "title": "Access and navigation",
+      "paragraphs": [
+        "Active analysts and administrators can open and submit this form for an analytical batch. Other staff and clients cannot record calibration. Preparation batches are not eligible. Cancel returns to the batch without saving; success opens the immutable calibration record. The dialog and full-page form have the same fields and rules."
+      ]
+    },
+    {
+      "title": "Fields",
+      "items": [
+        {
+          "label": "Test",
+          "description": "Required active test for this batch’s method and matrix; its label includes the concentration unit. A withdrawn test or method is refused again when saving."
+        },
+        {
+          "label": "Calibration reference",
+          "description": "Required instrument/run calibration identifier, up to 120 characters and unique within this batch. Use a distinct reference when recording a correction."
+        },
+        {
+          "label": "Calibration time",
+          "description": "Required actual calibration date/time in laboratory local time. Future times beyond the short clock-skew allowance are refused. A linked result’s analysis must not precede it."
+        },
+        {
+          "label": "Instrument-reported model",
+          "description": "Required equation, fit and weighting as supplied by the instrument, up to 1,000 characters. This description is retained as text and is not evaluated."
+        },
+        {
+          "label": "Response unit",
+          "description": "Required unit of instrument response, up to 40 characters, applied to every response point."
+        },
+        {
+          "label": "Source reference",
+          "description": "Required traceable instrument output or laboratory record reference, up to 240 characters. No original file is uploaded or retained here."
+        },
+        {
+          "label": "Standard points (CSV)",
+          "description": "Required comma-separated text, at most 20,000 characters, with exactly the header standard,concentration,response and 1–50 data rows. Quote a standard reference containing a comma. Each row has a standard/source identifier of at most 120 characters, nonnegative concentration in the test unit and signed response in the response unit. Scientific numbers must be finite exact decimal text within supported precision; original zeros and spelling are kept. Blank, malformed, extra-column and excess-row entries are refused."
+        },
+        {
+          "label": "Record calibration",
+          "description": "Validate and save the immutable record and its attributed audit event together. The method version, analyte, matrix, units and equipment identity recorded on the batch are frozen; no equipment choice is inferred if none was recorded."
+        }
+      ]
+    },
+    {
+      "title": "Validation and limitations",
+      "paragraphs": [
+        "Errors keep the entered form and point to the affected field where possible. A duplicate reference cannot overwrite an earlier record. The 50-point bound is an application resource limit, not a required method standard count. No fit threshold, source independence, calibration expiry, injection sequence or verification bracketing is evaluated. Continue to use the laboratory’s procedure and configured QC checks."
+      ]
+    }
+  ],
+  "sources": [
+    "analytical/calibration.py",
+    "analytical/calibration_forms.py",
+    "analytical/calibration_views.py",
+    "analytical/models.py",
+    "analytical/services.py",
+    "analytical/tests/test_calibration.py",
+    "analytical/tests/test_calibration_views.py",
+    "analytical/templates/analytical/form.html"
+  ]
+}

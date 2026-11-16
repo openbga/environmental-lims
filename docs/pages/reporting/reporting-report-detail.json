@@ -175,6 +175,12 @@
         "The fingerprint must still match the preview. Relevant ownership, sample, requested-test, result, batch, method-policy and source records are locked and rechecked after PDF rendering. Changed records or a concurrent release require reviewing the refreshed preview and confirming again. No partial release is stored.",
         "PDF bytes, frozen snapshot, version links, hashes, actor, release time and audit event commit together. Rendering failure or a PDF above 10 MiB leaves nothing released. Correct the reported issue and retry from the preview. Release does not send email."
       ]
+    },
+    {
+      "title": "Calibration evidence and release",
+      "paragraphs": [
+        "When a result explicitly links calibration evidence, the recorded curve and verification snapshot are retained in the new report version. The report PDF layout is unchanged. A corrected selected verification holds release until a fresh result revision records current evidence and passes independent review. A person who recorded that selected curve or verification cannot release its result, even with release permission. Unlinked results retain the existing gates; no universal calibration requirement is inferred. Issued reports are not rewritten."
+      ]
     }
   ],
   "sources": [
@@ -196,6 +202,8 @@
     "reporting/tests/test_lab_identity.py",
     "reporting/pdf.py",
     "reporting/templates/reporting/pdf/report.html",
-    "reporting/templates/reporting/_change.html"
+    "reporting/templates/reporting/_change.html",
+    "analytical/calibration.py",
+    "analytical/tests/test_calibration.py"
   ]
 }

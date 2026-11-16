@@ -64,6 +64,9 @@ BottleFormSet = forms.formset_factory(
 
 
 class BottleEntryForm(CorrectionForm):
+    # Bottle worksheets do not collect or carry calibration evidence in this increment.
+    calibration_id = None
+    calibration_verification_id = None
     expected_revision = forms.IntegerField(min_value=0, widget=forms.HiddenInput)
 
     def use_calculation(self, calculation, definition, **kwargs):

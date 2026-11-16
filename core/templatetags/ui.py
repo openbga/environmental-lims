@@ -240,8 +240,8 @@ COMPONENTS = {
     "list_results": Component(
         I + "list_results.html",
         ("items", "noun", "filtered", "invalid", "clear_url", "paginate", "post_name",
-         "empty_title", "empty_body", "action_url", "action_label", "no_results_title",
-         "no_results_body", "error_body"),
+         "page_parameter", "empty_title", "empty_body", "action_url", "action_label",
+         "no_results_title", "no_results_body", "error_body"),
         body="block",
         derive=list_results_values,
     ),
@@ -328,7 +328,7 @@ COMPONENTS = {
         reads=("sort",),
     ),
     "pagination": Component(
-        I + "pagination.html", ("page_obj", "noun", "filtered", "post_name"),
+        I + "pagination.html", ("page_obj", "noun", "filtered", "post_name", "page_parameter"),
         reads=("page_obj",),
     ),
     "select_all": Component(I + "select_all.html", ("name", "label", "ready_label")),
@@ -370,3 +370,11 @@ def page_size_field(per_page, noun):
         }
     )
     return form["per_page"]
+
+
+@register.simple_tag(takes_context=True)
+def pagination_query(context, page_number, page_parameter="page"):
+    """Change one table's GET page while preserving the other table and filter parameters."""
+    query = context["request"].GET.copy()
+    query[page_parameter or "page"] = page_number
+    return "?" + query.urlencode()

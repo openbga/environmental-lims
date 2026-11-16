@@ -169,6 +169,12 @@
           "description": "A result revision created after you opened this page causes save refusal. So does adding, removing or replacing its calculation rule. Reload and compare current records before retrying; unsaved changes are not merged automatically. A rounding-only rule change applies at the next save, while previous worksheets keep their own rounding."
         }
       ]
+    },
+    {
+      "title": "Calibration links",
+      "paragraphs": [
+        "This bottle worksheet does not record or carry calibration evidence links. It saves the bottle observations and calculated result under the existing BOD workflow; curve fitting and calibration acceptance are not performed. An earlier result revision keeps any evidence it already has."
+      ]
     }
   ],
   "sources": [

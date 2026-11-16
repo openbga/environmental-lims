@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block breadcrumbs %}{% url 'analytical:batch-list' as list_url %}{% url 'analytical:batch-detail' curve.batch_id as batch_url %}{% breadcrumbs section="Batches & QC" section_url=list_url record=curve.batch.number record_url=batch_url current=curve.reference %}{% endblock %}
+{% block page_meta %}{% page_meta %}<li>{% status label="Recorded evidence" tone="neutral" %}</li><li>Batch <a class="vr-id" href="{% url 'analytical:batch-detail' curve.batch_id %}">{{ curve.batch.number }}</a></li><li>{{ curve.analyte_name }}</li><li>{{ curve.method_code }} ({{ curve.method_version }})</li><li>{% matrix_tag matrix=curve.matrix %}</li>{% endpage_meta %}{% endblock %}
+{% block content %}
+{% notice tone="neutral" label="Note" %}The application does not fit this curve or evaluate method acceptance. This record is kept unchanged; record a new calibration to correct it.{% endnotice %}
+{% record_layout %}
+  {% fill lead %}
+    {% panel title="Calibration facts" heading_id="calibration-facts" class="mb-3" %}
+      <dl class="vr-facts">
+        {% fact label="Calibration reference" value=curve.reference %}
+        {% fact label="Calibration time" %}<time datetime="{{ curve.calibrated_at|date:'c' }}">{{ curve.calibrated_at|date:"Y-m-d H:i T" }}</time>{% endfact %}
+        {% fact label="Instrument-reported model" wide=True value=curve.model_text %}
+        {% fact label="Concentration unit" value=curve.unit %}
+        {% fact label="Response unit" value=curve.response_unit %}
+        {% fact label="Source reference" wide=True value=curve.source_reference %}
+        {% fact label="Equipment at recording" value=curve.equipment_label|default:"Not recorded" %}
+        {% fact label="Recorded by" value=curve.created_by.get_username %}
+        {% fact label="Recorded at" %}<time datetime="{{ curve.created_at|date:'c' }}">{{ curve.created_at|date:"Y-m-d H:i T" }}</time>{% endfact %}
+      </dl>
+    {% endpanel %}
+  {% endfill %}
+    {% panel title="Standard points" heading_id="points-heading" count=curve.points|length table=True class="mb-3" %}
+      <div class="vr-table-wrap"><table class="table vr-table" aria-labelledby="points-heading">
+        <thead><tr><th scope="col">Standard</th><th scope="col" class="text-end">Concentration ({{ curve.unit }})</th><th scope="col" class="text-end">Response ({{ curve.response_unit }})</th></tr></thead>
+        <tbody>{% for point in curve.points %}<tr><th scope="row">{{ point.standard }}</th><td class="text-end vr-id">{{ point.concentration }}</td><td class="text-end vr-id">{{ point.response }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    {% endpanel %}
+    {% panel title="Result revisions using this calibration" heading_id="results-heading" count=page_obj.paginator.count table=True class="mb-3" %}
+      {% list_results items=page_obj noun="result revisions" empty_title="No linked result revisions" empty_body="Analysts can explicitly select this evidence in the single-result Enter result or Correct result form." %}
+      <div class="vr-table-wrap"><table class="table vr-table" aria-labelledby="results-heading">
+        <thead><tr><th scope="col">Sample</th><th scope="col">Analyte</th><th scope="col">Revision</th><th scope="col">Status</th><th scope="col">Calibration verification</th></tr></thead>
+        <tbody>{% for rev in page_obj %}<tr><th scope="row"><a class="vr-row-link vr-id" href="{% url 'analytical:result-detail' rev.result_id %}">{{ rev.result.requested_test.sample.lab_id }}</a></th><td>{{ rev.analyte_name }}</td><td>{{ rev.number }}</td><td>{{ rev.get_status_display }}</td><td>{% if rev.calibration_evidence.verification %}{{ rev.calibration_evidence.verification.label }} · observation {{ rev.calibration_evidence.verification.id }}{% else %}<span class="vr-muted">Not linked</span>{% endif %}</td></tr>{% endfor %}</tbody>
+      </table></div>
+      {% endlist_results %}
+    {% endpanel %}
+  {% history_panel events=events heading_id="history-heading" empty_title="No events recorded" %}{% endhistory_panel %}
+{% endrecord_layout %}
+{% endblock %}

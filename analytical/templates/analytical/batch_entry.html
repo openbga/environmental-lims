@@ -4,6 +4,7 @@
 {% block page_meta %}{% page_meta %}<li>Batch <span class="vr-id">{{ batch.number }}</span></li><li>{{ batch.method }}</li><li>{% matrix_tag matrix=batch.matrix size="lg" %}</li>
   <li>Preparation start: {% if batch.prepared_at %}{{ batch.prepared_at|date:"Y-m-d H:i T" }}{% else %}not recorded{% endif %}</li>{% endpage_meta %}{% endblock %}
 {% block content %}
+<p class="vr-form-note">Calibration evidence is not linked by the grid or imports. Use the single-result Enter result or Correct result form to select recorded evidence explicitly. The BOD5 bottle worksheet does not offer this selection.</p>
 {% if not can_enter %}{% notice tone="neutral" label="Read only" %}Only analysts can enter results.{% endnotice %}{% endif %}
 {% if preparation_rules %}
 {% notice tone="warning" label="Preparation time needed" %}Holding rule{{ preparation_rules|length|pluralize }} {% for r in preparation_rules %}<strong>{{ r.name }}</strong>{% if not forloop.last %}, {% endif %}{% endfor %} depend{{ preparation_rules|length|pluralize:"s," }} on preparation, and none is recorded. Results entered now cannot be submitted. <a href="{% url 'analytical:batch-detail' batch.pk %}#preparation">Set the preparation time on the batch page</a> first.{% endnotice %}

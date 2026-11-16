@@ -112,7 +112,12 @@ def _pending_blockers(results, preservation, states):
     revisions = ResultRevision.objects.filter(
         result__in=[r for r in results if r.status in ("draft", "submitted")],
         number=F("result__latest_number"),
-    ).select_related("batch__method", "definition__analyte", "result__requested_test__sample")
+    ).select_related(
+        "batch__method",
+        "definition__analyte",
+        "result__requested_test__sample",
+        "calibration_verification",
+    )
     out = {}
     for rev in revisions:
         qc = _batch_qc(states, rev.batch)
@@ -151,6 +156,7 @@ def reportable_results(*, samples=None, requested_tests=None):
         )
         .select_related(
             "reviewed_by",
+            "calibration_verification",
             "entered_by",
             "submitted_by",
             "result__requested_test__sample",

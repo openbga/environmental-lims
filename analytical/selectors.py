@@ -301,7 +301,12 @@ def review_queue_queryset(user, *, method=None, matrix=""):
     """Batches with submitted results: awaiting count, how many the user may review, and the
     oldest submission. All of it is computed in SQL, so every column can sort."""
     submitted = Q(revisions__status="submitted")
-    mine = submitted & (Q(revisions__entered_by=user) | Q(revisions__submitted_by=user))
+    mine = submitted & (
+        Q(revisions__entered_by=user)
+        | Q(revisions__submitted_by=user)
+        | Q(revisions__calibration_evidence__calibration__created_by_id=user.pk)
+        | Q(revisions__calibration_evidence__verification__entered_by_id=user.pk)
+    )
     qs = (
         Batch.objects.select_related("method")
         .annotate(

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load ui %}
-{% block page_intro %}<p class="vr-page-intro">Batches with submitted results waiting for a reviewer other than the person who entered or submitted them.</p>{% endblock %}
+{% block page_intro %}<p class="vr-page-intro">Batches with submitted results waiting for a reviewer who did not enter or submit them or record their selected calibration evidence.</p>{% endblock %}
 {% block content %}
 {% panel title="Batches awaiting review" heading_id="queue-heading" table=True hidden_title=True %}
   {% grid_toolbar label="Filter batches awaiting review" grid=grid_key no_search=True %}
@@ -23,7 +23,7 @@
           <th scope="row"><a class="vr-row-link vr-id" href="{% url 'analytical:review-batch' b.pk %}">{{ b.number }}</a></th>
           <td>{{ b.method }}</td><td>{% matrix_tag matrix=b.matrix %}</td>
           <td class="text-end">{{ b.awaiting }}</td>
-          <td class="text-end">{{ b.reviewable }}{% if b.own_count %} <span class="vr-muted small" title="You analysed this. Another qualified reviewer must review it.">({{ b.own_count }} yours)</span>{% endif %}</td>
+          <td class="text-end">{{ b.reviewable }}{% if b.own_count %} <span class="vr-muted small" title="You entered, submitted or recorded selected calibration evidence for these results. Another qualified reviewer must review them.">({{ b.own_count }} yours)</span>{% endif %}</td>
           <td class="vr-nowrap"><time datetime="{{ b.oldest_submitted|date:'c' }}" title="{{ b.oldest_submitted|date:'Y-m-d H:i T' }}">{{ b.oldest_submitted|date:"Y-m-d H:i" }}</time></td>
           <td class="text-end">{% if b.open_qc %}{% status label=b.open_qc tone="warning" plain=True title="QC findings that hold approval" %}{% else %}<span class="vr-muted">0</span>{% endif %}</td>
           <td class="text-end">{% if b.holding_issues %}{% status label=b.holding_issues tone="warning" plain=True title="Submitted results with holding time exceeded or not evaluable" %}{% else %}<span class="vr-muted">0</span>{% endif %}</td>

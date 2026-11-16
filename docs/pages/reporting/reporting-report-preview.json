@@ -226,6 +226,12 @@
       "paragraphs": [
         "Nothing was released accompanies stale content, concurrent release or failed rendering. Review refreshed content and reconfirm. Validation errors identify fields/blockers; rendering problems can be retried after resolution. Prior issued PDFs remain available through detail. The embedded PDF preview shows its own message if the content changed or rendering failed; reload the preview after resolving the cause."
       ]
+    },
+    {
+      "title": "Calibration evidence and release",
+      "paragraphs": [
+        "When a result explicitly links calibration evidence, the recorded curve and verification snapshot are retained in the new report version. The report PDF layout is unchanged. A corrected selected verification holds release until a fresh result revision records current evidence and passes independent review. A person who recorded that selected curve or verification cannot release its result, even with release permission. Unlinked results retain the existing gates; no universal calibration requirement is inferred. Issued reports are not rewritten."
+      ]
     }
   ],
   "sources": [
@@ -257,6 +263,8 @@
     "core/lab_profile.py",
     "reporting/templates/reporting/certificate_notice.html",
     "reporting/tests/test_lab_identity.py",
-    "reporting/templates/reporting/_change.html"
+    "reporting/templates/reporting/_change.html",
+    "analytical/calibration.py",
+    "analytical/tests/test_calibration.py"
   ]
 }

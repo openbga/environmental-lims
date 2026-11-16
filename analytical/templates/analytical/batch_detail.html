@@ -79,6 +79,17 @@
 {% endpanel %}
 {% endif %}
 
+{% panel title="Calibration evidence" heading_id="calibrations-heading" count=calibration_count table=True class="mb-3" %}
+  {% fill actions %}{% if can_enter %}<a class="btn btn-outline-secondary btn-sm" href="{% url 'analytical:calibration-create' batch.pk %}">{% icon name="plus-lg" %}Record calibration</a>{% endif %}{% endfill %}
+  {% panel_section %}<p class="vr-form-note">Instrument-reported curves are recorded evidence; method acceptance is not evaluated. Select evidence explicitly in the single-result Enter result or Correct result form. The grid, imports and BOD5 bottle worksheet do not link calibration evidence.</p>{% endpanel_section %}
+  {% list_results items=calibration_page noun="calibrations" page_parameter="cal_page" empty_title="No calibration evidence recorded" empty_body="Record an instrument-reported curve and standard points when available." %}
+  <div class="vr-table-wrap"><table class="table vr-table" aria-labelledby="calibrations-heading">
+    <thead><tr><th scope="col">Calibration reference</th><th scope="col">Analyte</th><th scope="col">Calibration time</th><th scope="col">Concentration unit</th></tr></thead>
+    <tbody>{% for curve in calibration_page %}<tr><th scope="row"><a class="vr-row-link" href="{% url 'analytical:calibration-detail' curve.pk %}">{{ curve.reference }}</a></th><td>{{ curve.analyte_name }}</td><td>{{ curve.calibrated_at|date:"Y-m-d H:i T" }}</td><td>{{ curve.unit }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% endlist_results %}
+{% endpanel %}
+
 {% if can_enter and open %}{% url 'analytical:batch-add-tests' batch.pk as add_url %}{% endif %}
 {% panel title="Samples and results" heading_id="results-heading" table=True flush=True class="mb-3" %}
   {% fill count %}{{ page_obj.paginator.count }}{% if filtered %} matching{% endif %} of {{ total_count }} test{{ total_count|pluralize }}{% endfill %}

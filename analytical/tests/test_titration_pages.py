@@ -90,6 +90,7 @@ def test_low_alkalinity_correction_and_review_page_keep_both_endpoint_observatio
         **fields(key, first_endpoint="1.20"),
         "analysis_started_at": stamp(),
         "reason": "Synthetic: corrected first endpoint observation",
+        "expected_revision": response.context["form"].initial["expected_revision"],
     }
     bad = client.post(url, {**correction, "reading_final_ph": "4.1"})
     assert bad.status_code == 200 and "reading_final_ph" in bad.context["form"].errors

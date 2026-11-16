@@ -19,7 +19,7 @@ from core.audit import record_event
 from core.concurrency import check_original_state
 from receipt.models import RequestedTest, Sample, SampleStorage, Subcontract
 
-from . import holding, worksheets
+from . import calibration, holding, worksheets
 from .models import (
     Batch,
     PreparedTest,
@@ -939,6 +939,8 @@ def enter_result_locked(
     calculation_token=None,
     bottle_data=None,
     expected_revision=None,
+    calibration_id=None,
+    calibration_verification_id=None,
 ):
     """Create the next revision of a locked result. Caller holds the transaction and lock.
 
@@ -1032,6 +1034,13 @@ def enter_result_locked(
         raise ValidationError({**exc.message_dict, **calculation_errors}) from None
     if calculation_errors:
         raise ValidationError(calculation_errors)
+    calibration_evidence = calibration.resolve_evidence(
+        batch=batch,
+        definition=definition,
+        analysis_started_at=analysis_started_at,
+        calibration_id=calibration_id,
+        calibration_verification_id=calibration_verification_id,
+    )
     holding_status, evaluation = holding.evaluate_for_entry(
         method=definition.method,
         matrix=definition.matrix,
@@ -1076,6 +1085,7 @@ def enter_result_locked(
         source_detail=source_detail,
         entered_by=actor,
         correction_reason=reason,
+        **calibration_evidence,
     )
     if worked is not None:
         worksheets.record(revision, worked)
@@ -1105,6 +1115,11 @@ def enter_result_locked(
             "holding_status": holding_status,
             "source": revision.source,
             "source_detail": source_detail,
+            **(
+                {"calibration_evidence": revision.calibration_evidence}
+                if revision.calibration_id
+                else {}
+            ),
             **({"worksheet": worked.audit()} if worked is not None else {}),
         },
         reason=reason,
@@ -1165,7 +1180,7 @@ def submit_result(*, actor, revision_id):
             "The batch preparation time changed after this entry. Enter the result again so "
             "holding time is evaluated with the current time."
         )
-    blockers = _holding_blockers(revision)
+    blockers = _holding_blockers(revision) + calibration.calibration_blockers(revision)
     if blockers:
         raise ValidationError(blockers)
     revision.status, revision.submitted_by, revision.submitted_at = (
@@ -1203,7 +1218,7 @@ def issue_blocker_text(issue):
 def approval_findings(revision, qc=None, preservation=None):
     """(row_reasons, qc_issues): reasons specific to this result (holding time, preparation
     time) and the blocking QC issues of its batch and test."""
-    row = _holding_blockers(revision)
+    row = _holding_blockers(revision) + calibration.calibration_blockers(revision)
     if preservation is None:
         test = revision.result.requested_test
         preservation = preservation_summaries(test.sample)[test.pk]
@@ -1253,6 +1268,10 @@ def _review_context(actor, revision_id):
     revision.result = result
     if actor.pk in (revision.entered_by_id, revision.submitted_by_id):
         raise PermissionDenied("You entered or submitted this result, so you cannot review it.")
+    if actor.pk in calibration.calibration_contributors(revision):
+        raise PermissionDenied(
+            "You recorded calibration evidence for this result, so you cannot review it."
+        )
     if revision.number != result.latest_number or revision.status != "submitted":
         raise ValidationError("This revision is not awaiting review. Reload the page.")
     return batch, result, revision

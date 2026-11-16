@@ -1,0 +1,140 @@
+{
+  "id": "analytical-calibration-detail",
+  "routes": [
+    "analytical:calibration-detail"
+  ],
+  "title": "Calibration evidence",
+  "purpose": "Inspect the frozen instrument-reported curve and the result revisions that explicitly use it.",
+  "summary": "Inspect a recorded curve, its exact standard points and source, and the result revisions linked to it. The evidence stays as recorded even if the catalog or batch equipment changes.",
+  "tasks": [
+    {
+      "title": "Check the curve’s source and points",
+      "steps": [
+        "Read [[Calibration facts]] and [[Standard points]].",
+        "Compare the model, units and source with the laboratory’s instrument record. The application does not evaluate the fit."
+      ]
+    },
+    {
+      "title": "Inspect a result that uses this curve",
+      "steps": [
+        "In [[Result revisions using this calibration]], select a sample ID.",
+        "Read that revision’s calibration and verification snapshot beside its result."
+      ]
+    },
+    {
+      "title": "Record a correction",
+      "steps": [
+        "Return to the batch and select [[Record calibration]] to create a distinct record.",
+        "Enter a new revision of the affected result with the intended evidence and reason."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "This record is immutable. Recording another curve does not change any existing result or issued report.",
+    "A curve link is optional and explicitly selected for each result revision; it is never inferred for a batch.",
+    "A selected verification correction holds submission, approval and release until a new result revision records current evidence.",
+    "The people who recorded a selected curve or verification cannot review or release its result."
+  ],
+  "sections": [
+    {
+      "title": "Access and identity",
+      "paragraphs": [
+        "Active staff with an application role can read this page; clients cannot. The header identifies the analytical batch, frozen analyte, method code/version and matrix. The batch link opens the run. Recorded evidence is a record state, not a scientific acceptance decision."
+      ]
+    },
+    {
+      "title": "Calibration facts",
+      "items": [
+        {
+          "label": "Calibration reference",
+          "description": "The immutable instrument/run identifier within its batch."
+        },
+        {
+          "label": "Calibration time",
+          "description": "The recorded actual calibration event, displayed in laboratory local time with zone."
+        },
+        {
+          "label": "Instrument-reported model",
+          "description": "The supplied equation, fit and weighting description, retained without evaluating or changing it."
+        },
+        {
+          "label": "Concentration unit / Response unit",
+          "description": "The frozen units for the standard concentrations and instrument responses; no conversion occurs."
+        },
+        {
+          "label": "Source reference",
+          "description": "The instrument output or laboratory source that the recorder supplied. The application does not retain an original instrument file here."
+        },
+        {
+          "label": "Equipment at recording",
+          "description": "Equipment identity recorded on the batch when the curve was saved, or Not recorded. Later equipment edits do not rewrite this fact."
+        },
+        {
+          "label": "Recorded by / Recorded at",
+          "description": "The staff account and time that created this evidence."
+        }
+      ]
+    },
+    {
+      "title": "Standard points",
+      "paragraphs": [
+        "Between 1 and 50 points are stored. This bound is an application limit, not a method requirement. No curve fitting, fit acceptance, standard-source independence, run sequencing or check bracketing is performed."
+      ],
+      "items": [
+        {
+          "label": "Standard",
+          "description": "The supplied standard/source identifier for each point, in entered order."
+        },
+        {
+          "label": "Concentration",
+          "description": "Exact supplied decimal text in the frozen concentration unit, including significant trailing zeros. Concentrations cannot be negative."
+        },
+        {
+          "label": "Response",
+          "description": "Exact supplied decimal text in the frozen response unit. Signed negative responses are allowed."
+        }
+      ]
+    },
+    {
+      "title": "Result revisions using this calibration",
+      "items": [
+        {
+          "label": "Sample",
+          "description": "Lab ID opens the complete result revision history, including the linked revision."
+        },
+        {
+          "label": "Analyte",
+          "description": "Frozen analyte on the result revision."
+        },
+        {
+          "label": "Revision / Status",
+          "description": "The exact result revision number and workflow state. Earlier revisions remain listed after corrections."
+        },
+        {
+          "label": "Calibration verification",
+          "description": "Frozen selected QC label and observation ID, or Not linked. A link never bypasses configured batch QC gates."
+        },
+        {
+          "label": "Rows per page / Page links",
+          "description": "Newest entries first. Choose 25, 50 or 100 rows; First, Previous, Next and Last navigate the complete related history. No linked result revisions means no result has explicitly selected this record."
+        }
+      ]
+    },
+    {
+      "title": "History and corrections",
+      "paragraphs": [
+        "The final history panel identifies who recorded the calibration and when. No edit or delete action is available. To correct the evidence, create another calibration reference and then a new result revision with the intended links and reason. Earlier observations, snapshots and issued PDFs remain unchanged."
+      ]
+    }
+  ],
+  "sources": [
+    "analytical/calibration.py",
+    "analytical/calibration_forms.py",
+    "analytical/calibration_views.py",
+    "analytical/models.py",
+    "analytical/services.py",
+    "analytical/tests/test_calibration.py",
+    "analytical/tests/test_calibration_views.py",
+    "analytical/templates/analytical/calibration_detail.html"
+  ]
+}

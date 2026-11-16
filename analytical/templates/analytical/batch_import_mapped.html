@@ -3,6 +3,7 @@
 {% block breadcrumbs %}{% url 'analytical:batch-list' as list_url %}{% url 'analytical:batch-detail' batch.pk as batch_url %}{% breadcrumbs section="Batches & QC" section_url=list_url record=batch.number record_url=batch_url %}{% endblock %}
 {% block page_meta %}{% page_meta %}<li>Batch <span class="vr-id">{{ batch.number }}</span></li><li>{{ batch.method }}</li><li>{% matrix_tag matrix=batch.matrix size="lg" %}</li>{% endpage_meta %}{% endblock %}
 {% block content %}
+<p class="vr-form-note">Calibration evidence is not linked by the grid or imports. Use the single-result Enter result or Correct result form to select recorded evidence explicitly. The BOD5 bottle worksheet does not offer this selection.</p>
 {% include "includes/section_tabs.html" with tabs=section_tabs label="Import method" %}
 {% if not preview %}
 {% if profiles_exist %}
