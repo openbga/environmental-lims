@@ -33,7 +33,7 @@
     "Receipt observations are never taken from the client's claims. Temperature, seal, coolant, preservation and condition come from the shipment in front of you.",
     "Record the cooler temperature exactly as read. Do not round it to make it pass a limit.",
     "The actual collection time is required, even if the client left it blank while planning bottles.",
-    "The client's intended tests are a request. Only the tests you confirm here are ordered.",
+    "The client's intended tests are a request. Only the tests you confirm here are ordered. An account hold is a staff notice only and never blocks receipt.",
     "Receiving the same expected sample twice at the same time cannot create two samples."
   ],
   "sections": [
@@ -225,6 +225,13 @@
           "description": "Retry if loading the dialog failed. During saving, wait for the request to finish; the submit button indicates work is running."
         }
       ]
+    },
+    {
+      "title": "Account hold notice",
+      "paragraphs": [
+        "An active account hold on this submission’s client shows an internal staff note above the receipt fields. Check with the project manager before proceeding. The form reads the current notice when opened and on validation errors.",
+        "The notice does not block receipt or change sample disposition. Project managers and administrators manage it on the client record with an audited reason; clearing it hides the notice and retains the note unless edited. Hold notes are excluded from the client portal, report snapshots, PDFs and deliverables."
+      ]
     }
   ],
   "sources": [
@@ -252,6 +259,8 @@
     "static/js/form-dialog.js",
     "static/js/app.js",
     "receipt/vocabulary.py",
-    "core/widgets.py"
+    "core/widgets.py",
+    "templates/receipt/_account_hold.html",
+    "receipt/tests/test_account_hold.py"
   ]
 }

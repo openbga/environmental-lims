@@ -33,7 +33,8 @@
     "Release stores the PDF and its snapshot for good. Earlier versions stay available unchanged.",
     "If records changed since you opened the preview, nothing is released. Review the refreshed preview and confirm again.",
     "Results show exactly as entered, without report rounding. ND means not detected at the applied limit, not zero.",
-    "Release does not send email."
+    "Release does not send email.",
+    "An account hold is a staff notice only. Check with the project manager; it does not block receipt or report release."
   ],
   "sections": [
     {
@@ -232,6 +233,13 @@
       "paragraphs": [
         "When a result explicitly links calibration evidence, the recorded curve and verification snapshot are retained in the new report version. The report PDF layout is unchanged. A corrected selected verification holds release until a fresh result revision records current evidence and passes independent review. A person who recorded that selected curve or verification cannot release its result, even with release permission. Unlinked results retain the existing gates; no universal calibration requirement is inferred. Issued reports are not rewritten."
       ]
+    },
+    {
+      "title": "Account hold notice",
+      "paragraphs": [
+        "An active client account hold shows a notice and its internal note above the page content. Check with the project manager before continuing. Project managers and administrators set or clear it on the client record with a reason; old and new values remain in the client history.",
+        "The notice is informational. It does not block receipt or report release, alter sample disposition or replace existing analytical checks and release permission. The page reads the current hold when loaded. Hold notes are not included in the client portal, report snapshots, PDFs or deliverables; earlier issued reports remain unchanged."
+      ]
     }
   ],
   "sources": [
@@ -265,6 +273,12 @@
     "reporting/tests/test_lab_identity.py",
     "reporting/templates/reporting/_change.html",
     "analytical/calibration.py",
-    "analytical/tests/test_calibration.py"
+    "analytical/tests/test_calibration.py",
+    "receipt/models.py",
+    "receipt/services.py",
+    "receipt/forms.py",
+    "receipt/views.py",
+    "templates/receipt/_account_hold.html",
+    "receipt/tests/test_account_hold.py"
   ]
 }

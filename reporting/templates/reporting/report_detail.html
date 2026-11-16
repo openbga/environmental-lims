@@ -15,6 +15,7 @@
 <a class="btn btn-primary" href="{% url 'reporting:report-preview' report.pk %}">{% if current %}Preview amendment{% else %}Preview and release{% endif %}</a>
 {% endblock %}
 {% block content %}
+{% include "receipt/_account_hold.html" with account_client=report.project.client only %}
 {% if current.amends %}
 {% notice tone="info" label="Amended report" %}Version {{ current.number }} replaces version {{ current.amends.number }}. Reason: {{ current.amendment_reason }}{% endnotice %}
 {% endif %}

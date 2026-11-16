@@ -36,7 +36,8 @@
     "Report instructions and Receives reports are information only. Nothing is sent automatically.",
     "An inactive client cannot receive new intake. Its existing work stays readable.",
     "Portal access is managed by administrators separately. A contact record is not a login.",
-    "Recent lists are previews. Use the project or chain of custody links for the full lists."
+    "Recent lists are previews. Use the project or chain of custody links for the full lists.",
+    "An account hold is a staff notice only. Check with the project manager; it does not block receipt or report release."
   ],
   "sections": [
     {
@@ -126,6 +127,13 @@
           "description": "The newest eight client audit events, shown oldest first. Each has a readable title, such as Client created or Client updated, with the actor, timestamp and reason. Contact changes have their own history on the contact edit form."
         }
       ]
+    },
+    {
+      "title": "Account hold notice",
+      "paragraphs": [
+        "An active client account hold shows a notice and its internal note above the page content. Check with the project manager before continuing. Project managers and administrators set or clear it on the client record with a reason; old and new values remain in the client history.",
+        "The notice is informational. It does not block receipt or report release, alter sample disposition or replace existing analytical checks and release permission. The page reads the current hold when loaded. Hold notes are not included in the client portal, report snapshots, PDFs or deliverables; earlier issued reports remain unchanged."
+      ]
     }
   ],
   "sources": [
@@ -140,6 +148,8 @@
     "receipt/tests/test_clients.py",
     "commercial/models.py",
     "receipt/vocabulary.py",
-    "receipt/tests/test_master_data.py"
+    "receipt/tests/test_master_data.py",
+    "templates/receipt/_account_hold.html",
+    "receipt/tests/test_account_hold.py"
   ]
 }

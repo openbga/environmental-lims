@@ -1,0 +1,8 @@
+{% load ui %}
+{% comment %}Staff-only notice. Pass account_client explicitly; never include in portal or report content.{% endcomment %}
+{% if account_client.account_hold %}
+{% notice tone="warning" label="Account hold" %}
+  <strong>{{ account_client.name }}</strong>: {{ account_client.account_hold_note|linebreaksbr }}
+  <p class="mb-0">Informational notice. Contact the project manager before proceeding. This notice does not block sample receipt or report release.</p>
+{% endnotice %}
+{% endif %}

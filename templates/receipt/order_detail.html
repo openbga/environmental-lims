@@ -27,6 +27,7 @@ their errors return as messages on this page.
 {% endif %}
 {% endblock %}
 {% block content %}
+{% include "receipt/_account_hold.html" with account_client=order.project.client only %}
 {% if order.is_cancelled %}
 {% notice tone="neutral" label="Cancelled" %}
     <p class="mb-1">Cancelled {{ order.cancelled_at|date:"Y-m-d H:i T" }} by {{ order.cancelled_by.get_full_name|default:order.cancelled_by.get_username }}: {{ order.cancel_reason }}</p>

@@ -112,7 +112,25 @@ def sample_list(request):
 @login_required
 def sample_create(request):
     require_role(request.user, *RECEIPT_ROLES)
-    form = ReceiptForm(request.POST or None)
+    form = ReceiptForm(request.POST or None, initial={"project": request.GET.get("project")})
+    form.fields["project"].widget.attrs.update(
+        {
+            "hx-get": reverse("receipt:sample-create"),
+            "hx-trigger": "change",
+            "hx-target": "#receipt-account-hold",
+            "hx-include": "this",
+            "hx-sync": "this:replace",
+        }
+    )
+    # Use the field's authorized, active-project queryset for both a changed selection and
+    # invalid receipt submissions. Never trust a posted client ID or the browser's old notice.
+    try:
+        selected_project = form.fields["project"].clean(form["project"].value())
+    except ValidationError:
+        selected_project = None
+    account_client = selected_project.client if selected_project else None
+    if request.method == "GET" and request.headers.get("HX-Target") == "receipt-account-hold":
+        return render(request, "receipt/_account_hold.html", {"account_client": account_client})
     if request.method == "POST" and form.is_valid():
         try:
             sample = receive_sample(actor=request.user, **form.cleaned_data)
@@ -122,7 +140,9 @@ def sample_create(request):
             messages.success(request, f"Received {sample.lab_id}.")
             return redirect("receipt:sample-detail", pk=sample.pk)
     return render(
-        request, "receipt/sample_form.html", {"page_title": "Receive sample", "form": form}
+        request,
+        "receipt/sample_form.html",
+        {"page_title": "Receive sample", "form": form, "account_client": account_client},
     )
 
 

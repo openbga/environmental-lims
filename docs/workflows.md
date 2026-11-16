@@ -32,6 +32,14 @@ chains of custody, quotes, submissions, portal accounts and recent changes, and 
 contacts. Changes keep their history. The demo seed includes synthetic water, wastewater and soil
 methods, analytes and QC settings; existing records and laboratory edits are retained.
 
+A project manager or administrator can set an **Account hold** with an **Account hold note**
+on the client. It shows a staff notice at receipt and on the release preview, asking staff to
+check with the project manager. This is information only: it does not block either action or
+replace sample dispositions, QC checks or release authority. Clearing the hold retains its note
+unless it is edited; the reason and old/new values stay in the client's history. Hold notes do
+not appear in the client portal, report snapshots, PDFs or deliverables. Invoices and accounting
+exports remain roadmap work.
+
 ## Spreadsheet import of setup records
 
 **Setup → Spreadsheet import** loads clients, projects, analytes, methods, tests, QC

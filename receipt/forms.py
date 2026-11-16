@@ -118,6 +118,7 @@ class ClientForm(GroupedForm, StyledForm, forms.ModelForm):
                 ("po_required", "col-md-8 align-self-end"),
             ),
         ),
+        ("Account hold", (("account_hold", "col-12"), ("account_hold_note", "col-12"))),
         ("Reports and notes", (("report_preferences", "col-12"), ("notes", "col-12"))),
         ("Status", (("is_active", "col-12"),)),
         ("Change record", (("reason", "col-12"),)),
@@ -141,6 +142,8 @@ class ClientForm(GroupedForm, StyledForm, forms.ModelForm):
             "billing_address",
             "payment_terms",
             "po_required",
+            "account_hold",
+            "account_hold_note",
             "report_preferences",
             "notes",
         ]
@@ -158,6 +161,7 @@ class ClientForm(GroupedForm, StyledForm, forms.ModelForm):
             "electronic deliverable. Information only; nothing is sent automatically.",
         }
         widgets = {
+            "account_hold_note": forms.Textarea(attrs={"rows": 3}),
             "billing_address": forms.Textarea(attrs={"rows": 3}),
             "report_preferences": forms.Textarea(attrs={"rows": 3}),
             "notes": forms.Textarea(attrs={"rows": 3}),

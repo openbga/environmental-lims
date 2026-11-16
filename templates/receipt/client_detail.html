@@ -19,6 +19,7 @@ their own: the name links to the edit form for project managers and is plain tex
 {% endpage_meta %}{% endblock %}
 {% block page_actions %}{% if can_manage_clients %}<a class="btn btn-outline-secondary" href="{% url 'receipt:client-edit' client.pk %}">Edit client</a>{% endif %}{% endblock %}
 {% block content %}
+{% include "receipt/_account_hold.html" with account_client=client only %}
 {% if not client.is_active %}
 {% notice tone="neutral" label="Inactive" %}No new intake is accepted for this client. Its history stays readable.{% endnotice %}
 {% endif %}

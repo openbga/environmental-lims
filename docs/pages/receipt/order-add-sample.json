@@ -33,7 +33,8 @@
     "Receipt time, temperature, seal, condition and preservation check are never copied from another sample.",
     "Tests that are no longer active or do not match the matrix are not copied. The page says how many were skipped.",
     "Record the cooler temperature exactly as read. It is never rounded.",
-    "If the order changed after you opened the form, receipt is refused. Reload and review before receiving again."
+    "If the order changed after you opened the form, receipt is refused. Reload and review before receiving again.",
+    "An account hold is a staff notice only. Check with the project manager; it does not block receipt or report release."
   ],
   "sections": [
     {
@@ -229,6 +230,13 @@
           "description": "Returns to the order without receipt."
         }
       ]
+    },
+    {
+      "title": "Account hold notice",
+      "paragraphs": [
+        "An active client account hold shows a notice and its internal note above the page content. Check with the project manager before continuing. Project managers and administrators set or clear it on the client record with a reason; old and new values remain in the client history.",
+        "The notice is informational. It does not block receipt or report release, alter sample disposition or replace existing analytical checks and release permission. The page reads the current hold when loaded. Hold notes are not included in the client portal, report snapshots, PDFs or deliverables; earlier issued reports remain unchanged."
+      ]
     }
   ],
   "sources": [
@@ -249,6 +257,8 @@
     "core/widgets.py",
     "templates/django/forms/widgets/list_or_other.html",
     "templates/django/forms/widgets/suggest_input.html",
-    "receipt/tests/test_master_data.py"
+    "receipt/tests/test_master_data.py",
+    "templates/receipt/_account_hold.html",
+    "receipt/tests/test_account_hold.py"
   ]
 }

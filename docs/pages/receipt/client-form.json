@@ -11,7 +11,7 @@
     {
       "title": "Create a client",
       "steps": [
-        "Enter the [[Name]] as it should appear on reports. Everything else is optional.",
+        "Enter the [[Name]] as it should appear on reports. If you select [[Account hold]], also give an [[Account hold note]].",
         "Add the primary contact, address and invoicing details you have, then select [[Create client]]."
       ]
     },
@@ -26,20 +26,27 @@
       "steps": [
         "Clear [[Active (accepts new intake)]], give the [[Reason for change]] and select [[Save changes]]."
       ]
+    },
+    {
+      "title": "Set or clear an account hold",
+      "steps": [
+        "Set or clear [[Account hold]] and enter or update the [[Account hold note]].",
+        "On edit, give the [[Reason for change]] and select [[Save changes]]. Staff see an active hold at receipt and report release."
+      ]
     }
   ],
   "good_to_know": [
     "Nothing here sends reports or invoices, or creates a portal login.",
     "Leave the invoicing fields blank when the primary contact and mailing address also receive invoices.",
     "A missing purchase order shows a warning but never blocks receipt.",
-    "Payment terms are recorded for reference. They do not create invoices or due dates.",
+    "An account hold is a staff notice only. It never blocks receipt or report release. Clearing it retains the note unless you edit it.",
     "If someone else saved the client after you opened it, your save is refused. Reload and compare first."
   ],
   "sections": [
     {
       "title": "Layout and access",
       "paragraphs": [
-        "Project managers and administrators can save. The form is grouped into sections: Account, Primary contact, Mailing address, Invoicing, Reports and notes, and, on edit only, Status and Change record. Only Name is required when creating a client; every other field is optional unless noted.",
+        "Project managers and administrators can save. The form is grouped into sections: Account, Primary contact, Mailing address, Invoicing, Account hold, Reports and notes, and, on edit only, Status and Change record. Only Name is required when creating a client; every other field is optional unless noted.",
         "These details are records for the laboratory's use. Nothing here sends reports or invoices, creates a portal login or changes who can see the client's projects."
       ],
       "items": []
@@ -173,6 +180,22 @@
           "description": "Creation returns to Clients; editing returns to this client’s record without saving."
         }
       ]
+    },
+    {
+      "title": "Account hold",
+      "items": [
+        {
+          "label": "Account hold",
+          "description": "Initially unchecked. Project managers and administrators can set or clear this staff notice. It appears on the client, chain of custody, receipt forms, report record and release preview. It does not block receipt or release, change client activity or sample disposition, or replace analytical checks or explicit release permission."
+        },
+        {
+          "label": "Account hold note",
+          "description": "Internal text, up to 500 characters, required when Account hold is selected. Surrounding whitespace is removed and a whitespace-only note is refused. Clearing the hold retains this note unless you edit or clear it too. A retained inactive note is visible in this edit form and the change history, but no hold notice appears. Notes are never included in the client portal, report snapshots, PDFs or deliverables."
+        }
+      ],
+      "paragraphs": [
+        "Edits require the usual Reason for change, retain the actor and old/new values together, and reject a stale revision. Creating a held client records the note with its initial audit event."
+      ]
     }
   ],
   "sources": [
@@ -187,6 +210,8 @@
     "receipt/vocabulary.py",
     "core/widgets.py",
     "templates/receipt/_grouped_fields.html",
-    "receipt/tests/test_master_data.py"
+    "receipt/tests/test_master_data.py",
+    "templates/receipt/_account_hold.html",
+    "receipt/tests/test_account_hold.py"
   ]
 }

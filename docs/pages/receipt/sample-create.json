@@ -27,7 +27,8 @@
     "This always creates a new chain of custody. For several containers, or more samples on one order, receive them from the chain of custody instead.",
     "Record the cooler temperature exactly as read. It is never rounded.",
     "Holding clocks start at the collection time, or the composite end, not at receipt.",
-    "If anything is invalid, nothing is saved. Your entries stay on the form."
+    "If anything is invalid, nothing is saved. Your entries stay on the form.",
+    "An account hold is a staff notice only; it never blocks receipt. Check with the project manager when it appears."
   ],
   "sections": [
     {
@@ -185,6 +186,13 @@
           "description": "Returns to Samples without saving."
         }
       ]
+    },
+    {
+      "title": "Account hold notice",
+      "paragraphs": [
+        "Selecting a project loads its client’s current account-hold notice above the receipt fields. With JavaScript unavailable, open the client or chain of custody first to check the account. A validation error also shows the current notice for the submitted project.",
+        "The notice includes the internal staff note and asks you to check with the project manager. It is information only: receipt is still allowed and sample disposition is unchanged. Hold notes are not included in client pages, report snapshots, PDFs or deliverables."
+      ]
     }
   ],
   "sources": [
@@ -204,6 +212,8 @@
     "core/widgets.py",
     "templates/django/forms/widgets/list_or_other.html",
     "templates/django/forms/widgets/suggest_input.html",
-    "receipt/tests/test_master_data.py"
+    "receipt/tests/test_master_data.py",
+    "templates/receipt/_account_hold.html",
+    "receipt/tests/test_account_hold.py"
   ]
 }

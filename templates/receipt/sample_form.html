@@ -2,6 +2,9 @@
 {% load static ui %}
 {% block breadcrumbs %}{% url 'receipt:sample-list' as list_url %}{% breadcrumbs section="Samples" section_url=list_url %}{% endblock %}
 {% block content %}
+<div id="receipt-account-hold">
+{% include "receipt/_account_hold.html" with account_client=account_client only %}
+</div>
 {% url 'receipt:sample-list' as cancel_url %}
 {% form_page form=form cancel_url=cancel_url submit_label="Receive sample" times=True %}
 
