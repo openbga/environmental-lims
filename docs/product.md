@@ -187,7 +187,7 @@ prices with a reason. Inclusion does not establish that a test is chargeable, co
 analytically accepted. One active draft per order and a 200-line limit are product bounds.
 Creation, edits and cancellation retain attributed history and reject stale submissions;
 cancelled drafts remain available internally. Drafts cannot be issued, paid or viewed by
-clients. Manually added fee/discount lines, tax, due dates, payments, issued invoices and
+clients. Tax, due dates, payments, issued invoices and
 accounting export remain roadmap work.
 
 Accepted-quote pricing, added 2026-11-16, is an explicit alternative to a price list. The quote
@@ -208,8 +208,18 @@ Tests and fees use nonnegative prices; discounts use zero or negative prices, in
 The combined draft is limited to 200 lines and a nonnegative total. These sign and size rules
 are product bounds, not tax or accounting requirements. Reasoned edits can change descriptions,
 quantities and prices but preserve every line, its kind and provenance. Discounts are fixed
-amounts multiplied by quantity; percentages and manual additional lines are not supported.
+amounts multiplied by quantity; percentage discounts are not supported.
 Matching and transfer are per order and do not allocate a quote across multiple orders.
+
+Manually added fees and discounts, added 2026-11-16, extend an active draft without changing
+its original received-test or quote snapshot. A project manager or administrator chooses the
+kind, description, positive whole-number quantity and signed whole-cent USD price and gives a
+reason. Each added line has a distinct manual origin, without a fabricated sample, test or quote
+link. The same sign rules, combined 200-line bound and nonnegative total apply. Adding a line
+rechecks the locked draft revision and records its actor, reason and before/after state together.
+Every line stays in the draft with its kind and origin fixed; staff correct an unwanted amount
+to zero with a reason or cancel the draft. Cancelled drafts cannot receive more lines. These are
+product choices for retained internal billing preparation, not tax or accounting requirements.
 
 These are deliberately bounded product choices for whole-order draft preparation, not a
 contract interpretation or billing qualification. Quote quantities are matched per order;

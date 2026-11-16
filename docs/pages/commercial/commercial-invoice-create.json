@@ -99,7 +99,7 @@
       "title": "Source and history",
       "paragraphs": [
         "The draft keeps its source chain of custody, project, sample identities, requested test identities, method/version, matrix, unit, disposition and selected price-list name/revision or accepted quote version, acceptance snapshot and source quote lines. Each current requested test on a received sample creates one line, initially quantity 1. Each fee or discount from an accepted quote creates one additional line with its original quantity and signed price, without a sample or test identity. Held, rejected and qualified samples are included with their disposition; the preparer decides whether work is chargeable. Later source corrections, withdrawn tests and price changes do not update the draft.",
-        "There can be one active draft per order and at most 200 combined test, fee and discount lines. Every source line and its kind are retained; lines cannot be added, removed or reassigned. Cancel a draft and create a replacement to take a new source snapshot. A cancelled draft and its history remain readable. Invoice billing data never changes custody, results or released reports."
+        "There can be one active draft per order and at most 200 combined test, fee and discount lines. Every line and its kind and origin are retained; lines cannot be removed or reassigned. Use Add fee or discount on the draft record to append a manual line with a reason, within the same bounds. To remove an unwanted amount, edit its price to zero with a reason. Cancel a draft and create a replacement to take a new source snapshot. A cancelled draft and its history remain readable. Invoice billing data never changes custody, results or released reports."
       ]
     },
     {
@@ -140,6 +140,8 @@
     "e2e/test_invoice_drafts.py",
     "commercial/tests/test_invoice_quote_lookup.py",
     "core/lookups.py",
-    "e2e/test_invoice_quote.py"
+    "e2e/test_invoice_quote.py",
+    "commercial/tests/test_invoice_manual.py",
+    "e2e/test_invoice_manual.py"
   ]
 }

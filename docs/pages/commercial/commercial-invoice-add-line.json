@@ -1,0 +1,121 @@
+{
+  "id": "commercial-invoice-add-line",
+  "routes": [
+    "commercial:invoice-add-line"
+  ],
+  "title": "Add fee or discount",
+  "purpose": "Append one manually entered fee or discount to an active internal draft invoice, with a reason and retained history.",
+  "summary": "Add a fee or discount to an active draft invoice. Only project managers and admins can add lines; the draft remains internal.",
+  "tasks": [
+    {
+      "title": "Add a charge",
+      "steps": [
+        "Choose Fee in [[Kind]] and enter a [[Description]].",
+        "Enter [[Quantity]] and a nonnegative [[Unit price]].",
+        "Enter [[Reason for change]] and select [[Add fee or discount]]."
+      ]
+    },
+    {
+      "title": "Record a discount",
+      "steps": [
+        "Choose Discount in [[Kind]] and describe the adjustment.",
+        "Enter a positive whole-number [[Quantity]] and zero or a negative [[Unit price]].",
+        "Give a reason and select [[Add fee or discount]]. Review the total on the draft."
+      ]
+    },
+    {
+      "title": "Leave without adding a line",
+      "steps": [
+        "Select [[Cancel]] to return to the draft without saving."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Fees use nonnegative prices; discounts use zero or negative prices. Enter USD amounts in whole cents, not percentages.",
+    "The draft total cannot be negative, and all test, fee and discount lines share a 200-line limit.",
+    "New lines are marked Manually added. They do not alter the quote or the received tests.",
+    "A saved line stays in the draft. To cancel its amount, use Edit on the draft and set its price to zero with a reason.",
+    "If the draft changes while this form is open, reload it and review the current values before trying again."
+  ],
+  "sections": [
+    {
+      "title": "Access and purpose",
+      "paragraphs": [
+        "Only project managers and administrators may open this form or add a line, including through a direct link. Clients and other staff are refused. The draft must be active; cancelled drafts remain readable but cannot receive lines. This form works for drafts created from either a price list or an accepted quote. It does not issue an invoice, bill a client, calculate tax or payments, or change receipt, analytical work or reports."
+      ]
+    },
+    {
+      "title": "Fields",
+      "items": [
+        {
+          "label": "Kind",
+          "description": "Required choice: Fee or Discount. Test lines cannot be added here. The selected kind remains fixed after saving."
+        },
+        {
+          "label": "Description",
+          "description": "Required text up to 400 characters that explains the charge or discount; surrounding whitespace is removed."
+        },
+        {
+          "label": "Quantity",
+          "description": "Required positive whole number from 1 to 2,147,483,647, initially 1. Multiplies the unit price; it does not change sample or requested-test counts."
+        },
+        {
+          "label": "Unit price",
+          "description": "Required signed USD amount in whole cents, at most 9,999,999,999.99 in magnitude. Fee prices must be nonnegative; discount prices must be zero or negative. Zero is allowed. No percentage or currency conversion is performed."
+        },
+        {
+          "label": "Reason for change",
+          "description": "Required explanation up to 2000 characters, retained with the adding staff member, time and before/after draft values."
+        }
+      ]
+    },
+    {
+      "title": "Actions and limits",
+      "items": [
+        {
+          "label": "Add fee or discount",
+          "description": "Append one line after the existing lines, recompute the exact USD total, and save it with an attributed history event. Each line amount must fit 999,999,999,999.99 USD in magnitude; the final total must be between zero and that limit. All lines together are limited to 200. The form rejects a stale revision, cancelled draft, invalid sign or negative total. Success returns to the draft record."
+        },
+        {
+          "label": "Manually added",
+          "description": "On the draft and edit pages this identifies a staff-added fee or discount with no quote, sample or requested-test source. Existing quote and test sources are preserved. Every line retains its kind and origin through edits and cancellation. Lines cannot be deleted; correct an unwanted amount to zero with a reason."
+        },
+        {
+          "label": "Errors and concurrent changes",
+          "description": "Errors appear above the form or beside a field, with entered values preserved and focus on the error. Nothing is partially saved when validation or audit recording fails. If someone adds, edits or cancels while the form is open, reload and review the draft before submitting again."
+        }
+      ]
+    },
+    {
+      "title": "Form states and navigation",
+      "items": [
+        {
+          "label": "Cancel / Close form",
+          "description": "Leave without adding a line. A dialog with changed input offers Keep editing or Discard changes. Cancel here does not cancel the draft invoice."
+        },
+        {
+          "label": "Maximize / Restore size / Try again",
+          "description": "Resize the dialog without saving or retry a failed dialog load. The dialog uses the full screen at narrow widths. Wait for saving to finish before continuing."
+        },
+        {
+          "label": "Draft invoices / draft number",
+          "description": "Breadcrumb links return to the directory or draft record without adding a line."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "commercial/urls.py",
+    "commercial/invoice_views.py",
+    "commercial/invoice_forms.py",
+    "commercial/invoices.py",
+    "commercial/models.py",
+    "commercial/permissions.py",
+    "commercial/templates/commercial/invoice_add_line.html",
+    "commercial/templates/commercial/invoice_detail.html",
+    "core/form_surfaces.py",
+    "commercial/tests/test_invoice_manual.py",
+    "commercial/tests/test_invoice_manual_schema.py",
+    "e2e/test_invoice_manual.py"
+  ]
+}

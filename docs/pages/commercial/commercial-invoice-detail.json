@@ -15,6 +15,14 @@
       ]
     },
     {
+      "title": "Add a fee or discount",
+      "steps": [
+        "Select [[Add fee or discount]] on an active draft.",
+        "Choose the kind, describe it, enter the quantity and signed USD price, and give a reason.",
+        "Save the line, then review the updated total and [[History]]."
+      ]
+    },
+    {
       "title": "Cancel a draft",
       "steps": [
         "Select [[Cancel draft invoice]].",
@@ -71,7 +79,7 @@
       "items": [
         {
           "label": "Kind",
-          "description": "Fixed Test, Fee or Discount. Fees and discounts come from accepted quote lines and have no sample or requested test. The quote number, version and source line remain visible through edits and cancellation. Discounts are signed amounts, not percentages."
+          "description": "Fixed Test, Fee or Discount. Fees and discounts have no sample or requested test. Quoted lines keep their quote number, version and source line; a line added by staff is marked Manually added and has no quote link. Kind and origin remain fixed through edits and cancellation. Discounts are signed amounts, not percentages."
         },
         {
           "label": "Status / Internal only / Total",
@@ -106,8 +114,12 @@
           "description": "Available only while the draft is active. Editing and cancellation require a reason and recheck its revision."
         },
         {
+          "label": "Add fee or discount",
+          "description": "Open a form to append one manual fee or discount to an active draft. A reason is required. The combined draft is limited to 200 lines; at the limit, additions are unavailable. The total must remain nonnegative. A stale revision or cancelled draft is refused. No quote, sample or test is fabricated, and the original pricing source is unchanged."
+        },
+        {
           "label": "Cancelled / History",
-          "description": "Cancellation shows actor, time and reason. History records creation and each saved or cancelled change with actor, time, reason and prior/new values."
+          "description": "Cancellation shows actor, time and reason. History records creation, line additions and each saved or cancelled change with actor, time, reason and prior/new values."
         }
       ]
     },
@@ -115,7 +127,7 @@
       "title": "Source and history",
       "paragraphs": [
         "The draft keeps its source chain of custody, project, sample identities, requested test identities, method/version, matrix, unit, disposition and selected price-list name/revision or accepted quote version, acceptance snapshot and source quote lines. Each current requested test on a received sample creates one line, initially quantity 1. Each fee or discount from an accepted quote creates one additional line with its original quantity and signed price, without a sample or test identity. Held, rejected and qualified samples are included with their disposition; the preparer decides whether work is chargeable. Later source corrections, withdrawn tests and price changes do not update the draft.",
-        "There can be one active draft per order and at most 200 combined test, fee and discount lines. Every source line and its kind are retained; lines cannot be added, removed or reassigned. Cancel a draft and create a replacement to take a new source snapshot. A cancelled draft and its history remain readable. Invoice billing data never changes custody, results or released reports."
+        "There can be one active draft per order and at most 200 combined test, fee and discount lines. Every line and its kind and origin are retained; lines cannot be removed or reassigned. Use Add fee or discount on the draft record to append a manual line with a reason, within the same bounds. To remove an unwanted amount, edit its price to zero with a reason. Cancel a draft and create a replacement to take a new source snapshot. A cancelled draft and its history remain readable. Invoice billing data never changes custody, results or released reports."
       ]
     }
   ],
@@ -134,6 +146,8 @@
     "commercial/tests/test_invoices.py",
     "e2e/test_invoice_drafts.py",
     "commercial/tests/test_invoice_quote_lookup.py",
-    "e2e/test_invoice_quote.py"
+    "e2e/test_invoice_quote.py",
+    "commercial/tests/test_invoice_manual.py",
+    "e2e/test_invoice_manual.py"
   ]
 }

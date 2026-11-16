@@ -210,7 +210,6 @@ class InvoiceDraftLine(models.Model):
                             source_requested_test_id__isnull=True,
                             sample__isnull=True,
                             definition__isnull=True,
-                            source_quote_line__isnull=False,
                             lab_id="",
                             client_sample_id="",
                             sample_disposition="",

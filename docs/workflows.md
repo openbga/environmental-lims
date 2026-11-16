@@ -55,8 +55,11 @@ is copied once after the test lines, with its quantity and signed whole-cent USD
 and fee prices must be nonnegative; discount prices must be zero or negative. The exact total
 must stay nonnegative and the combined draft may have at most 200 lines. Kind, quote version
 and line provenance remain with the draft through reasoned edits and cancellation. Quantities are matched per order, not consumed across
-orders, and quote terms do not replace the billing snapshot. Drafts stay internal; issued
-invoices, manually added fee/discount lines and accounting exports remain planned.
+orders, and quote terms do not replace the billing snapshot. Staff can also add a fee or discount
+with a reason; it is marked Manually added, with no sample, requested test or quote link.
+Additions use the same amount and line bounds, reject stale or cancelled drafts and retain
+attributed before/after history. Every line remains present: correct an unwanted amount to zero
+with a reason. Drafts stay internal; issued invoices and accounting exports remain planned.
 
 ## Spreadsheet import of setup records
 

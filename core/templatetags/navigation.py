@@ -75,6 +75,7 @@ STAFF_NAV = (
             "commercial:invoice-create",
             "commercial:invoice-detail",
             "commercial:invoice-edit",
+            "commercial:invoice-add-line",
             "commercial:invoice-cancel",
         ),
     ),
