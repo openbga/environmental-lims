@@ -15,12 +15,15 @@
   {% fact label="Payment terms" value=draft.get_payment_terms_display %}{% fact label="Purchase order" value=draft.po_number %}
   {% fact label="Chain of custody" %}<a href="{% url 'receipt:order-detail' draft.order_id %}">{{ draft.order_reference }}</a>{% endfact %}
   {% fact label="Project" value=draft.project_name %}
-  {% fact label="Price list" %}{{ draft.price_list_name }} · revision {{ draft.price_list_revision }}{% endfact %}
+  {% if draft.quote_version_id %}
+  {% fact label="Accepted quote" wide=True %}<a href="{% url 'commercial:quote-detail' draft.quote_version.quote_id %}">{{ draft.quote_snapshot.number }}</a> · version {{ draft.quote_snapshot.version }} · {{ draft.quote_snapshot.title }}{% endfact %}
+  {% fact label="Quote accepted" %}{% if quote_accepted_at %}<time datetime="{{ quote_accepted_at|date:'c' }}">{{ quote_accepted_at|date:"Y-m-d H:i T" }}</time>{% else %}Not recorded{% endif %}{% if draft.quote_snapshot.accepted_by %} by {{ draft.quote_snapshot.accepted_by }}{% endif %}{% endfact %}
+  {% else %}{% fact label="Price list" %}{{ draft.price_list_name }} · revision {{ draft.price_list_revision }}{% endfact %}{% endif %}
   {% fact label="Created" %}<time datetime="{{ draft.created_at|date:'c' }}">{{ draft.created_at|date:"Y-m-d H:i T" }}</time> by {{ draft.created_by.get_full_name|default:draft.created_by.get_username }}{% endfact %}
 </dl>{% endpanel %}{% endfill %}
 {% panel title="Draft lines" heading_id="lines-heading" table=True count=lines|length class="mb-3" %}
 <div class="vr-table-wrap"><table class="table vr-table" aria-labelledby="lines-heading"><thead><tr><th scope="col">Source sample</th><th scope="col">Source requested test</th><th scope="col">Description</th><th scope="col" class="text-end">Quantity</th><th scope="col" class="text-end">Unit price (USD)</th><th scope="col" class="text-end">Amount (USD)</th></tr></thead><tbody>
-{% for line in lines %}<tr><th scope="row"><span class="vr-id">{{ line.lab_id }}</span><div class="small vr-muted">{{ line.client_sample_id }} · {{ line.get_sample_disposition_display }}</div></th><td class="vr-wrap">{{ line.test_description }}</td><td class="vr-wrap">{{ line.description }}</td><td class="text-end">{{ line.quantity }}</td><td class="text-end vr-nowrap">{{ line.unit_price|usd }}</td><td class="text-end vr-nowrap">{{ line.amount|usd }}</td></tr>{% endfor %}
+{% for line in lines %}<tr><th scope="row"><span class="vr-id">{{ line.lab_id }}</span><div class="small vr-muted">{{ line.client_sample_id }} · {{ line.get_sample_disposition_display }}</div></th><td class="vr-wrap">{{ line.test_description }}{% if line.source_quote_line_id %}<div class="small vr-muted">{{ draft.quote_snapshot.number }} · version {{ draft.quote_snapshot.version }} · quote line {{ line.source_quote_line.position }}</div>{% endif %}</td><td class="vr-wrap">{{ line.description }}</td><td class="text-end">{{ line.quantity }}</td><td class="text-end vr-nowrap">{{ line.unit_price|usd }}</td><td class="text-end vr-nowrap">{{ line.amount|usd }}</td></tr>{% endfor %}
 </tbody><tfoot><tr><th scope="row" colspan="5" class="text-end">Draft total (USD)</th><td class="text-end vr-nowrap">{{ draft.total|usd }}</td></tr></tfoot></table></div>{% endpanel %}
 {% history_panel events=history %}{% endhistory_panel %}
 {% endrecord_layout %}

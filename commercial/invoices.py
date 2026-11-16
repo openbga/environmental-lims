@@ -2,17 +2,19 @@
 
 import json
 import uuid
+from collections import Counter
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import F, Q
 from django.utils import timezone
 from django.utils.crypto import constant_time_compare, salted_hmac
 
 from core.audit import record_event, snapshot
 from receipt.models import Client, Order, Project, RequestedTest
 
-from .models import InvoiceDraft, InvoiceDraftLine, PriceList
+from .models import InvoiceDraft, InvoiceDraftLine, PriceList, Quote, QuoteLine, QuoteVersion
 from .permissions import PRICING_ROLES, require_role
 from .pricing import test_label
 
@@ -30,6 +32,78 @@ BILLING_FIELDS = (
     "payment_terms",
     "po_number",
 )
+
+
+def eligible_quote_versions(order):
+    """Accepted issued sources for this order; complete scope matching occurs on creation."""
+    return (
+        QuoteVersion.objects.filter(
+            quote__client_id=order.project.client_id,
+            quote__status=Quote.Status.ACCEPTED,
+            quote__decision_version=F("number"),
+            issued_at__isnull=False,
+        )
+        .filter(Q(quote__project_id=order.project_id) | Q(quote__project__isnull=True))
+        .select_related("quote")
+    )
+
+
+def quote_version_label(version):
+    return f"{version.quote.number} · version {version.number} · {version.presented_title}"
+
+
+def _quote_source(order, quote_version_id, tests):
+    error = {
+        "quote_version": "Choose an accepted issued quote version for this client and project."
+    }
+    try:
+        # Quote services lock the parent before checking/changing its decision or versions.
+        quote_id = QuoteVersion.objects.values_list("quote_id", flat=True).get(pk=quote_version_id)
+        quote = (
+            Quote.objects.select_for_update(of=("self",))
+            .select_related("decided_by")
+            .get(pk=quote_id)
+        )
+        version = (
+            eligible_quote_versions(order).select_for_update(of=("self",)).get(pk=quote_version_id)
+        )
+    except Quote.DoesNotExist, QuoteVersion.DoesNotExist, ValueError, TypeError, ValidationError:
+        raise ValidationError(error) from None
+    version.quote = quote
+    lines = list(version.lines.select_for_update())
+    by_test = {}
+    for line in lines:
+        if line.kind != QuoteLine.Kind.TEST or not line.test_id:
+            raise ValidationError(
+                {
+                    "quote_version": "The entire quote must contain test lines only; "
+                    "fees and discounts cannot price this draft."
+                }
+            )
+        if line.test_id in by_test:
+            raise ValidationError(
+                {
+                    "quote_version": "The quote has duplicate test lines. "
+                    "Choose a quote with one line per test definition."
+                }
+            )
+        by_test[line.test_id] = line
+    counts = Counter(test.definition_id for test in tests)
+    if not lines or set(by_test) != set(counts):
+        raise ValidationError(
+            {
+                "quote_version": "The entire quote must match the received requested tests, "
+                "with no missing or extra tests."
+            }
+        )
+    if any(line.quantity != counts[test_id] for test_id, line in by_test.items()):
+        raise ValidationError(
+            {
+                "quote_version": "Each quote quantity must equal the number of current received "
+                "requested tests of that definition."
+            }
+        )
+    return version, by_test
 
 
 def source_tests(order, *, lock=False):
@@ -95,8 +169,14 @@ def _total(lines):
 
 
 @transaction.atomic
-def create_invoice_draft(*, actor, order_id, expected_source_state, price_list_id):
+def create_invoice_draft(
+    *, actor, order_id, expected_source_state, price_list_id=None, quote_version_id=None
+):
     require_role(actor, *PRICING_ROLES)
+    if (price_list_id is None) == (quote_version_id is None):
+        raise ValidationError(
+            "Choose exactly one pricing source: an active price list or an accepted quote version."
+        )
     # Match receipt/release order: client, project, order, then samples. Pricing edits lock their
     # parent list; holding it keeps its item prices stable throughout this snapshot.
     original = Order.objects.select_related("project").get(pk=order_id)
@@ -129,26 +209,56 @@ def create_invoice_draft(*, actor, order_id, expected_source_state, price_list_i
         )
     if len(tests) > MAX_LINES:
         raise ValidationError(f"A draft invoice may have at most {MAX_LINES} received tests.")
-    price_list = PriceList.objects.select_for_update().get(pk=price_list_id)
-    if not price_list.is_active:
-        raise ValidationError({"price_list": "Choose an active price list."})
-    prices = dict(price_list.items.values_list("test_id", "unit_price"))
-    missing = [t for t in tests if t.definition_id not in prices]
-    if missing:
-        raise ValidationError(
-            {
-                "price_list": "This price list has no price for: "
-                + "; ".join(f"{t.sample.lab_id}: {test_label(t.definition)}" for t in missing)
-                + ". Choose another active list or record those prices first."
-            }
-        )
+    quote_lines = {}
+    if quote_version_id is not None:
+        version, quote_lines = _quote_source(order, quote_version_id, tests)
+        quote = version.quote
+        pricing_source = {
+            "price_list": None,
+            "price_list_name": "",
+            "price_list_revision": None,
+            "quote_version": version,
+            "quote_snapshot": {
+                "number": quote.number,
+                "version": version.number,
+                "title": version.presented_title,
+                "accepted_at": quote.decided_at.isoformat() if quote.decided_at else None,
+                "accepted_by_id": quote.decided_by_id,
+                "accepted_by": (
+                    quote.decided_by.get_full_name() or quote.decided_by.get_username()
+                    if quote.decided_by_id
+                    else ""
+                ),
+            },
+        }
+        prices = {test_id: line.unit_price for test_id, line in quote_lines.items()}
+    else:
+        try:
+            price_list = PriceList.objects.select_for_update().get(pk=price_list_id)
+        except PriceList.DoesNotExist, ValueError, TypeError, ValidationError:
+            raise ValidationError({"price_list": "Choose an active price list."}) from None
+        if not price_list.is_active:
+            raise ValidationError({"price_list": "Choose an active price list."})
+        prices = dict(price_list.items.values_list("test_id", "unit_price"))
+        missing = [t for t in tests if t.definition_id not in prices]
+        if missing:
+            raise ValidationError(
+                {
+                    "price_list": "This price list has no price for: "
+                    + "; ".join(f"{t.sample.lab_id}: {test_label(t.definition)}" for t in missing)
+                    + ". Choose another active list or record those prices first."
+                }
+            )
+        pricing_source = {
+            "price_list": price_list,
+            "price_list_name": price_list.name,
+            "price_list_revision": price_list.revision,
+        }
     draft = InvoiceDraft(
         number=f"ID-{uuid.uuid4().hex[:16]}",
         order=order,
         created_by=actor,
-        price_list=price_list,
-        price_list_name=price_list.name,
-        price_list_revision=price_list.revision,
+        **pricing_source,
         order_reference=order.coc_reference,
         project_name=project.name,
         po_number=order.po_number or project.po_number,
@@ -159,11 +269,13 @@ def create_invoice_draft(*, actor, order_id, expected_source_state, price_list_i
         sample, definition = requested.sample, requested.definition
         label = test_label(definition)
         price = prices[definition.pk]
+        quote_line = quote_lines.get(definition.pk)
         lines.append(
             InvoiceDraftLine(
                 draft=draft,
                 position=position,
                 source_requested_test_id=requested.pk,
+                source_quote_line=quote_line,
                 sample=sample,
                 definition=definition,
                 lab_id=sample.lab_id,
@@ -174,7 +286,7 @@ def create_invoice_draft(*, actor, order_id, expected_source_state, price_list_i
                 method_version=definition.method.version,
                 matrix=definition.matrix,
                 unit=definition.unit,
-                description=label,
+                description=quote_line.description if quote_line else label,
                 quantity=1,
                 unit_price=price,
                 amount=_money(price, 1, position),

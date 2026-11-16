@@ -58,10 +58,18 @@ class InvoiceDraft(models.Model):
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.DRAFT)
     revision = models.PositiveIntegerField(default=1)
     price_list = models.ForeignKey(
-        PriceList, on_delete=models.PROTECT, related_name="invoice_drafts"
+        PriceList, null=True, blank=True, on_delete=models.PROTECT, related_name="invoice_drafts"
     )
-    price_list_name = models.CharField(max_length=120)
-    price_list_revision = models.PositiveIntegerField()
+    price_list_name = models.CharField(max_length=120, blank=True)
+    price_list_revision = models.PositiveIntegerField(null=True, blank=True)
+    quote_version = models.ForeignKey(
+        "QuoteVersion",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="invoice_drafts",
+    )
+    quote_snapshot = models.JSONField(null=True, blank=True)
     order_reference = models.CharField(max_length=120)
     project_name = models.CharField(max_length=160)
     client_name = models.CharField(max_length=160)
@@ -94,6 +102,24 @@ class InvoiceDraft(models.Model):
                 condition=models.Q(total__gte=0), name="invoice_total_nonnegative"
             ),
             models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        price_list__isnull=False,
+                        price_list_revision__isnull=False,
+                        quote_version__isnull=True,
+                        quote_snapshot__isnull=True,
+                    )
+                    | models.Q(
+                        price_list__isnull=True,
+                        price_list_revision__isnull=True,
+                        price_list_name="",
+                        quote_version__isnull=False,
+                        quote_snapshot__isnull=False,
+                    )
+                ),
+                name="invoice_pricing_source",
+            ),
+            models.CheckConstraint(
                 condition=models.Q(
                     status="draft",
                     cancelled_at__isnull=True,
@@ -119,6 +145,13 @@ class InvoiceDraftLine(models.Model):
     position = models.PositiveSmallIntegerField()
     # A requested test can later be withdrawn. Its original identity and labels stay here.
     source_requested_test_id = models.PositiveBigIntegerField()
+    source_quote_line = models.ForeignKey(
+        "QuoteLine",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="invoice_draft_lines",
+    )
     sample = models.ForeignKey(Sample, on_delete=models.PROTECT, related_name="invoice_draft_lines")
     definition = models.ForeignKey(
         TestDefinition, on_delete=models.PROTECT, related_name="invoice_draft_lines"

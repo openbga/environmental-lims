@@ -4,14 +4,14 @@
     "commercial:invoice-create"
   ],
   "title": "New draft invoice",
-  "purpose": "Prepare an internal draft from the current requested tests on this received chain of custody and an active price list.",
-  "summary": "Prepare an internal draft from the current requested tests on this received chain of custody and an active price list.",
+  "purpose": "Prepare an internal draft from this received chain of custody and an active price list or a matching accepted quote version.",
+  "summary": "Prepare an internal draft from this received chain of custody and an active price list or a matching accepted quote version.",
   "tasks": [
     {
       "title": "Prepare the draft",
       "steps": [
         "Review [[Current received tests]], including the sample dispositions.",
-        "Choose a [[Price list]] that prices every displayed test.",
+        "Choose a [[Price list]] covering every displayed test, or an [[Accepted quote version]] matching the received tests and quantities. Leave the other source blank.",
         "Select [[Create draft invoice]], then review the copied billing details and USD amounts."
       ]
     },
@@ -21,19 +21,28 @@
         "Read the missing-test message beside [[Price list]].",
         "Choose another active list or record the missing prices in Price lists, then retry."
       ]
+    },
+    {
+      "title": "Use accepted quote prices",
+      "steps": [
+        "Choose [[Accepted quote version]] for this client and project, or a quote without a project.",
+        "Use a quote with one line per test and exactly the received quantities. Fees, discounts and extra or missing tests are refused.",
+        "Select [[Create draft invoice]] and check the retained quote reference and copied prices."
+      ]
     }
   ],
   "good_to_know": [
     "Every test must have a recorded price. Missing prices are never treated as zero.",
     "The draft copies current billing details and prices when created. Later source changes do not update it.",
     "Held and rejected samples can appear. Inclusion does not establish that their work is chargeable.",
-    "If this order already has an active draft, open that draft instead."
+    "If this order already has an active draft, open that draft instead.",
+    "Quote quantities must match this order. Use on other orders is not tracked; billing details still come from the client and order."
   ],
   "sections": [
     {
       "title": "Access and purpose",
       "paragraphs": [
-        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. No tax, due date, payment, quote pricing or accounting entry is calculated."
+        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. No tax, due date, payment or accounting entry is calculated."
       ]
     },
     {
@@ -45,7 +54,11 @@
         },
         {
           "label": "Price list",
-          "description": "Required active list. Current USD prices are read when creating the draft, and the list name and revision are saved. Inactive lists are refused. If no active list is available, create or activate one in Price lists."
+          "description": "Optional active list, required when no accepted quote is selected. Current USD prices are read when creating the draft; list name and revision are saved. Every received test needs a price. Inactive lists are refused."
+        },
+        {
+          "label": "Accepted quote version",
+          "description": "Optional alternative to Price list; select exactly one source. Search quote number or frozen issued title. Choices are accepted issued versions for the order client, limited to this project or quotes without a project; the version must match the recorded client acceptance. Options load 20 at a time, newest quote first. No choices means there is no eligible accepted version; use an active price list or finish the quote workflow. The full quote must contain one test line per definition, exactly matching all received test definitions and counts. Duplicate, missing, extra, fee and discount lines are refused with a field error; there is no price-list fallback. The valid-until date applies to acceptance; a previously accepted quote remains selectable after that date."
         },
         {
           "label": "Current received tests",
@@ -53,7 +66,7 @@
         },
         {
           "label": "Create draft invoice",
-          "description": "Creates the billing snapshot, exact line amounts and attributed history together, then opens the draft. No tests, a cancelled order, more than 200 tests, missing prices, oversized totals or an existing active draft prevents creation. A concurrent source change requires reloading and review."
+          "description": "Creates the billing snapshot, exact line amounts and attributed history together, then opens the draft. No tests, a cancelled order, more than 200 tests, missing prices, oversized totals or an existing active draft prevents creation. A concurrent source change requires reloading and review. Quote eligibility and full-order matching are checked again under locks before saving. Each source test gets quantity one and its quoted description/unit price. No cumulative quote usage or ledger is updated; quote terms and client reference do not replace order billing fields."
         }
       ]
     },
@@ -85,7 +98,7 @@
     {
       "title": "Source and history",
       "paragraphs": [
-        "The draft keeps its source chain of custody, project, sample identities, requested test identities, method/version, matrix, unit, disposition and selected price-list name/revision. Each current requested test on a received sample creates one line, initially quantity 1. Held, rejected and qualified samples are included with their disposition; the preparer decides whether work is chargeable. Later source corrections, withdrawn tests and price changes do not update the draft.",
+        "The draft keeps its source chain of custody, project, sample identities, requested test identities, method/version, matrix, unit, disposition and selected price-list name/revision or accepted quote version, acceptance snapshot and source quote lines. Each current requested test on a received sample creates one line, initially quantity 1. Held, rejected and qualified samples are included with their disposition; the preparer decides whether work is chargeable. Later source corrections, withdrawn tests and price changes do not update the draft.",
         "There can be one active draft per order and at most 200 lines. Every source line is retained; lines cannot be added, removed or reassigned. Cancel a draft and create a replacement to take a new source snapshot. A cancelled draft and its history remain readable. Invoice billing data never changes custody, results or released reports."
       ]
     },
@@ -124,6 +137,8 @@
     "core/form_surfaces.py",
     "core/templatetags/navigation.py",
     "commercial/tests/test_invoices.py",
-    "e2e/test_invoice_drafts.py"
+    "e2e/test_invoice_drafts.py",
+    "commercial/tests/test_invoice_quote_lookup.py",
+    "core/lookups.py"
   ]
 }

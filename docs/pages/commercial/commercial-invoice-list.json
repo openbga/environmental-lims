@@ -19,7 +19,7 @@
       "title": "Prepare a new draft",
       "steps": [
         "Open the received chain of custody from Chains of custody.",
-        "Select [[New draft invoice]] on that record, then choose an active price list."
+        "Select [[New draft invoice]] on that record, then choose an active price list or a matching accepted quote version."
       ]
     },
     {
@@ -38,7 +38,7 @@
     {
       "title": "Access and purpose",
       "paragraphs": [
-        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. No tax, due date, payment, quote pricing or accounting entry is calculated."
+        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. No tax, due date, payment or accounting entry is calculated."
       ]
     },
     {
@@ -96,6 +96,7 @@
     "core/form_surfaces.py",
     "core/templatetags/navigation.py",
     "commercial/tests/test_invoices.py",
-    "e2e/test_invoice_drafts.py"
+    "e2e/test_invoice_drafts.py",
+    "commercial/tests/test_invoice_quote_lookup.py"
   ]
 }

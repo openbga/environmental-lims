@@ -32,7 +32,7 @@
     {
       "title": "Access and purpose",
       "paragraphs": [
-        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. No tax, due date, payment, quote pricing or accounting entry is calculated."
+        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. No tax, due date, payment or accounting entry is calculated."
       ]
     },
     {
@@ -92,7 +92,7 @@
     {
       "title": "Source and history",
       "paragraphs": [
-        "The draft keeps its source chain of custody, project, sample identities, requested test identities, method/version, matrix, unit, disposition and selected price-list name/revision. Each current requested test on a received sample creates one line, initially quantity 1. Held, rejected and qualified samples are included with their disposition; the preparer decides whether work is chargeable. Later source corrections, withdrawn tests and price changes do not update the draft.",
+        "The draft keeps its source chain of custody, project, sample identities, requested test identities, method/version, matrix, unit, disposition and selected price-list name/revision or accepted quote version, acceptance snapshot and source quote lines. Each current requested test on a received sample creates one line, initially quantity 1. Held, rejected and qualified samples are included with their disposition; the preparer decides whether work is chargeable. Later source corrections, withdrawn tests and price changes do not update the draft.",
         "There can be one active draft per order and at most 200 lines. Every source line is retained; lines cannot be added, removed or reassigned. Cancel a draft and create a replacement to take a new source snapshot. A cancelled draft and its history remain readable. Invoice billing data never changes custody, results or released reports."
       ]
     },
@@ -116,6 +116,12 @@
           "description": "Breadcrumb links return to the directory or draft record without saving."
         }
       ]
+    },
+    {
+      "title": "Quote source",
+      "paragraphs": [
+        "Editing descriptions, quantities or prices retains the original accepted quote version and line links. Changes require a reason and do not revise the accepted quote. An edited draft may differ from its original quote; there is no cumulative quote usage or accounting ledger."
+      ]
     }
   ],
   "sources": [
@@ -131,6 +137,7 @@
     "core/form_surfaces.py",
     "core/templatetags/navigation.py",
     "commercial/tests/test_invoices.py",
-    "e2e/test_invoice_drafts.py"
+    "e2e/test_invoice_drafts.py",
+    "commercial/tests/test_invoice_quote_lookup.py"
   ]
 }

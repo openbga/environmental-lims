@@ -175,9 +175,10 @@ notice-only behavior are product choices, not billing or regulatory requirements
 balance calculation, invoice, automatic payment action or accounting integration in this increment.
 
 Draft invoices, added 2026-11-16, let project managers and administrators prepare charges from
-the current requested tests on a received order and an explicitly selected active price list.
-Every test needs a recorded price. Amounts use exact USD decimals, and each draft retains the
-source test identities, sample dispositions, price-list revision and billing details used to
+the current requested tests on a received order and an explicitly selected active price list
+or accepted quote version. Every test needs a recorded price. Amounts use exact USD decimals,
+and each draft retains the source test identities, sample dispositions, selected pricing source
+and billing details used to
 prepare it. The order PO takes precedence over the project's standing PO; a blank invoice
 address uses the client's mailing address. Blank invoice contact/email use the primary contact/email.
 Later source changes do not update a draft.
@@ -186,8 +187,26 @@ prices with a reason. Inclusion does not establish that a test is chargeable, co
 analytically accepted. One active draft per order and a 200-line limit are product bounds.
 Creation, edits and cancellation retain attributed history and reject stale submissions;
 cancelled drafts remain available internally. Drafts cannot be issued, paid or viewed by
-clients. Quote pricing, additional fees/discount lines, tax, due dates, payments, issued
+clients. Additional fees/discount lines, tax, due dates, payments, issued
 invoices and accounting export remain roadmap work.
+
+Accepted-quote pricing, added 2026-11-16, is an explicit alternative to a price list. The quote
+must be accepted for this client and either this project or no particular project, and the
+selected issued version must be the accepted version. Its full set of test identities and
+quantities must exactly match the received order, with one quote line per test definition.
+Missing, extra, duplicate, fee and discount lines are refused; nothing falls back to a list or
+is silently omitted. Each received requested test copies its quoted description and exact unit
+price at quantity one. The draft retains the accepted version, its number/title/acceptance
+snapshot and each source quote line through later edits and cancellation. Billing details and
+PO still come from client/project/order records; quote terms are not copied. The quote's
+valid-until date governs acceptance, not use of an already accepted version.
+
+These are deliberately bounded product choices for whole-order draft preparation, not a
+contract interpretation or billing qualification. Quote quantities are matched per order;
+no cumulative consumption, reservation, repeated-use prohibition or ledger is implied. Staff
+review applicability before creating a draft and retain responsibility for reasoned later edits.
+Accepted quotes becoming invoice sources are an established software pattern
+([Stripe quote acceptance](https://docs.stripe.com/api/quotes/accept), checked 2026-11-16).
 
 The distinction between editable preparation and a finalized invoice follows a common
 software workflow ([Stripe invoice lifecycle](https://docs.stripe.com/invoicing/overview),

@@ -1,15 +1,26 @@
 """Forms for internal invoice worksheets; source identities are always read-only."""
 
 from decimal import Decimal
+from urllib.parse import urlencode
 
 from django import forms
+from django.core.exceptions import ValidationError
+from django.db import connection
 
+from core.lookups import RemoteSelect
 from receipt.forms import StyledForm
 from receipt.models import Client
 
 from .forms import FilterForm, GroupedForm
-from .invoices import BILLING_FIELDS, MAX_LINES, MAX_QUANTITY, source_state
-from .models import InvoiceDraft, PriceList
+from .invoices import (
+    BILLING_FIELDS,
+    MAX_LINES,
+    MAX_QUANTITY,
+    eligible_quote_versions,
+    quote_version_label,
+    source_state,
+)
+from .models import InvoiceDraft, PriceList, QuoteVersion
 
 
 class InvoiceFilter(FilterForm):
@@ -18,10 +29,42 @@ class InvoiceFilter(FilterForm):
     )
 
 
+class InvoiceQuoteSelect(RemoteSelect):
+    def __init__(self, order, attrs=None):
+        super().__init__("invoice-quotes", attrs)
+        self.order_id = order.pk
+
+    def build_attrs(self, base_attrs, extra_attrs=None):
+        attrs = super().build_attrs(base_attrs, extra_attrs)
+        attrs["data-vr-lookup"] += "?" + urlencode({"order": self.order_id})
+        return attrs
+
+    def optgroups(self, name, value, attrs=None):
+        # Invalid bound input must still render its field error, without reaching the
+        # remote widget's selected-option query as an invalid or overflowing primary key.
+        pk_field = self.choices.field.queryset.model._meta.pk
+        lower, upper = connection.ops.integer_field_range(pk_field.get_internal_type())
+        selected = []
+        for raw in value:
+            try:
+                pk = pk_field.to_python(raw)
+            except ValueError, TypeError, OverflowError, ValidationError:
+                continue
+            if pk is not None and lower <= pk <= upper:
+                selected.append(str(pk))
+        return super().optgroups(name, selected, attrs)
+
+
+class QuoteVersionChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, obj):
+        return quote_version_label(obj)
+
+
 class InvoiceCreateForm(StyledForm, forms.Form):
     expected_source_state = forms.CharField(widget=forms.HiddenInput)
     price_list = forms.ModelChoiceField(
         PriceList.objects.filter(is_active=True),
+        required=False,
         empty_label="Choose an active price list",
         help_text=(
             "Copies the current USD price for every received requested test. "
@@ -29,9 +72,37 @@ class InvoiceCreateForm(StyledForm, forms.Form):
         ),
     )
 
+    quote_version = QuoteVersionChoiceField(
+        QuoteVersion.objects.none(),
+        required=False,
+        label="Accepted quote version",
+        empty_label="Choose an accepted quote version",
+        help_text=(
+            "Choose exactly one source: a price list or an accepted issued quote. "
+            "The entire quote must match this order's received tests and quantities, with one line "
+            "per test definition and no fees or discounts. "
+            "This does not track cumulative quote usage. "
+            "Billing and purchase order come from the client and order; quote terms are not copied."
+        ),
+    )
+
     def __init__(self, *args, order, tests, **kwargs):
         super().__init__(*args, **kwargs)
         self.initial["expected_source_state"] = source_state(order, tests)
+        self.fields["quote_version"].queryset = eligible_quote_versions(order)
+        self.fields["quote_version"].widget = InvoiceQuoteSelect(
+            order, attrs=self.fields["quote_version"].widget.attrs
+        )
+        self.fields["quote_version"].widget.choices = self.fields["quote_version"].choices
+
+    def clean(self):
+        data = super().clean()
+        if not self.errors and bool(data.get("price_list")) == bool(data.get("quote_version")):
+            raise forms.ValidationError(
+                "Choose exactly one pricing source: "
+                "an active price list or an accepted quote version."
+            )
+        return data
 
 
 class InvoiceEditForm(GroupedForm, StyledForm, forms.Form):

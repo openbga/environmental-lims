@@ -38,7 +38,7 @@
     {
       "title": "Access and purpose",
       "paragraphs": [
-        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. No tax, due date, payment, quote pricing or accounting entry is calculated."
+        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. No tax, due date, payment or accounting entry is calculated."
       ]
     },
     {
@@ -79,11 +79,15 @@
         },
         {
           "label": "Price list / Created",
-          "description": "Saved list name/revision, creation time and responsible staff member."
+          "description": "Saved list name/revision for list-priced drafts, plus creation time and responsible staff member. Quote-priced drafts show their accepted quote instead."
+        },
+        {
+          "label": "Accepted quote / Quote accepted",
+          "description": "For quote-priced drafts, the saved quote number and version link to that issued quote; the frozen title, acceptance time and accepting account identify the agreed source. This provenance remains fixed through later invoice edits and cancellation. Billing fields still come from the order/client; the quote is not consumed or modified."
         },
         {
           "label": "Source sample / Source requested test",
-          "description": "Saved lab ID, client sample ID and disposition, plus the analyte, method/version, matrix and result unit. These source labels remain fixed when descriptions or billing amounts are edited."
+          "description": "Saved lab ID, client sample ID and disposition, plus the analyte, method/version, matrix and result unit. These source labels remain fixed when descriptions or billing amounts are edited. Quote-priced lines also identify the original quote number, version and line position. Descriptions and prices initially come from that line; the reference remains after reasoned edits."
         },
         {
           "label": "Description / Quantity / Unit price (USD)",
@@ -106,7 +110,7 @@
     {
       "title": "Source and history",
       "paragraphs": [
-        "The draft keeps its source chain of custody, project, sample identities, requested test identities, method/version, matrix, unit, disposition and selected price-list name/revision. Each current requested test on a received sample creates one line, initially quantity 1. Held, rejected and qualified samples are included with their disposition; the preparer decides whether work is chargeable. Later source corrections, withdrawn tests and price changes do not update the draft.",
+        "The draft keeps its source chain of custody, project, sample identities, requested test identities, method/version, matrix, unit, disposition and selected price-list name/revision or accepted quote version, acceptance snapshot and source quote lines. Each current requested test on a received sample creates one line, initially quantity 1. Held, rejected and qualified samples are included with their disposition; the preparer decides whether work is chargeable. Later source corrections, withdrawn tests and price changes do not update the draft.",
         "There can be one active draft per order and at most 200 lines. Every source line is retained; lines cannot be added, removed or reassigned. Cancel a draft and create a replacement to take a new source snapshot. A cancelled draft and its history remain readable. Invoice billing data never changes custody, results or released reports."
       ]
     }
@@ -124,6 +128,7 @@
     "core/form_surfaces.py",
     "core/templatetags/navigation.py",
     "commercial/tests/test_invoices.py",
-    "e2e/test_invoice_drafts.py"
+    "e2e/test_invoice_drafts.py",
+    "commercial/tests/test_invoice_quote_lookup.py"
   ]
 }

@@ -13,6 +13,7 @@ Short configuration lists stay inline.
 from dataclasses import dataclass, field
 from functools import reduce
 from operator import or_
+from uuid import UUID
 
 from django import forms
 from django.apps import apps
@@ -172,6 +173,38 @@ register(
         staff(lambda request: model("laboratory.MaterialLot").objects.select_related("material")),
         ("lot_number", "material__name", "vendor", "vendor_reference"),
         ("material__name", "lot_number", "pk"),
+    )
+)
+
+
+def invoice_quotes(request):
+    from commercial.invoices import eligible_quote_versions
+    from commercial.permissions import PRICING_ROLES, require_role
+
+    require_role(request.user, *PRICING_ROLES)
+    try:
+        order_id = UUID(request.GET.get("order", ""))
+    except TypeError, ValueError, AttributeError:
+        return model("commercial.QuoteVersion").objects.none()
+    order = model("receipt.Order").objects.select_related("project").filter(pk=order_id).first()
+    if order is None:
+        return model("commercial.QuoteVersion").objects.none()
+    return eligible_quote_versions(order)
+
+
+def invoice_quote_label(version):
+    from commercial.invoices import quote_version_label
+
+    return quote_version_label(version)
+
+
+register(
+    Lookup(
+        "invoice-quotes",
+        invoice_quotes,
+        ("quote__number", "title"),
+        ("-quote_id", "-number"),
+        label=invoice_quote_label,
     )
 )
 

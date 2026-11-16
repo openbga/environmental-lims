@@ -31,7 +31,7 @@
     {
       "title": "Access and purpose",
       "paragraphs": [
-        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. No tax, due date, payment, quote pricing or accounting entry is calculated."
+        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. No tax, due date, payment or accounting entry is calculated."
       ]
     },
     {
@@ -51,7 +51,7 @@
         },
         {
           "label": "Replacement draft",
-          "description": "Return to the source chain of custody and select New draft invoice. All current received requested tests need a price on the selected active list."
+          "description": "Return to the source chain of custody and select New draft invoice. Choose an active list covering every received test or an accepted quote matching all received tests and quantities."
         }
       ]
     },
@@ -90,6 +90,7 @@
     "core/form_surfaces.py",
     "core/templatetags/navigation.py",
     "commercial/tests/test_invoices.py",
-    "e2e/test_invoice_drafts.py"
+    "e2e/test_invoice_drafts.py",
+    "commercial/tests/test_invoice_quote_lookup.py"
   ]
 }
