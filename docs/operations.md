@@ -159,6 +159,13 @@ line exists, including cancelled drafts. Keep the schema on code rollback and us
 code to view or edit drafts with these lines: earlier code cannot correctly present or edit them.
 This migration does not change accepted quotes or existing draft amounts, and does not reset data.
 
+Manual fees and discounts relax only the quote-source requirement for non-test lines in
+`commercial.0008`; no rows or amounts are rewritten. Keep that constraint expansion on code
+rollback. Previous code can still read and cancel these drafts, but cannot edit drafts containing manual
+lines, add manual lines or label their manual origin. Use compatible code for these records. Reversal
+refuses once a manual line exists, including on cancelled drafts; never invent a quote source
+to force reversal. Normal backup/restore covers these lines and their audit history.
+
 BOD bottle worksheets add the nullable `bottle_data` column in `analytical.0012`. Keep that column during a code rollback: reversing the migration refuses once any bottle snapshot exists. Older code cannot show or reproduce those bottle observations and cannot accept entries for a BOD calculation rule; deactivate that rule before using older code for new entries, and return to a compatible release to inspect retained worksheets. A normal deploy does not reseed; the synthetic BOD example appears at the demonstration’s next scheduled reset.
 
 Run calibration evidence adds `analytical.0013`: an immutable calibration table and nullable

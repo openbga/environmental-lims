@@ -10,6 +10,7 @@ from receipt.models import Order
 from . import invoices
 from .forms import apply_errors
 from .invoice_forms import (
+    InvoiceAddLineForm,
     InvoiceCancelForm,
     InvoiceCreateForm,
     InvoiceEditForm,
@@ -115,6 +116,7 @@ def _draft(pk):
 @staff_role_required(*PRICING_ROLES)
 def invoice_detail(request, pk):
     draft = _draft(pk)
+    lines = list(draft.lines.select_related("source_quote_line"))
     return render(
         request,
         "commercial/invoice_detail.html",
@@ -126,7 +128,8 @@ def invoice_detail(request, pk):
                 if draft.quote_snapshot
                 else None
             ),
-            "lines": draft.lines.select_related("source_quote_line"),
+            "lines": lines,
+            "line_limit_reached": len(lines) >= invoices.MAX_LINES,
             "history": history(draft),
         },
     )
@@ -178,6 +181,28 @@ def invoice_edit(request, pk):
             "form": form,
             "formset": formset,
         },
+    )
+
+
+@staff_role_required(*PRICING_ROLES)
+def invoice_add_line(request, pk):
+    draft = _draft(pk)
+    if request.method == "GET" and draft.status != InvoiceDraft.Status.DRAFT:
+        messages.error(request, "A cancelled draft cannot be changed.")
+        return redirect("commercial:invoice-detail", pk=pk)
+    form = InvoiceAddLineForm(request.POST or None, initial={"expected_revision": draft.revision})
+    if request.method == "POST" and form.is_valid():
+        try:
+            invoices.add_invoice_draft_line(actor=request.user, draft_id=pk, **form.cleaned_data)
+        except ValidationError as exc:
+            apply_errors(form, exc)
+        else:
+            messages.success(request, "Fee or discount added; prior values retained in history.")
+            return redirect("commercial:invoice-detail", pk=pk)
+    return render(
+        request,
+        "commercial/invoice_add_line.html",
+        {"page_title": "Add fee or discount", "draft": draft, "form": form},
     )
 
 

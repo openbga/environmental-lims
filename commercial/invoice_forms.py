@@ -16,6 +16,7 @@ from .invoices import (
     MAX_LINES,
     MAX_PRICE,
     MAX_QUANTITY,
+    _money,
     eligible_quote_versions,
     quote_version_label,
     source_state,
@@ -181,6 +182,46 @@ class InvoiceLineForm(StyledForm, forms.Form):
             elif value < 0:
                 raise forms.ValidationError("A test or fee price must be nonnegative.")
         return value
+
+
+class InvoiceAddLineForm(StyledForm, forms.Form):
+    expected_revision = forms.IntegerField(widget=forms.HiddenInput)
+    kind = forms.ChoiceField(
+        choices=[
+            (InvoiceDraftLine.Kind.FEE, "Fee"),
+            (InvoiceDraftLine.Kind.ADJUSTMENT, "Discount"),
+        ]
+    )
+    description = forms.CharField(max_length=400)
+    quantity = forms.IntegerField(
+        min_value=1,
+        max_value=MAX_QUANTITY,
+        initial=1,
+        widget=forms.NumberInput(attrs={"inputmode": "numeric"}),
+    )
+    unit_price = forms.DecimalField(
+        min_value=-MAX_PRICE,
+        max_value=MAX_PRICE,
+        max_digits=12,
+        decimal_places=2,
+        label="Unit price",
+        help_text=(
+            "Whole cents in USD. Fees must be nonnegative; discounts must be zero or negative."
+        ),
+        widget=forms.NumberInput(attrs={"unit": "USD"}),
+    )
+    reason = forms.CharField(
+        max_length=2000, label="Reason for change", widget=forms.Textarea(attrs={"rows": 2})
+    )
+
+    def clean(self):
+        data = super().clean()
+        if all(name in data for name in ("kind", "quantity", "unit_price")):
+            try:
+                _money(data["unit_price"], data["quantity"], 1, kind=data["kind"])
+            except ValidationError as exc:
+                self.add_error("unit_price", exc)
+        return data
 
 
 class BaseInvoiceLineFormSet(forms.BaseFormSet):

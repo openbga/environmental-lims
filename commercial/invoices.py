@@ -368,6 +368,51 @@ def _reason(reason):
 
 
 @transaction.atomic
+def add_invoice_draft_line(
+    *, actor, draft_id, expected_revision, kind, description, quantity, unit_price, reason
+):
+    """Append a reasoned fee or discount without accepting any source identities."""
+    require_role(actor, *PRICING_ROLES)
+    draft = InvoiceDraft.objects.select_for_update().get(pk=draft_id)
+    _editable(draft, expected_revision)
+    reason = _reason(reason)
+    existing = list(draft.lines.select_for_update())
+    if len(existing) >= MAX_LINES:
+        raise ValidationError(f"A draft invoice may have at most {MAX_LINES} lines.")
+    if kind not in (InvoiceDraftLine.Kind.FEE, InvoiceDraftLine.Kind.ADJUSTMENT):
+        raise ValidationError({"kind": "Choose Fee or Discount."})
+    if not isinstance(description, str) or not description.strip():
+        raise ValidationError({"description": "Enter a description."})
+    position = max((line.position for line in existing), default=0) + 1
+    line = InvoiceDraftLine(
+        draft=draft,
+        position=position,
+        kind=kind,
+        description=description.strip(),
+        quantity=quantity,
+        unit_price=unit_price,
+        amount=_money(unit_price, quantity, position, kind=kind),
+    )
+    line.full_clean()
+    total = _total([*existing, line])
+    before = _state(draft)
+    line.save()
+    draft.total = total
+    draft.revision += 1
+    draft.full_clean()
+    draft.save()
+    record_event(
+        actor=actor,
+        action="invoice_draft.line_added",
+        obj=draft,
+        before=before,
+        after=_state(draft),
+        reason=reason,
+    )
+    return draft
+
+
+@transaction.atomic
 def save_invoice_draft(*, actor, draft_id, expected_revision, billing, lines, reason):
     require_role(actor, *PRICING_ROLES)
     draft = InvoiceDraft.objects.select_for_update().get(pk=draft_id)
@@ -375,7 +420,10 @@ def save_invoice_draft(*, actor, draft_id, expected_revision, billing, lines, re
     reason = _reason(reason)
     existing = list(draft.lines.select_for_update())
     if not 1 <= len(lines) <= MAX_LINES or len(lines) != len(existing):
-        raise ValidationError("Keep every original source line; lines cannot be added or removed.")
+        raise ValidationError(
+            "Keep every original source line and manually added line. "
+            "Use Add fee or discount to add a line; lines cannot be removed."
+        )
     by_id = {line.pk: line for line in existing}
     submitted_ids = [line.get("id") for line in lines]
     if len(set(submitted_ids)) != len(existing) or set(submitted_ids) != set(by_id):

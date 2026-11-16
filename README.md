@@ -29,8 +29,8 @@ records; it does not certify compliance or accreditation.
   Internal draft invoices take received tests and an explicitly selected price list or matching
   accepted quote, preserve billing details and source identities, and keep reasoned edits and
   cancellations. Accepted quotes also carry their fees and discounts into the draft once, with
-  their source retained. Manual additional lines, issuance, tax, payments and accounting export
-  remain planned.
+  their source retained. Staff can add fees and discounts with a reason and a distinct manual
+  origin. Issuance, tax, payments and accounting export remain planned.
 - **Laboratory records:** materials, lots and stock movements, equipment, training,
   nonconformance, and physical sample retention and disposal.
 
