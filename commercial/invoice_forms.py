@@ -1,6 +1,5 @@
 """Forms for internal invoice worksheets; source identities are always read-only."""
 
-from decimal import Decimal
 from urllib.parse import urlencode
 
 from django import forms
@@ -15,12 +14,13 @@ from .forms import FilterForm, GroupedForm
 from .invoices import (
     BILLING_FIELDS,
     MAX_LINES,
+    MAX_PRICE,
     MAX_QUANTITY,
     eligible_quote_versions,
     quote_version_label,
     source_state,
 )
-from .models import InvoiceDraft, PriceList, QuoteVersion
+from .models import InvoiceDraft, InvoiceDraftLine, PriceList, QuoteVersion
 
 
 class InvoiceFilter(FilterForm):
@@ -79,8 +79,10 @@ class InvoiceCreateForm(StyledForm, forms.Form):
         empty_label="Choose an accepted quote version",
         help_text=(
             "Choose exactly one source: a price list or an accepted issued quote. "
-            "The entire quote must match this order's received tests and quantities, with one line "
-            "per test definition and no fees or discounts. "
+            "The quote's tests must match this order's received tests and quantities, "
+            "with one line per test definition. Each quoted fee and discount is copied once, "
+            "up to 200 draft lines "
+            "in total. The final total cannot be negative. "
             "This does not track cumulative quote usage. "
             "Billing and purchase order come from the client and order; quote terms are not copied."
         ),
@@ -148,7 +150,8 @@ class InvoiceLineForm(StyledForm, forms.Form):
         widget=forms.TextInput(attrs={"inputmode": "numeric", "class": "form-control text-end"}),
     )
     unit_price = forms.DecimalField(
-        min_value=Decimal("0"),
+        min_value=-MAX_PRICE,
+        max_value=MAX_PRICE,
         max_digits=12,
         decimal_places=2,
         label="Unit price",
@@ -157,9 +160,49 @@ class InvoiceLineForm(StyledForm, forms.Form):
         ),
     )
 
+    def __init__(self, *args, source_line=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.source_line = source_line
+
+    def clean_id(self):
+        value = self.cleaned_data["id"]
+        if self.source_line is None or value != self.source_line.pk:
+            raise forms.ValidationError(
+                "The draft lines changed. Reload and review them before saving."
+            )
+        return value
+
+    def clean_unit_price(self):
+        value = self.cleaned_data["unit_price"]
+        if self.source_line is not None:
+            if self.source_line.kind == InvoiceDraftLine.Kind.ADJUSTMENT:
+                if value > 0:
+                    raise forms.ValidationError("A discount price must be zero or negative.")
+            elif value < 0:
+                raise forms.ValidationError("A test or fee price must be nonnegative.")
+        return value
+
+
+class BaseInvoiceLineFormSet(forms.BaseFormSet):
+    def __init__(self, *args, source_lines, **kwargs):
+        self.source_lines = {str(line.pk): line for line in source_lines}
+        super().__init__(*args, **kwargs)
+
+    def get_form_kwargs(self, index):
+        kwargs = super().get_form_kwargs(index)
+        if index is None:
+            return kwargs
+        if self.is_bound:
+            source_id = self.data.get(f"{self.prefix}-{index}-id")
+        else:
+            source_id = str(self.initial[index]["id"]) if index < len(self.initial) else None
+        kwargs["source_line"] = self.source_lines.get(source_id)
+        return kwargs
+
 
 InvoiceLineFormSet = forms.formset_factory(
     InvoiceLineForm,
+    formset=BaseInvoiceLineFormSet,
     extra=0,
     min_num=1,
     max_num=MAX_LINES,

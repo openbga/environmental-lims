@@ -187,19 +187,29 @@ prices with a reason. Inclusion does not establish that a test is chargeable, co
 analytically accepted. One active draft per order and a 200-line limit are product bounds.
 Creation, edits and cancellation retain attributed history and reject stale submissions;
 cancelled drafts remain available internally. Drafts cannot be issued, paid or viewed by
-clients. Additional fees/discount lines, tax, due dates, payments, issued
-invoices and accounting export remain roadmap work.
+clients. Manually added fee/discount lines, tax, due dates, payments, issued invoices and
+accounting export remain roadmap work.
 
 Accepted-quote pricing, added 2026-11-16, is an explicit alternative to a price list. The quote
 must be accepted for this client and either this project or no particular project, and the
 selected issued version must be the accepted version. Its full set of test identities and
 quantities must exactly match the received order, with one quote line per test definition.
-Missing, extra, duplicate, fee and discount lines are refused; nothing falls back to a list or
+Missing, extra and duplicate test lines are refused; nothing falls back to a list or
 is silently omitted. Each received requested test copies its quoted description and exact unit
 price at quantity one. The draft retains the accepted version, its number/title/acceptance
 snapshot and each source quote line through later edits and cancellation. Billing details and
 PO still come from client/project/order records; quote terms are not copied. The quote's
 valid-until date governs acceptance, not use of an already accepted version.
+
+Quote fees and discounts, added 2026-11-16, transfer once per accepted quote line after the
+received-test lines. Their kind, description, positive whole-number quantity, signed USD unit
+price and source quote line are retained; they have no sample or requested-test identity.
+Tests and fees use nonnegative prices; discounts use zero or negative prices, in whole cents.
+The combined draft is limited to 200 lines and a nonnegative total. These sign and size rules
+are product bounds, not tax or accounting requirements. Reasoned edits can change descriptions,
+quantities and prices but preserve every line, its kind and provenance. Discounts are fixed
+amounts multiplied by quantity; percentages and manual additional lines are not supported.
+Matching and transfer are per order and do not allocate a quote across multiple orders.
 
 These are deliberately bounded product choices for whole-order draft preparation, not a
 contract interpretation or billing qualification. Quote quantities are matched per order;

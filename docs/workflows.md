@@ -50,10 +50,13 @@ decision. Staff can change billing details and line descriptions, quantities and
 reason, or cancel a draft while preserving its history. Only one active draft is allowed per
 order. An accepted quote must belong to the same client and this project or no project. Its
 entire set of test definitions and quantities must match the received order, one quote line per
-test definition; fees, discounts and ambiguous or incomplete coverage are refused. Quote version
-and line provenance remain with the draft. Quantities are matched per order, not consumed across
+test definition; ambiguous or incomplete test coverage is refused. Each quoted fee or discount
+is copied once after the test lines, with its quantity and signed whole-cent USD price. Test
+and fee prices must be nonnegative; discount prices must be zero or negative. The exact total
+must stay nonnegative and the combined draft may have at most 200 lines. Kind, quote version
+and line provenance remain with the draft through reasoned edits and cancellation. Quantities are matched per order, not consumed across
 orders, and quote terms do not replace the billing snapshot. Drafts stay internal; issued
-invoices, added fee/discount lines and accounting exports remain planned.
+invoices, manually added fee/discount lines and accounting exports remain planned.
 
 ## Spreadsheet import of setup records
 

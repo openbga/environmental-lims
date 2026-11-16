@@ -413,6 +413,7 @@ def test_database_keeps_a_disposal_record_final_but_allows_the_audited_path(inta
     _sql("UPDATE receipt_samplestorage SET disposal_hold = disposal_hold WHERE id = %s", storage.pk)
 
 
+@pytest.mark.django_db(transaction=True)
 def test_disposal_guard_applies_to_a_database_that_already_holds_disposals(intake):
     from django.db import connection
     from django.db.migrations.executor import MigrationExecutor
@@ -421,9 +422,11 @@ def test_disposal_guard_applies_to_a_database_that_already_holds_disposals(intak
     retention(intake, sample)
     storage = disposal(intake, sample)
     previous = [("receipt", "0011_entity_master_data")]
-    guarded = [("receipt", "0012_sample_disposal_immutable")]
-    MigrationExecutor(connection).migrate(previous)
+    latest = MigrationExecutor(connection).loader.graph.leaf_nodes()
     try:
+        # Real schema changes need committed fixtures: dependent migrations can alter
+        # foreign keys whose deferred triggers would still be pending in a test transaction.
+        MigrationExecutor(connection).migrate(previous)
         # Without the guard a direct write would succeed; prove the old schema, then reapply.
         _sql(
             "UPDATE receipt_samplestorage SET disposal_reason = 'Old schema' WHERE id = %s",
@@ -435,7 +438,8 @@ def test_disposal_guard_applies_to_a_database_that_already_holds_disposals(intak
             storage.pk,
         )
     finally:
-        MigrationExecutor(connection).migrate(guarded)
+        # Restore every dependent app as well as the disposal guard for subsequent tests.
+        MigrationExecutor(connection).migrate(latest)
     with pytest.raises(DatabaseError, match="cannot be changed"):
         _sql(
             "UPDATE receipt_samplestorage SET disposal_reason = 'New schema' WHERE id = %s",

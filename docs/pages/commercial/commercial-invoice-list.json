@@ -97,6 +97,7 @@
     "core/templatetags/navigation.py",
     "commercial/tests/test_invoices.py",
     "e2e/test_invoice_drafts.py",
-    "commercial/tests/test_invoice_quote_lookup.py"
+    "commercial/tests/test_invoice_quote_lookup.py",
+    "e2e/test_invoice_quote.py"
   ]
 }
