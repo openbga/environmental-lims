@@ -331,6 +331,52 @@ class Batch(models.Model):
         return self.number
 
 
+class RunCalibration(models.Model):
+    """Immutable instrument-reported curve evidence; no fitting or acceptance decision."""
+
+    batch = models.ForeignKey(Batch, on_delete=models.PROTECT, related_name="calibrations")
+    definition = models.ForeignKey(
+        "catalog.TestDefinition", on_delete=models.PROTECT, related_name="+"
+    )
+    reference = models.CharField(max_length=120)
+    calibrated_at = models.DateTimeField()
+    model_text = models.TextField(max_length=1000)
+    response_unit = models.CharField(max_length=40)
+    source_reference = models.CharField(max_length=240)
+    points = models.JSONField(help_text="Recorded standards and exact concentration/response text.")
+    method_code = models.CharField(max_length=60)
+    method_version = models.CharField(max_length=40)
+    analyte_name = models.CharField(max_length=160)
+    matrix = models.CharField(max_length=20)
+    unit = models.CharField(max_length=40)
+    equipment_label = models.CharField(max_length=240, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-calibrated_at", "-pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["batch", "reference"], name="analytical_calibration_reference"
+            )
+        ]
+
+    def __str__(self):
+        return self.reference
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError(
+                "Calibration records cannot be changed. Record a new calibration."
+            )
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Calibration records cannot be deleted.")
+
+
 class QCSample(models.Model):
     batch = models.ForeignKey(Batch, on_delete=models.PROTECT, related_name="qc_samples")
     qc_type = models.CharField(max_length=40, choices=QCType.choices)
@@ -550,6 +596,18 @@ class ResultRevision(models.Model):
         "PreparedAliquot", null=True, blank=True, on_delete=models.PROTECT, related_name="revisions"
     )
 
+    calibration = models.ForeignKey(
+        RunCalibration, null=True, blank=True, on_delete=models.PROTECT, related_name="revisions"
+    )
+    calibration_verification = models.ForeignKey(
+        QCMeasurement,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="calibration_revisions",
+    )
+    calibration_evidence = models.JSONField(null=True, blank=True)
+
     # Provenance snapshots: what was analysed, by which method version, in which unit.
     definition = models.ForeignKey(
         "catalog.TestDefinition", on_delete=models.PROTECT, related_name="+"
@@ -629,6 +687,10 @@ class ResultRevision(models.Model):
             models.CheckConstraint(
                 condition=Q(result_basis__in=ResultBasis.values),
                 name="analytical_result_basis_valid",
+            ),
+            models.CheckConstraint(
+                condition=Q(calibration_verification__isnull=True) | Q(calibration__isnull=False),
+                name="analytical_verification_has_curve",
             ),
             models.CheckConstraint(
                 condition=Q(percent_solids__isnull=True)

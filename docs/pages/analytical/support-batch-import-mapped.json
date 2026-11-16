@@ -227,6 +227,34 @@
         "Confirmation refuses an inactive or removed profile, changed mapping meaning, changed file or worksheet selection, changed targeted latest revision or preparation dependency, and no longer valid result evidence. Refresh and preview again so the displayed plan reflects current records. A failed confirmation may display a re-parsed preview but does not silently commit it. Hidden confirmation data is validated; damaged or oversized payloads do not import anything.",
         "The same raw file digest with the same mapping digest and worksheet cannot be imported twice into the same batch, even with a different filename; the previous actor/time are reported. Change the source meaningfully or correct results by hand. A mapping rename alone does not bypass repeated-file detection. Results are saved as entered with current user attribution, filename/worksheet/source row or column, mapping snapshot, file and mapping digests and audit metadata. This page does not retain an uploaded source file or release reports."
       ]
+    },
+    {
+      "title": "Recorded calibration evidence",
+      "paragraphs": [
+        "The application records curves and verification provenance; it does not fit curves, determine method acceptance, verify independent standard sources or check sequence and bracketing. A calibration link is not required for every test."
+      ],
+      "items": [
+        {
+          "label": "Calibration",
+          "description": "Optional immutable instrument-reported curve for the result’s current batch, test and unit. In the single-result Enter result or Correct result form, choose it explicitly for every revision. Blank means Not linked and never carries an earlier link forward. The curve’s recorded time must precede or coincide with analysis."
+        },
+        {
+          "label": "Calibration verification",
+          "description": "Optional current calibration-verification QC observation for the same batch, test and unit, used only with a selected curve. The observation must be at or after calibration; a closing check may follow sample analysis. Its label, exact observed text, true value, unit, time and identity are frozen with the revision."
+        },
+        {
+          "label": "Correction and independence",
+          "description": "If a selected QC observation is superseded, submission, approval and release are held until a new result revision records current evidence. People who recorded the selected curve or check cannot independently review or release that result. Existing QC, holding-time and preservation gates still apply."
+        },
+        {
+          "label": "Where links are entered",
+          "description": "Only the single-result form offers evidence choices. Grid entry, CSV/TSV/XLSX import and BOD5 bottle entry do not infer or carry calibration links. A later correction using those paths also leaves the new revision unlinked."
+        },
+        {
+          "label": "Stale form",
+          "description": "If a result changed after the single-result form was opened, saving is refused and the input is kept. Reload to inspect the current revision before entering a correction."
+        }
+      ]
     }
   ],
   "sources": [
@@ -246,6 +274,11 @@
     "analytical/views.py",
     "analytical/workbook_import.py",
     "analytical/tests/test_workbook_import.py",
-    "analytical/tests/test_workbook_reader.py"
+    "analytical/tests/test_workbook_reader.py",
+    "analytical/calibration.py",
+    "analytical/calibration_forms.py",
+    "analytical/calibration_views.py",
+    "analytical/tests/test_calibration.py",
+    "analytical/tests/test_calibration_views.py"
   ]
 }

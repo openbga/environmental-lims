@@ -137,6 +137,13 @@ against the database. The migration's reverse refuses while any rule names an an
 
 BOD bottle worksheets add the nullable `bottle_data` column in `analytical.0012`. Keep that column during a code rollback: reversing the migration refuses once any bottle snapshot exists. Older code cannot show or reproduce those bottle observations and cannot accept entries for a BOD calculation rule; deactivate that rule before using older code for new entries, and return to a compatible release to inspect retained worksheets. A normal deploy does not reseed; the synthetic BOD example appears at the demonstration’s next scheduled reset.
 
+Run calibration evidence adds `analytical.0013`: an immutable calibration table and nullable
+result-provenance fields. Keep these objects during a code rollback; reversing refuses once a
+calibration record exists. Older code can run with this additive schema but cannot display the
+new evidence or enforce its selected-check and contributor gates. Do not review or release
+calibration-linked work on older code. Restore a compatible release to inspect and use it.
+Normal deployment does not reseed the demonstration.
+
 **Data loss or corruption.** Recover into a new database; never overwrite or discard the
 current one.
 

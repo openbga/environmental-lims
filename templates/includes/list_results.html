@@ -11,6 +11,7 @@ Parameters:
   invalid        truthy when the filter form is invalid (filter_form.errors): the error state
   clear_url      URL without filters, for Clear filters (default: no button)
   paginate       False to leave out the footer for a Page
+  page_parameter GET page key for an independent related table (default "page")
   post_name      pagination's post mode (includes/pagination.html)
   empty_title, empty_body          the empty state (nothing exists yet)
   action_url, action_label         its create action; give action_url only to users who may create
@@ -22,7 +23,7 @@ Usage:
   {% endlist_results %}
 {% endcomment %}
 {% load ui %}{% if has_rows %}{{ body }}
-{% if paginated %}{% pagination page_obj=items noun=noun filtered=filtered post_name=post_name %}{% endif %}
+{% if paginated %}{% pagination page_obj=items noun=noun filtered=filtered post_name=post_name page_parameter=page_parameter %}{% endif %}
 {% elif invalid %}{% empty_state kind="error" title="These filters cannot be applied" body=error_body|default:"Correct the highlighted filter above. No results are shown until every filter is valid." clear_url=clear_url %}
 {% elif filtered %}{% firstof noun "records" as plural %}{% firstof no_results_title "No "|add:plural|add:" match these filters" as nr_title %}{% empty_state kind="no-results" title=nr_title body=no_results_body|default:"Check the spelling or clear the filters." clear_url=clear_url invalid=False %}
 {% else %}{% empty_state kind="empty" title=empty_title body=empty_body action_url=action_url action_label=action_label clear_url=None %}{% endif %}

@@ -17,6 +17,7 @@ from zoneinfo import ZoneInfo
 from django.conf import settings
 from django.utils import timezone
 
+from analytical.calibration import calibration_contributors
 from analytical.eligibility import reportable_results
 from analytical.models import Result, ResultRevision
 from analytical.preparation import preparation_snapshot
@@ -224,6 +225,7 @@ def assemble(report, *, actor=None):
             "entered_by",
             "submitted_by",
             "reviewed_by",
+            "calibration_verification",
         )
     }
     sample_content = []
@@ -284,6 +286,11 @@ def assemble(report, *, actor=None):
             if actor is not None and actor.pk in (revision.entered_by_id, revision.submitted_by_id):
                 problems.append(
                     f"{label}: you entered or submitted this result, so you cannot release it."
+                )
+            elif actor is not None and actor.pk in calibration_contributors(revision):
+                problems.append(
+                    f"{label}: you recorded selected calibration evidence for this result, "
+                    "so you cannot release it."
                 )
             state.tests.append(
                 ResultReadiness(
@@ -399,6 +406,8 @@ def assemble(report, *, actor=None):
                 "correction_reason": revision.correction_reason,
                 "comments": revision.comments,
             }
+            if revision.calibration_evidence:
+                row["calibration"] = revision.calibration_evidence
             if revision.prepared_aliquot_id:
                 row["preparation"] = preparation_snapshot(revision)
                 row["preparation"]["prepared_at"] = when(revision.prepared_at)

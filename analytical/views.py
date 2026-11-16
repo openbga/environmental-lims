@@ -13,6 +13,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
@@ -23,8 +24,9 @@ from core.grids import GridRequest, active_filters
 from core.models import AuditEvent
 from core.widgets import SuggestInput
 
-from . import bod, calculations, holding, importing, selectors, services, worksheets
+from . import bod, calculations, calibration, holding, importing, selectors, services, worksheets
 from . import forms as f
+from .calibration_forms import evidence_choices
 from .models import (
     Batch,
     CalculationRule,
@@ -426,6 +428,10 @@ def batch_detail(request, pk):
             "batch": batch,
             "page_obj": page,
             "qc_rows": qc_rows,
+            "calibration_page": Paginator(batch.calibrations.all(), grid.per_page).get_page(
+                request.GET.get("cal_page")
+            ),
+            "calibration_count": batch.calibrations.count(),
             "requirements": requirements,
             "issues": issues,
             "preparation_rules": selectors.preparation_rules_missing(batch),
@@ -1188,11 +1194,17 @@ def result_detail(request, pk):
     )
     revisions = list(
         result.revisions.select_related(
-            "entered_by", "submitted_by", "reviewed_by", "batch"
+            "entered_by",
+            "submitted_by",
+            "reviewed_by",
+            "batch",
+            "calibration",
+            "calibration_verification",
         ).order_by("-number")
     )
     latest = revisions[0] if revisions else None
-    form = f.CorrectionForm(request.POST or None)
+    form = f.CorrectionForm(request.POST if request.method == "POST" else None)
+    evidence_choices(form, batch_id=result.batch_id, definition=result.requested_test.definition)
     form.fields["prepared_aliquot_id"].widget.choices = aliquot_choices([result.requested_test_id])[
         result.requested_test_id
     ]
@@ -1213,6 +1225,10 @@ def result_detail(request, pk):
     }
     for revision in revisions:
         revision.tone = status_tone(revision.status)
+        verification = (revision.calibration_evidence or {}).get("verification")
+        revision.calibration_check_at = (
+            parse_datetime(verification["analysis_started_at"]) if verification else None
+        )
         revision.sheet = sheets.get(revision.pk)
         if revision.sheet:
             revision.sheet.revision = revision  # the same object, not a query per worksheet
@@ -1248,6 +1264,9 @@ def result_detail(request, pk):
                     readings=form.readings(),
                     report_nd=data.get("report_nd", False),
                     calculation_token=data.get("calculation_token") or None,
+                    expected_revision=data["expected_revision"],
+                    calibration_id=data.get("calibration_id"),
+                    calibration_verification_id=data.get("calibration_verification_id"),
                 )
             except ValidationError as exc:
                 f.add_service_errors(form, exc)
@@ -1260,6 +1279,7 @@ def result_detail(request, pk):
     d = result.requested_test.definition
     if not form.is_bound:
         form.initial = {
+            "expected_revision": result.latest_number,
             "prepared_aliquot_id": latest.prepared_aliquot_id if latest else None,
             "dilution_factor": "1",
             "reporting_limit_applied": "" if d.reporting_limit is None else trim(d.reporting_limit),
@@ -1334,6 +1354,8 @@ def review_batch(request, pk):
         )
         .select_related(
             "prepared_aliquot__batch",
+            "calibration",
+            "calibration_verification",
             "entered_by",
             "submitted_by",
             "definition__analyte",
@@ -1345,7 +1367,11 @@ def review_batch(request, pk):
     )
     preservation = summaries_for_tests([r.result.requested_test for r in revisions])
     for revision in revisions:
-        own = request.user.pk in (revision.entered_by_id, revision.submitted_by_id)
+        own = request.user.pk in {
+            revision.entered_by_id,
+            revision.submitted_by_id,
+            *calibration.calibration_contributors(revision),
+        }
         row_reasons, issues = services.approval_findings(
             revision, qc, preservation[revision.result.requested_test_id]
         )

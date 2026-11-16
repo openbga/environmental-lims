@@ -143,6 +143,26 @@ as current inventories, not historical snapshots. The 2,000-row bound is a produ
 synchronous downloads; formula-like text is refused without rewriting identifiers. No vendor
 qualification or analytical acceptance is implied. Vendor-specific run formats remain roadmap work.
 
+Run calibration evidence, added 2026-11-15, records the instrument-reported fit/equation,
+standard references and exact concentration/response text for one test in an analytical batch.
+Each record freezes its method, analyte, units and recorded equipment identity. An analyst may
+explicitly choose that curve and one calibration-verification QC observation on a new result
+revision through the single-result form; no curve is inferred for grid, file or BOD-bottle entries.
+Corrections add distinct records and result revisions. Selected evidence is retained in the result
+and new report snapshots; issued versions remain unchanged. A superseded selected verification
+requires a new result revision, and people who recorded the selected curve or check cannot review
+or release that result. Existing configured QC checks still apply.
+
+This records evidence, not method acceptance: it does not fit curves, evaluate fit quality,
+choose standards, determine independent sources or check run sequence and verification bracketing.
+EPA 200.7 Rev. 4.4 (1994), sections 9.3.4 and 11.4.4, and SW-846 6010D Rev. 5 (July 2018),
+sections 10.7–10.8, describe different calibration and verification arrangements. Their rules
+cannot be reduced to a universal point count or recovery limit. The 50-point record limit and
+one optional check per result revision are product bounds, not laboratory requirements; negative
+instrument responses are allowed. Source references remain the laboratory's responsibility.
+US method sources checked 2026-11-15: [EPA 200.7 Rev. 4.4](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P10177CN.txt)
+and [EPA 6010D Rev. 5](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P1017DDQ.txt).
+
 Deliverable and reporting targets for milestones 2 to 4. All are exploratory. A recipient accepts an EDD only against its own current specification and reference values, so no format here is claimed as accepted until tested against one named recipient's spec.
 
 | Target | What it is | Notes |

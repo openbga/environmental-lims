@@ -406,6 +406,58 @@
       "paragraphs": [
         "All membership, preparation, equipment, entry, submission and QC changes are attributed in audit history. A result page preserves every revision. A bulk submit may partly succeed, but grid entry and file import use all-or-nothing validation. Reload when the server says membership or dependencies changed, and check current state before retrying. If this URL identifies a preparation batch, it redirects to that batch’s preparation page."
       ]
+    },
+    {
+      "title": "Calibration evidence",
+      "paragraphs": [
+        "No calibration evidence recorded means no curve has been stored, not that the batch has passed or failed a method requirement. The grid, imports and BOD5 bottle worksheet do not link calibration; select it explicitly on the single-result form."
+      ],
+      "items": [
+        {
+          "label": "Record calibration",
+          "description": "Analysts and administrators open a form to record an instrument-reported curve for one test. Also available after batch closure; preparation batches use their own page."
+        },
+        {
+          "label": "Calibration reference",
+          "description": "Opens the immutable record, standard points and result revisions that use it."
+        },
+        {
+          "label": "Analyte / Calibration time / Concentration unit",
+          "description": "Frozen identity, actual calibration event displayed with local zone and the unit of the standard concentrations."
+        },
+        {
+          "label": "Calibration pages",
+          "description": "Calibration records are ordered newest calibration time first. Their page links are independent of the sample/results table; both use the selected rows-per-page size. Sample filters do not hide calibration evidence."
+        }
+      ]
+    },
+    {
+      "title": "Recorded calibration evidence",
+      "paragraphs": [
+        "The application records curves and verification provenance; it does not fit curves, determine method acceptance, verify independent standard sources or check sequence and bracketing. A calibration link is not required for every test."
+      ],
+      "items": [
+        {
+          "label": "Calibration",
+          "description": "Optional immutable instrument-reported curve for the result’s current batch, test and unit. In the single-result Enter result or Correct result form, choose it explicitly for every revision. Blank means Not linked and never carries an earlier link forward. The curve’s recorded time must precede or coincide with analysis."
+        },
+        {
+          "label": "Calibration verification",
+          "description": "Optional current calibration-verification QC observation for the same batch, test and unit, used only with a selected curve. The observation must be at or after calibration; a closing check may follow sample analysis. Its label, exact observed text, true value, unit, time and identity are frozen with the revision."
+        },
+        {
+          "label": "Correction and independence",
+          "description": "If a selected QC observation is superseded, submission, approval and release are held until a new result revision records current evidence. People who recorded the selected curve or check cannot independently review or release that result. Existing QC, holding-time and preservation gates still apply."
+        },
+        {
+          "label": "Where links are entered",
+          "description": "Only the single-result form offers evidence choices. Grid entry, CSV/TSV/XLSX import and BOD5 bottle entry do not infer or carry calibration links. A later correction using those paths also leaves the new revision unlinked."
+        },
+        {
+          "label": "Stale form",
+          "description": "If a result changed after the single-result form was opened, saving is refused and the input is kept. Reload to inspect the current revision before entering a correction."
+        }
+      ]
     }
   ],
   "sources": [
@@ -430,6 +482,11 @@
     "analytical/run_lists.py",
     "analytical/run_list_views.py",
     "analytical/tests/test_run_lists.py",
-    "e2e/test_run_lists.py"
+    "e2e/test_run_lists.py",
+    "analytical/calibration.py",
+    "analytical/calibration_forms.py",
+    "analytical/calibration_views.py",
+    "analytical/tests/test_calibration.py",
+    "analytical/tests/test_calibration_views.py"
   ]
 }

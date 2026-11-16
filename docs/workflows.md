@@ -192,6 +192,28 @@ sample states against the intended instrument run. This download changes no reco
 retained as an issued snapshot. Its complete column reference and refusal states are in the
 batch's Help drawer.
 
+### Recorded run calibration
+
+On an analytical batch, **Record calibration** keeps an instrument-reported curve for one test:
+the source reference, fit/equation description and standard points exactly as entered, with
+concentration and response units. This is separate from equipment maintenance/calibration events.
+It does not fit a curve, judge its quality or assert that a method's calibration requirements were
+met. A closed batch still accepts evidence because closing freezes membership only.
+
+The single-result entry/correction form offers optional **Calibration** and **Calibration
+verification** choices for its batch and test. The check must be a current calibration-verification
+QC observation, after the curve; a closing check may follow sample analysis. The curve must
+precede or coincide with analysis and units must match. Grid, file import and BOD bottle entries
+do not associate calibration. A later correction does not infer or automatically carry a curve
+forward: select the intended evidence explicitly.
+
+Records cannot be edited or deleted. Correct a curve by recording another reference, then enter
+a new result revision with the intended evidence and a correction reason. Prior revisions keep
+their original curve, check and snapshot. If a selected QC observation is corrected, a fresh
+result revision must select the intended current evidence before submission, approval or release.
+People who entered the selected curve or check cannot review or release its result. All existing
+QC, preservation and holding-time gates still apply; selecting a check never bypasses them.
+
 ## Calculated results
 
 A result can be worked out by the application from the readings taken at the bench, in place

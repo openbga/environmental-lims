@@ -630,6 +630,25 @@ class GridDefaultsForm(forms.Form):
 
 
 class CorrectionForm(ReadingsMixin, BasisForm):
+    expected_revision = forms.IntegerField(min_value=0, widget=forms.HiddenInput)
+    calibration_id = forms.TypedChoiceField(
+        label="Calibration",
+        required=False,
+        coerce=int,
+        empty_value=None,
+        choices=[("", "Not linked")],
+        help_text="Optional recorded curve for this run and test. "
+        "Select explicitly for every revision.",
+    )
+    calibration_verification_id = forms.TypedChoiceField(
+        label="Calibration verification",
+        required=False,
+        coerce=int,
+        empty_value=None,
+        choices=[("", "Not linked")],
+        help_text="Optional current verification observation for this run and test; "
+        "requires a calibration.",
+    )
     prepared_aliquot_id = forms.IntegerField(
         required=False,
         label="Prepared aliquot",

@@ -99,6 +99,7 @@ def test_result_page_shows_the_limit_before_rounding_and_corrects_with_new_solid
         "result_basis": "dry",
         "analysis_started_at": stamp(),
         "reason": "Synthetic: re-read after recalibration",
+        "expected_revision": response.context["form"].initial["expected_revision"],
     }
     missing = client.post(url, correction)
     assert missing.status_code == 200 and missing.context["form"].errors.keys() >= {

@@ -2,6 +2,7 @@ from django.urls import path
 
 from . import (
     bod_views,
+    calibration_views,
     import_views,
     mdl_views,
     preparation_views,
@@ -35,6 +36,12 @@ urlpatterns = [
     path("batches/", views.batch_list, name="batch-list"),
     path("batches/new/", views.batch_create, name="batch-create"),
     path("batches/<int:pk>/", views.batch_detail, name="batch-detail"),
+    path(
+        "batches/<int:pk>/calibrations/new/",
+        calibration_views.calibration_create,
+        name="calibration-create",
+    ),
+    path("calibrations/<int:pk>/", calibration_views.calibration_detail, name="calibration-detail"),
     path("batches/<int:pk>/run-list.csv", run_list_views.batch_run_list, name="batch-run-list"),
     path("batches/<int:pk>/tests/", views.batch_add_tests, name="batch-add-tests"),
     path(

@@ -192,6 +192,7 @@ def test_result_page_shows_the_worksheet_and_corrects_from_new_readings(
         "dilution_factor": "1",
         "analysis_started_at": stamp(),
         "reason": "Synthetic: reweighed after a second drying cycle",
+        "expected_revision": form.initial["expected_revision"],
     }
     missing = client.post(url, {**data, "reading_tare": ""})
     assert missing.status_code == 200

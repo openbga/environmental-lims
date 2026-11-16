@@ -75,12 +75,13 @@ services; this page only presents them.{% endcomment %}
   {% list_results items=page_obj noun="results awaiting review" filtered=filtered invalid=filter_form.errors clear_url=request.path no_results_title="No results match these filters" no_results_body="Clear the filters to see every result awaiting review in this batch." empty_title="Nothing awaiting review in this batch" %}
   {% if can_review %}{% panel_section %}<p class="vr-form-note"><span data-vr-select-count="revisions" aria-live="polite">0 selected</span>. The header checkbox selects every result you may review on this page, held ones included. {% select_all name="revisions" ready_label="Select only ready to approve" %}</p>{% endpanel_section %}{% endif %}
   <div class="vr-table-wrap">
-    <table class="table vr-table" data-vr-grid="analytical.review_results" data-vr-grid-version="1" aria-labelledby="review-heading">
+    <table class="table vr-table" data-vr-grid="analytical.review_results" data-vr-grid-version="2" aria-labelledby="review-heading">
       <thead><tr>
         <th scope="col" data-vr-col="select" data-vr-col-locked data-vr-col-label="Select">{% if can_review %}{% select_all name="revisions" label="Select all results you may review on this page" %}{% else %}<span class="visually-hidden">Select</span>{% endif %}</th>
         <th scope="col" data-vr-col="sample" data-vr-col-locked>Sample</th>
         <th scope="col" data-vr-col="can_approve">Can approve?</th>
         <th scope="col" data-vr-col="analyte">Analyte</th>
+        <th scope="col" data-vr-col="calibration">Calibration evidence</th>
         <th scope="col" data-vr-col="prepared_aliquot">Prepared aliquot</th>
         <th scope="col" class="text-end" data-vr-col="result">Result</th>
         <th scope="col" data-vr-col="unit">Unit</th>
@@ -98,7 +99,7 @@ services; this page only presents them.{% endcomment %}
           <th scope="row"><a class="vr-row-link vr-id" href="{% url 'analytical:result-detail' rev.result_id %}">{{ rev.result.requested_test.sample.lab_id }}</a></th>
           <td>
             {% if item.own %}{% status label="Your work" tone="neutral" plain=True %}
-            <div class="small">You analysed this. Another qualified reviewer must review it.</div>
+            <div class="small">You entered, submitted or recorded selected calibration evidence for this result. Another qualified reviewer must review it.</div>
             {% elif item.row_reasons or item.qc_count %}{% status label="Held" tone="warning" plain=True %}
             {% if item.qc_count %}<div class="small"><a href="#qc-evidence">Batch QC: {{ item.qc_count }} finding{{ item.qc_count|pluralize }}</a></div>{% endif %}
             <div class="small"><a href="{% url 'analytical:preservation-assess' item.revision.result.requested_test_id %}">Preservation assessment</a></div>
@@ -106,6 +107,7 @@ services; this page only presents them.{% endcomment %}
             {% else %}{% status label="Ready" tone="success" plain=True %}{% endif %}
           </td>
           <td>{{ rev.analyte_name }}{% if rev.number > 1 %} <span class="vr-muted small">revision {{ rev.number }}</span>{% endif %}</td>
+          <td>{% if rev.calibration_id %}<a href="{% url 'analytical:calibration-detail' rev.calibration_id %}">{{ rev.calibration_evidence.calibration.reference }}</a>{% if rev.calibration_evidence.verification %}<div class="small">{{ rev.calibration_evidence.verification.label }} · observation {{ rev.calibration_evidence.verification.id }}</div>{% endif %}{% else %}<span class="vr-muted">Not linked</span>{% endif %}</td>
           <td>{% if rev.prepared_aliquot_id %}<a class="vr-id" href="{% url 'analytical:prep-detail' rev.prepared_aliquot.batch_id %}">{{ rev.prepared_aliquot.batch.number }}</a><div class="small">Aliquot <span class="vr-id">{{ rev.prepared_aliquot.label }}</span></div>{% else %}<span class="vr-muted">Not linked</span>{% endif %}</td>
           <td class="text-end">{% include "analytical/_revision_value.html" %}{% if rev.source == "calculated" %}<div class="small"><a href="{% url 'analytical:result-detail' rev.result_id %}#worksheet-{{ rev.number }}">Worksheet<span class="visually-hidden"> of {{ rev.result.requested_test.sample.lab_id }} {{ rev.analyte_name }}</span></a></div>{% endif %}</td>
           <td>{{ rev.unit }}{% if rev.matrix == "soil" %}<div>{% include "analytical/_basis.html" %}</div>{% endif %}</td>
