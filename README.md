@@ -26,9 +26,10 @@ records; it does not certify compliance or accreditation.
   client sees only its own work.
 - **Operations:** price lists and versioned quotes, client-submitted COCs, delivery scheduling,
   labels, subcontracted results and staff account-hold notices at receipt and report release.
-  Internal draft invoices take received tests and an explicitly selected price list, preserve
-  billing details and source identities, and keep reasoned edits and cancellations. Issuance,
-  quote pricing, tax, payments and accounting export remain planned.
+  Internal draft invoices take received tests and an explicitly selected price list or matching
+  accepted quote, preserve billing details and source identities, and keep reasoned edits and
+  cancellations. Issuance,
+  fee/discount lines, tax, payments and accounting export remain planned.
 - **Laboratory records:** materials, lots and stock movements, equipment, training,
   nonconformance, and physical sample retention and disposal.
 

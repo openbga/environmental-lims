@@ -3,6 +3,7 @@
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.dateparse import parse_datetime
 
 from receipt.models import Order
 
@@ -74,7 +75,14 @@ def invoice_create(request, order_pk):
                 actor=request.user,
                 order_id=order.pk,
                 expected_source_state=form.cleaned_data["expected_source_state"],
-                price_list_id=form.cleaned_data["price_list"].pk,
+                price_list_id=(
+                    form.cleaned_data["price_list"].pk if form.cleaned_data["price_list"] else None
+                ),
+                quote_version_id=(
+                    form.cleaned_data["quote_version"].pk
+                    if form.cleaned_data["quote_version"]
+                    else None
+                ),
             )
         except ValidationError as exc:
             apply_errors(form, exc)
@@ -97,7 +105,10 @@ def invoice_create(request, order_pk):
 
 def _draft(pk):
     return get_object_or_404(
-        InvoiceDraft.objects.select_related("order", "created_by", "cancelled_by"), pk=pk
+        InvoiceDraft.objects.select_related(
+            "order", "created_by", "cancelled_by", "quote_version__quote"
+        ),
+        pk=pk,
     )
 
 
@@ -110,7 +121,12 @@ def invoice_detail(request, pk):
         {
             "page_title": draft.number,
             "draft": draft,
-            "lines": draft.lines.all(),
+            "quote_accepted_at": (
+                parse_datetime(draft.quote_snapshot.get("accepted_at") or "")
+                if draft.quote_snapshot
+                else None
+            ),
+            "lines": draft.lines.select_related("source_quote_line"),
             "history": history(draft),
         },
     )
@@ -122,7 +138,7 @@ def invoice_edit(request, pk):
     if draft.status != InvoiceDraft.Status.DRAFT:
         messages.error(request, "A cancelled draft cannot be changed.")
         return redirect("commercial:invoice-detail", pk=pk)
-    lines = list(draft.lines.all())
+    lines = list(draft.lines.select_related("source_quote_line"))
     form = InvoiceEditForm(request.POST or None, draft=draft)
     formset = InvoiceLineFormSet(
         request.POST or None,

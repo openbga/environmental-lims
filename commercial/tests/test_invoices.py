@@ -15,12 +15,19 @@ from django.db import IntegrityError, close_old_connections, connection, connect
 from django.urls import reverse
 from django.utils import timezone
 
-from commercial import invoices, pricing
-from commercial.models import InvoiceDraft, InvoiceDraftLine, PriceList
+from commercial import invoices, pricing, quotes
+from commercial.models import (
+    InvoiceDraft,
+    InvoiceDraftLine,
+    PriceList,
+    Quote,
+    QuoteLine,
+    QuoteVersion,
+)
 from core.models import AuditEvent
 from receipt.corrections import change_requested_tests
-from receipt.models import Order, RequestedTest, Sample
-from receipt.services import create_order, receive_sample
+from receipt.models import Order, Project, RequestedTest, Sample
+from receipt.services import create_order, receive_order_sample, receive_sample
 
 pytestmark = pytest.mark.django_db
 
@@ -59,7 +66,7 @@ def create(lab, received, price_list, **overrides):
         actor=lab["pm"],
         order_id=order.pk,
         expected_source_state=invoices.source_state(order),
-        price_list_id=price_list.pk,
+        price_list_id=price_list.pk if price_list else None,
     )
     args.update(overrides)
     return invoices.create_invoice_draft(**args)
@@ -653,3 +660,292 @@ def test_cancelled_draft_cancel_page_redirects_but_post_rechecks_state(
     assert response.status_code == 200
     assert "cancelled draft cannot be changed" in str(response.context["form"].non_field_errors())
     assert AuditEvent.objects.filter(action="invoice_draft.cancelled").count() == 1
+
+
+@pytest.fixture
+def accepted_invoice_quote(lab):
+    quote = quotes.create_quote(
+        actor=lab["pm"],
+        token=None,
+        client=lab["a"]["client"],
+        project=lab["a"]["project"],
+        title="Synthetic agreed testing",
+    )
+    quote = quotes.save_draft(
+        actor=lab["pm"],
+        quote_id=quote.pk,
+        expected_revision=quote.revision,
+        title=quote.title,
+        project=quote.project,
+        price_list=None,
+        valid_until=timezone.localdate(),
+        turnaround_days=5,
+        scope_notes="Quote scope",
+        terms="QUOTE-ONLY-TERMS",
+        lines=[
+            {
+                "kind": "test",
+                "test": lab["tests"][key],
+                "description": description,
+                "quantity": 1,
+                "unit_price": Decimal(price),
+            }
+            for key, description, price in [
+                ("lead", "Agreed lead analysis", "0.10"),
+                ("copper", "Agreed copper analysis", "1.25"),
+            ]
+        ],
+    )
+    quotes.issue_quote(
+        actor=lab["pm"], quote_id=quote.pk, version_number=1, expected_revision=quote.revision
+    )
+    quotes.accept_quote(
+        actor=lab["a"]["user"],
+        quote_id=quote.pk,
+        version_number=1,
+        client_reference="QUOTE-ONLY-PO",
+    )
+    return QuoteVersion.objects.select_related("quote").get(quote=quote, number=1)
+
+
+def from_quote(lab, received, version, **overrides):
+    return create(lab, received, None, price_list_id=None, quote_version_id=version.pk, **overrides)
+
+
+def test_accepted_quote_snapshots_prices_description_and_provenance(
+    lab, received, accepted_invoice_quote
+):
+    version = accepted_invoice_quote
+    # Later quote presentation and the acceptance validity date do not replace the frozen version.
+    Quote.objects.filter(pk=version.quote_id).update(title="Changed live title")
+    QuoteVersion.objects.filter(pk=version.pk).update(
+        valid_until=timezone.localdate() - timedelta(days=1)
+    )
+    Order.objects.filter(pk=received.order_id).update(po_number="ORDER-ONLY-PO")
+    draft = from_quote(lab, received, version)
+    assert draft.quote_version_id == version.pk
+    assert draft.price_list_id is None and draft.price_list_revision is None
+    assert draft.price_list_name == "" and draft.total == Decimal("1.35")
+    assert draft.quote_snapshot == {
+        "number": version.quote.number,
+        "version": 1,
+        "title": "Synthetic agreed testing",
+        "accepted_at": version.quote.decided_at.isoformat(),
+        "accepted_by_id": lab["a"]["user"].pk,
+        "accepted_by": "portal_a",
+    }
+    assert draft.po_number == "ORDER-ONLY-PO" and draft.payment_terms == ""
+    assert list(draft.lines.values_list("quantity", "unit_price", "description")) == [
+        (1, Decimal("0.10"), "Agreed lead analysis"),
+        (1, Decimal("1.25"), "Agreed copper analysis"),
+    ]
+    assert set(draft.lines.values_list("source_quote_line_id", flat=True)) == set(
+        version.lines.values_list("pk", flat=True)
+    )
+    event = AuditEvent.objects.get(action="invoice_draft.created")
+    assert event.after["quote_version"] == version.pk
+    assert event.after["quote_snapshot"] == draft.quote_snapshot
+    assert all(line["source_quote_line"] for line in event.after["lines"])
+    assert "QUOTE-ONLY-TERMS" not in str(event.after) and "QUOTE-ONLY-PO" not in str(event.after)
+    original = list(draft.lines.values("source_quote_line_id", "source_requested_test_id"))
+    updated = save(
+        lab,
+        draft,
+        lines=[
+            {
+                "id": line.pk,
+                "description": "Negotiated revision",
+                "quantity": 2,
+                "unit_price": Decimal("2.00"),
+            }
+            for line in draft.lines.all()
+        ],
+    )
+    assert updated.quote_snapshot == draft.quote_snapshot
+    assert (
+        list(updated.lines.values("source_quote_line_id", "source_requested_test_id")) == original
+    )
+    event = AuditEvent.objects.get(action="invoice_draft.saved")
+    assert event.before["lines"][0]["description"] == "Agreed lead analysis"
+    assert event.after["lines"][0]["description"] == "Negotiated revision"
+
+
+def test_quote_without_project_can_price_client_order(lab, received, accepted_invoice_quote):
+    Quote.objects.filter(pk=accepted_invoice_quote.quote_id).update(project=None)
+    assert from_quote(lab, received, accepted_invoice_quote).total == Decimal("1.35")
+
+
+@pytest.mark.parametrize(
+    "change", ["other_client", "other_project", "unaccepted", "wrong_version", "unissued"]
+)
+def test_quote_source_rechecks_client_project_acceptance_and_issue(
+    lab, received, accepted_invoice_quote, change
+):
+    version = accepted_invoice_quote
+    if change == "other_client":
+        Quote.objects.filter(pk=version.quote_id).update(client=lab["b"]["client"], project=None)
+    elif change == "other_project":
+        project = Project.objects.create(client=lab["a"]["client"], name="Other project")
+        Quote.objects.filter(pk=version.quote_id).update(project=project)
+    elif change == "unaccepted":
+        Quote.objects.filter(pk=version.quote_id).update(status="issued")
+    elif change == "wrong_version":
+        Quote.objects.filter(pk=version.quote_id).update(decision_version=2)
+    else:
+        QuoteVersion.objects.filter(pk=version.pk).update(issued_at=None, issued_by=None)
+    with pytest.raises(ValidationError, match="accepted issued quote"):
+        from_quote(lab, received, version)
+    assert not InvoiceDraft.objects.exists()
+
+
+@pytest.mark.parametrize(
+    "change", ["empty", "missing", "extra", "duplicate", "fee", "adjustment", "quantity"]
+)
+def test_entire_quote_test_scope_must_match_without_omission(
+    lab, received, accepted_invoice_quote, change
+):
+    version = accepted_invoice_quote
+    if change == "empty":
+        version.lines.all().delete()
+    elif change == "missing":
+        version.lines.last().delete()
+    elif change in ("extra", "duplicate", "fee", "adjustment"):
+        test = lab["tests"]["nitrate"] if change == "extra" else lab["tests"]["lead"]
+        kind = change if change in ("fee", "adjustment") else "test"
+        price = Decimal("-0.10") if change == "adjustment" else Decimal("0.10")
+        QuoteLine.objects.create(
+            version=version,
+            position=3,
+            kind=kind,
+            test=test if kind == "test" else None,
+            description="Unsupported scope",
+            quantity=1,
+            unit_price=price,
+            amount=price,
+        )
+    else:
+        line = version.lines.first()
+        line.quantity = 2
+        line.amount = line.unit_price * 2
+        line.save()
+    with pytest.raises(ValidationError):
+        from_quote(lab, received, version)
+    assert not InvoiceDraft.objects.exists() and not InvoiceDraftLine.objects.exists()
+
+
+@pytest.mark.parametrize(
+    "source", ["none", "both", "invalid_list", "invalid_quote", "malformed_list", "malformed_quote"]
+)
+def test_invoice_requires_exactly_one_valid_source(
+    lab, received, price_list, accepted_invoice_quote, source
+):
+    args = {"price_list_id": None, "quote_version_id": None}
+    if source == "both":
+        args.update(price_list_id=price_list.pk, quote_version_id=accepted_invoice_quote.pk)
+    elif source.endswith("list"):
+        args["price_list_id"] = "invalid" if source.startswith("malformed") else 99999999
+    elif source.endswith("quote"):
+        args["quote_version_id"] = "invalid" if source.startswith("malformed") else 99999999
+    with pytest.raises(ValidationError):
+        create(lab, received, price_list, **args)
+    assert not InvoiceDraft.objects.exists()
+
+
+def test_quote_creation_rechecks_stale_receipt_and_rolls_back_audit_failure(
+    lab, received, accepted_invoice_quote
+):
+    order = Order.objects.select_related("project__client").get(pk=received.order_id)
+    stale = invoices.source_state(order)
+    Sample.objects.filter(pk=received.pk).update(revision=2)
+    with pytest.raises(ValidationError, match="samples changed"):
+        from_quote(lab, received, accepted_invoice_quote, expected_source_state=stale)
+    with (
+        patch("commercial.invoices.record_event", side_effect=RuntimeError("audit unavailable")),
+        pytest.raises(RuntimeError),
+    ):
+        from_quote(lab, received, accepted_invoice_quote)
+    assert not InvoiceDraft.objects.exists() and not InvoiceDraftLine.objects.exists()
+
+
+@pytest.mark.parametrize("role", ["analyst", "custodian", "a", "b"])
+def test_quote_invoice_creation_refuses_unqualified_actor(
+    lab, received, accepted_invoice_quote, role
+):
+    actor = lab[role]["user"] if role in ("a", "b") else lab[role]
+    with pytest.raises(PermissionDenied):
+        from_quote(lab, received, accepted_invoice_quote, actor=actor)
+
+
+def test_quote_form_xor_scope_errors_preserve_selection_and_detail_provenance(
+    client, lab, received, price_list, accepted_invoice_quote
+):
+    version = accepted_invoice_quote
+    client.force_login(lab["pm"])
+    url = reverse("commercial:invoice-create", args=[received.order_id])
+    response = client.get(url)
+    token = response.context["form"]["expected_source_state"].value()
+    assert f"?order={received.order_id}" in response.content.decode()
+    for sources in ({}, {"price_list": price_list.pk, "quote_version": version.pk}):
+        response = client.post(url, {"expected_source_state": token, **sources})
+        assert response.status_code == 200
+        assert "exactly one pricing source" in str(response.context["form"].non_field_errors())
+    line = version.lines.first()
+    QuoteLine.objects.filter(pk=line.pk).update(quantity=2, amount=line.unit_price * 2)
+    response = client.post(url, {"expected_source_state": token, "quote_version": version.pk})
+    assert response.status_code == 200
+    assert str(response.context["form"]["quote_version"].value()) == str(version.pk)
+    assert "quote quantity" in str(response.context["form"].errors["quote_version"])
+    QuoteLine.objects.filter(pk=line.pk).update(quantity=1, amount=line.unit_price)
+    response = client.post(url, {"expected_source_state": token, "quote_version": version.pk})
+    draft = InvoiceDraft.objects.get()
+    assert response.status_code == 302
+    html = client.get(response.url).content.decode()
+    assert "Accepted quote" in html and "quote line 1" in html
+    assert version.quote.number in html and "Agreed lead analysis" in html
+    assert reverse("commercial:quote-detail", args=[version.quote_id]) in html
+    assert draft.price_list_id is None
+
+
+def test_quote_quantity_counts_requested_tests_across_received_samples(
+    lab, received, accepted_invoice_quote
+):
+    order = Order.objects.get(pk=received.order_id)
+    second = receive_order_sample(
+        actor=lab["pm"],
+        order_id=order.pk,
+        expected_revision=order.revision,
+        tests=[lab["tests"]["lead"]],
+        containers=[{"description": "250 mL HDPE", "condition": "Intact"}],
+        relinquished_by="Synthetic Courier",
+        client_sample_id="SYN-FIELD-2",
+        matrix=received.matrix,
+        collected_at=received.collected_at,
+        received_at=received.received_at,
+        collection_type="grab",
+        collector_name="Synthetic Sampler",
+        collection_location="Synthetic outfall",
+        cooler_temperature=Decimal("4.125"),
+        seal_condition="Intact",
+        preservation_check="Checked",
+        disposition="proceed",
+        current_location="Bench",
+    )
+    line = accepted_invoice_quote.lines.get(test=lab["tests"]["lead"])
+    QuoteLine.objects.filter(pk=line.pk).update(quantity=2, amount=line.unit_price * 2)
+    draft = from_quote(lab, received, accepted_invoice_quote)
+    assert draft.total == Decimal("1.45") and draft.lines.count() == 3
+    lead_lines = draft.lines.filter(source_quote_line=line)
+    assert set(lead_lines.values_list("sample_id", flat=True)) == {received.pk, second.pk}
+    assert list(lead_lines.values_list("quantity", flat=True)) == [1, 1]
+
+
+@pytest.mark.parametrize("selected", ["not-an-id", "9" * 100])
+def test_invoice_quote_invalid_primary_key_renders_inline_error(client, lab, received, selected):
+    client.force_login(lab["pm"])
+    url = reverse("commercial:invoice-create", args=[received.order_id])
+    token = client.get(url).context["form"]["expected_source_state"].value()
+    response = client.post(url, {"quote_version": selected, "expected_source_state": token})
+    assert response.status_code == 200
+    assert response.context["form"].errors["quote_version"]
+    assert response.context["form"]["quote_version"].value() == selected
+    assert not InvoiceDraft.objects.exists()

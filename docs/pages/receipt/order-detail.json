@@ -36,7 +36,7 @@
     {
       "title": "Prepare internal charges",
       "steps": [
-        "In [[Draft invoices]], select [[New draft invoice]] and choose an active price list.",
+        "In [[Draft invoices]], select [[New draft invoice]] and choose an active price list or matching accepted quote version.",
         "If a draft already exists, select its ID number to review or edit it."
       ]
     }
@@ -243,7 +243,7 @@
         },
         {
           "label": "New draft invoice / ID number",
-          "description": "After physical receipt, create a draft from the order’s current requested tests and an explicit active price list. Every test needs a price. An existing active draft is linked instead; cancel it before making a replacement. Empty or cancelled orders cannot start a draft. The source record and custody remain unchanged."
+          "description": "After physical receipt, create a draft from the order’s current requested tests and an explicit active price list or accepted quote version. A quote must match all received test definitions and quantities, with no extra, missing, duplicate, fee or discount lines. Every test needs a price. An existing active draft is linked instead; cancel it before making a replacement. Empty or cancelled orders cannot start a draft. The source record and custody remain unchanged."
         }
       ]
     }

@@ -42,13 +42,18 @@ not appear in the client portal, report snapshots, PDFs or deliverables.
 ## Draft invoices
 
 Project managers and administrators prepare an internal draft from a received chain of custody
-and an explicitly selected active price list. Each current requested test contributes one line;
-missing prices prevent creation. The draft records its billing details, source identities and
+and an explicitly selected active price list or accepted quote version. Each current requested
+test contributes one line; missing prices prevent creation. The draft records its billing details, source identities and
 prices at creation, so changes to the order, client, requested tests or price list do not silently
 change its amounts. Sample disposition is evidence for the preparer to consider, not a billing
 decision. Staff can change billing details and line descriptions, quantities and prices with a
 reason, or cancel a draft while preserving its history. Only one active draft is allowed per
-order. Drafts stay internal; issued invoices, quote pricing and accounting exports remain planned.
+order. An accepted quote must belong to the same client and this project or no project. Its
+entire set of test definitions and quantities must match the received order, one quote line per
+test definition; fees, discounts and ambiguous or incomplete coverage are refused. Quote version
+and line provenance remain with the draft. Quantities are matched per order, not consumed across
+orders, and quote terms do not replace the billing snapshot. Drafts stay internal; issued
+invoices, added fee/discount lines and accounting exports remain planned.
 
 ## Spreadsheet import of setup records
 
