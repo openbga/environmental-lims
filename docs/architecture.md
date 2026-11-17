@@ -50,6 +50,8 @@ Keep a few Django apps for accounts, receipt/custody, analytical work and report
 one project and database. Views/forms handle transport and validation; small explicit domain
 functions handle multi-record transitions in `transaction.atomic`. Ordinary ORM queries need
 no repository wrapper. Use constraints and selective row locks/version checks for concurrency.
+The setup import (`dataimport`) depends on receipt, catalog and analytical and writes only through
+their services; none of them depends on it.
 Do not encode release policy in signals or spread it across UI handlers.
 
 Client pre-login records planned work; acceptance may create an empty order, never fabricated
@@ -67,8 +69,21 @@ reset, verification and MFA mechanisms; lab roles and record authorization remai
 policy. Use CSRF protection, secure sessions, HTTPS and explicit trusted hosts/origins.
 
 Store Decimal values with declared scale/precision, original supplied text, units, qualifiers,
-limits and method version as distinct data. Precision and rounding rules need product policy.
+limits and method version as distinct data. Typed and imported values are stored as supplied and
+never rounded. A value calculated from bench readings is carried at full precision and rounded
+once by the test's calculation rule, which the laboratory sets; its readings, the version of the
+calculation (code in `analytical/calculations.py`, never changed once registered) and the rounding
+applied are stored with the result, so the reported value can be worked out again. A reporting
+limit that a calculation works out from the amounts prepared is rounded by the same rule and kept
+before rounding beside the value.
 Do not infer nondetects from zero or overwrite observations; preservation limits are per method.
+XLSX result import reads a bounded SpreadsheetML table with `zipfile` and `defusedxml`, retaining
+the numeric XML text before any numeric conversion. General workbook readers that expose floats
+cannot preserve this evidence. No formula evaluation, display-format interpretation or Excel
+serial-date conversion is performed. Package/XML limits and explicit worksheet selection bound
+the synchronous import; existing mapping, authorization and atomic result-entry services apply.
+Format and parser references checked 2026-11-15: [SpreadsheetML sheets](https://learn.microsoft.com/en-us/office/open-xml/spreadsheet/working-with-sheets),
+[defusedxml](https://pypi.org/project/defusedxml/) and [Python ZIP handling](https://docs.python.org/3.14/library/zipfile.html).
 Custody and result corrections retain actor, timestamp, reason and prior linkage. Mutations
 write an attributed audit event in the same transaction; background/system actions have an
 explicit identity. Prevent update/delete of audit and released records by the runtime DB role
@@ -93,7 +108,9 @@ object storage then, with staged writes, reconciliation and coordinated restore.
 persistent files on Render's ephemeral filesystem. Product must confirm volumes and retention.
 
 Report rendering accepts only application templates and escaped data, with local approved
-assets; deny arbitrary network/file fetching. Serve uploaded documents as authorized downloads.
+assets; deny arbitrary network/file fetching. The one stored asset a report loads is the
+laboratory logo its snapshot names by content hash; uploaded logos are validated by decoding
+them and are then kept unchanged. Serve uploaded documents as authorized downloads.
 Start with bounded synchronous work and explicit retryable failures. Add a standard durable
 queue only when measured job duration/concurrency requires it; do not build an ad hoc scheduler.
 
@@ -120,7 +137,7 @@ serves collected static assets. No Redis, worker, separate frontend host or pers
 The public presentation at `/about/` ships with the same service. Only its static HTML and
 assets live under the [dedicated WhiteNoise root](https://whitenoise.readthedocs.io/en/stable/django.html#whitenoise-root);
 the workspace stays at `/` behind sign-in. The project also publishes those files, unchanged, to
-GitHub Pages at <https://openbga.github.io/smart-roots-lims/>; its links are relative so both addresses work.
+GitHub Pages at <https://openbga.github.io/environmental-lims/>; its links are relative so both addresses work.
 Build assets and collectstatic during image build; migrate once in a serialized pre-deploy step.
 Use backward-compatible migrations while old/new instances overlap; destructive changes need
 a staged migration and verified restore path. Rollback of code does not undo a database migration.
@@ -141,11 +158,21 @@ Report PDFs in the DB participate in the same recovery point. Real-data use need
 runbook and tested recovery, not merely a successful demo deployment.
 
 The Render Blueprint describes the web service, database, generated secret and required inputs.
-The README button targets `https://render.com/deploy?repo=https://github.com/openbga/smart-roots-lims/tree/main`.
+The README button targets `https://render.com/deploy?repo=https://github.com/openbga/environmental-lims/tree/main`.
 It names `main` because Render otherwise deploys the repository's default branch, which is `develop`.
 A private fork is supported after granting the Render GitHub App access to it;
 the deployer still reviews/approves resources. Set `autoDeployTrigger: off` for distributed button
 instances. See [button requirements](https://render.com/docs/deploy-to-render).
+
+Identifiers kept from the former name, Smart Roots LIMS (renamed 2026-11-16 to OpenBGA Environmental
+LIMS; repository `openbga/smart-roots-lims` is now `openbga/environmental-lims`). They name existing
+deployed resources, so renaming them would create new resources or strand data: the Render services,
+database and demo-reset job `smart-roots-lims`, `smart-roots-lims-db` and `smart-roots-lims-demo-reset`
+(the hosted demo stays at `smart-roots-lims.onrender.com`), the database name and user `vibe_roots`,
+the `roots.*` logger names that log filters match, and the internal seed of the acceptance run's
+advisory-lock key in `core/acceptance/scratch.py`.
+The old GitHub address redirects to the new one; GitHub Pages does not redirect, so the presentation
+is published only at the new address.
 CLI v2.36.0 documentation uses `render login`, workspace selection and
 `render blueprints validate render.yaml`; platform validation needs authenticated workspace
 context. Automation uses `RENDER_API_KEY`; validation does not create deployment resources.
@@ -173,7 +200,9 @@ empty and prior schema plus restore; and a browser journey from receipt through 
 and authorized client download. Inspect professional layout, keyboard navigation and PDF page
 output. Verify the container and Blueprint before deploying. Run the checks a change affects;
 don't add tests that simply restate templates. Passing synthetic tests is not laboratory
-validation. Commands are in [CONTRIBUTING](../CONTRIBUTING.md#verify-your-change).
+validation. A laboratory's own acceptance run (`run_acceptance`) works only in a separate scratch
+database and records what passed there; it is evidence for the laboratory to weigh, not a
+validation either. Commands are in [CONTRIBUTING](../CONTRIBUTING.md#verify-your-change).
 
 ## Open decisions
 
@@ -184,4 +213,4 @@ validation. Commands are in [CONTRIBUTING](../CONTRIBUTING.md#verify-your-change
 | Hosting budget and demo access/reset policy | The deployer approves budget and defines access/reset policy |
 | Email delivery, MFA enforcement and account recovery | Allauth mechanisms selected; operating policy and provider are the laboratory's choice |
 | License | AGPL-3.0-only; canonical GNU LICENSE and dependency notices included; published 2026-11-11 |
-| Instrument imports | Operator-mapped CSV/TSV; vendor validation awaits representative exports |
+| Instrument imports | Operator-mapped CSV/TSV and bounded XLSX worksheets; vendor validation awaits representative exports |

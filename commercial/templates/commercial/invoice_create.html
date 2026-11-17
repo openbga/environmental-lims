@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block breadcrumbs %}{% url 'commercial:invoice-list' as list_url %}{% breadcrumbs section="Draft invoices" section_url=list_url current="New draft invoice" %}{% endblock %}
+{% block page_meta %}{% page_meta %}<li>Internal draft</li><li><a href="{% url 'receipt:order-detail' order.pk %}">{{ order.coc_reference }}</a></li><li>{{ order.project.client.name }} / {{ order.project.name }}</li>{% endpage_meta %}{% endblock %}
+{% block content %}
+{% include "commercial/_invoice_notice.html" %}
+{% if blocked %}{% notice tone="warning" label="Cannot create draft" blocking=True %}{{ blocked }}{% if active_draft %} <a href="{% url 'commercial:invoice-detail' active_draft.pk %}">{{ active_draft.number }}</a>.{% endif %}{% endnotice %}{% endif %}
+{% url 'receipt:order-detail' order.pk as cancel_url %}
+{% form_page form=form cancel_url=cancel_url submit_label="Create draft invoice" no_submit=blocked %}{% endform_page %}
+{% panel title="Current received tests" heading_id="source-heading" count=tests|length table=True class="mt-3" %}
+{% list_results items=tests empty_title="No received requested tests" empty_body="Receive samples with requested tests before creating a draft." %}
+<div class="vr-table-wrap"><table class="table vr-table" aria-labelledby="source-heading"><thead><tr><th scope="col">Lab ID</th><th scope="col">Client sample ID</th><th scope="col">Disposition</th><th scope="col">Requested test</th></tr></thead><tbody>
+{% for requested in tests %}<tr><th scope="row" class="vr-id">{{ requested.sample.lab_id }}</th><td>{{ requested.sample.client_sample_id }}</td><td>{{ requested.sample.get_disposition_display }}</td><td>{{ requested.definition }}</td></tr>{% endfor %}
+</tbody></table></div>{% endlist_results %}{% endpanel %}
+{% endblock %}

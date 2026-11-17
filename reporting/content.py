@@ -11,16 +11,19 @@ previewed.
 import hashlib
 import json
 from dataclasses import dataclass, field
+from datetime import date
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.utils import timezone
 
+from analytical.calibration import calibration_contributors
 from analytical.eligibility import reportable_results
 from analytical.models import Result, ResultRevision
 from analytical.preparation import preparation_snapshot
 from analytical.preservation_services import preservation_blockers, preservation_snapshot
 from analytical.qc import NEEDS_PARENT, BatchQC
+from core.lab_profile import report_identity
 from core.models import Lab
 from receipt.models import Sample
 from receipt.subcontracts import external_reportable_results
@@ -90,6 +93,7 @@ class Assembly:
     requested_tests: dict  # requested_test_id -> included approved revision id, or None
     report_blockers: list = field(default_factory=list)  # not tied to one sample
     external_tests: dict = field(default_factory=dict)  # requested_test_id -> SubcontractResult id
+    issued_on: date | None = None  # local date whose laboratory identity the content holds
 
     @property
     def releasable(self):
@@ -180,6 +184,9 @@ def assemble(report, *, actor=None):
     # Canonical configured zone (never the Lab.timezone copy). Content stores aware ISO
     # timestamps with offsets plus the zone name, so issued reports never reinterpret them.
     zone = ZoneInfo(settings.TIME_ZONE)
+    # The laboratory identity a report issued today prints. Its parts are present only when
+    # recorded, so content without a profile keeps the keys (and fingerprint) it always had.
+    issued_on = timezone.localdate(timezone=zone)
 
     def when(dt):
         return None if dt is None else timezone.localtime(dt, zone).isoformat()
@@ -218,6 +225,7 @@ def assemble(report, *, actor=None):
             "entered_by",
             "submitted_by",
             "reviewed_by",
+            "calibration_verification",
         )
     }
     sample_content = []
@@ -279,6 +287,11 @@ def assemble(report, *, actor=None):
                 problems.append(
                     f"{label}: you entered or submitted this result, so you cannot release it."
                 )
+            elif actor is not None and actor.pk in calibration_contributors(revision):
+                problems.append(
+                    f"{label}: you recorded selected calibration evidence for this result, "
+                    "so you cannot release it."
+                )
             state.tests.append(
                 ResultReadiness(
                     analyte,
@@ -306,7 +319,10 @@ def assemble(report, *, actor=None):
                 qc = qc_states[revision.batch_id]
                 evidence = qc.evidence(revision.definition)
                 evidence.pop("evaluated_at", None)  # keeps the fingerprint deterministic
-                batch["qc"][analyte] = _scoped_qc(evidence, qc, client.pk)
+                batch["qc"][analyte] = {
+                    **_scoped_qc(evidence, qc, client.pk),
+                    "test_definition_id": revision.definition_id,
+                }
             if revision.prepared_aliquot_id:
                 prep = revision.prepared_aliquot.batch
                 batch_ids.add(prep.pk)
@@ -336,7 +352,10 @@ def assemble(report, *, actor=None):
                     prep_qc = qc_states[prep.pk]
                     evidence = prep_qc.evidence(revision.definition)
                     evidence.pop("evaluated_at", None)
-                    prep_batch["qc"][analyte] = _scoped_qc(evidence, prep_qc, client.pk)
+                    prep_batch["qc"][analyte] = {
+                        **_scoped_qc(evidence, prep_qc, client.pk),
+                        "test_definition_id": revision.definition_id,
+                    }
             method = revision.definition.method
             methods[f"{revision.method_code}|{revision.method_version}"] = {
                 "code": revision.method_code,
@@ -350,6 +369,9 @@ def assemble(report, *, actor=None):
             row = {
                 "preservation": preservation_snapshot(preservation),
                 "result_id": revision.result_id,
+                # The test this result and its batch QC share (BatchQC.issues(definition));
+                # absent from snapshots issued before it was recorded.
+                "test_definition_id": revision.definition_id,
                 "revision_id": revision.pk,
                 "revision": revision.number,
                 "analyte": revision.analyte_name,
@@ -384,6 +406,8 @@ def assemble(report, *, actor=None):
                 "correction_reason": revision.correction_reason,
                 "comments": revision.comments,
             }
+            if revision.calibration_evidence:
+                row["calibration"] = revision.calibration_evidence
             if revision.prepared_aliquot_id:
                 row["preparation"] = preparation_snapshot(revision)
                 row["preparation"]["prepared_at"] = when(revision.prepared_at)
@@ -442,7 +466,11 @@ def assemble(report, *, actor=None):
     content = {
         "schema": SCHEMA,
         "synthetic_notice": synthetic_notice(),
-        "lab": {"name": lab.name if lab else "", "timezone": str(zone)},
+        "lab": {
+            "name": lab.name if lab else "",
+            "timezone": str(zone),
+            **report_identity(lab, on=issued_on),
+        },
         "report": {"number": report.number, "title": report.title, "narrative": report.narrative},
         "client": {
             "name": client.name,
@@ -468,6 +496,7 @@ def assemble(report, *, actor=None):
         requested,
         report_blockers,
         external_tests,
+        issued_on,
     )
 
 
@@ -580,12 +609,69 @@ def _preservation_change(before, after):
     return "; ".join(details) or "assessment evidence changed"
 
 
+def change_text(change):
+    """The sentence of one amendment change. Versions issued before structured changes stored
+    preformatted strings; newer ones store {"text", and for a value change "subject", "field",
+    "old", "new"}. Issued versions are never rewritten, so both forms stay readable."""
+    return change if isinstance(change, str) else change["text"]
+
+
+# Single-line identity values whose old and new text an amendment can show side by side.
+VALUE_FIELDS = {
+    ("lab", "name"),
+    ("lab", "timezone"),
+    ("lab", "phone"),
+    ("lab", "email"),
+    ("lab", "website"),
+    ("report", "title"),
+    ("client", "name"),
+    ("client", "contact_name"),
+    ("client", "email"),
+    ("project", "name"),
+    ("project", "program"),
+}
+
+
+# Keys compared on their own (preservation, preparation) or not printed at all: the test
+# definition reference links a result to its batch QC and is absent from older snapshots, so it
+# never makes an amendment look changed.
+ROW_EVIDENCE = {"preservation", "preparation", "test_definition_id"}
+
+
+def _without_references(batches):
+    return [
+        {
+            **b,
+            "qc": {
+                analyte: {k: v for k, v in qc.items() if k != "test_definition_id"}
+                for analyte, qc in b["qc"].items()
+            },
+        }
+        for b in batches
+    ]
+
+
 def describe_changes(old, new):
-    """Human-readable differences between two contents, for amendment records."""
+    """Differences between two contents, for amendment records: one entry per change, each with
+    its sentence ("text") and, where a value was replaced, its "subject", "field", "old" and
+    "new" text so a report can print the old value struck through."""
     changes = []
+
+    def add(text, **value):
+        changes.append({"text": text, **value})
+
     labels = {
         ("lab", "name"): "Laboratory name",
         ("lab", "timezone"): "Laboratory time zone",
+        # Identity parts are absent from snapshots that did not record them; absent on both
+        # sides is no change, absent on one side is.
+        ("lab", "address"): "Laboratory address",
+        ("lab", "phone"): "Laboratory phone",
+        ("lab", "email"): "Laboratory email",
+        ("lab", "website"): "Laboratory website",
+        ("lab", "logo"): "Laboratory logo",
+        ("lab", "certificates"): "Laboratory certificates",
+        ("lab", "certificate_note"): "Laboratory certificate statement",
         ("report", "title"): "Report title",
         ("report", "narrative"): "Case narrative",
         ("client", "name"): "Client name",
@@ -596,14 +682,19 @@ def describe_changes(old, new):
         ("project", "program"): "Program / permit",
     }
     for (section, key), label in labels.items():
-        if old.get(section, {}).get(key) != new.get(section, {}).get(key):
-            changes.append(f"{label} changed.")
+        before, after = old.get(section, {}).get(key), new.get(section, {}).get(key)
+        if before == after:
+            continue
+        if (section, key) in VALUE_FIELDS and before and after:
+            add(f"{label} changed.", subject=label, field=f"{section}.{key}", old=before, new=after)
+        else:
+            add(f"{label} changed.")
     old_samples = {s["lab_id"]: s for s in old["samples"]}
     new_samples = {s["lab_id"]: s for s in new["samples"]}
     for lab_id in sorted(old_samples.keys() - new_samples.keys()):
-        changes.append(f"Sample {lab_id} removed.")
+        add(f"Sample {lab_id} removed.")
     for lab_id in sorted(new_samples.keys() - old_samples.keys()):
-        changes.append(f"Sample {lab_id} added.")
+        add(f"Sample {lab_id} added.")
     for lab_id in sorted(old_samples.keys() & new_samples.keys()):
         before, after = old_samples[lab_id], new_samples[lab_id]
         # A field absent from an older snapshot (added to the schema later) counts as blank.
@@ -611,44 +702,44 @@ def describe_changes(old, new):
             k for k in after if k != "results" and (before.get(k) or None) != (after[k] or None)
         )
         if fields:
-            changes.append(
-                f"Sample {lab_id}: {', '.join(f.replace('_', ' ') for f in fields)} changed."
-            )
+            add(f"Sample {lab_id}: {', '.join(f.replace('_', ' ') for f in fields)} changed.")
         old_rows = {(r["analyte"], r["method_code"]): r for r in before["results"]}
         new_rows = {(r["analyte"], r["method_code"]): r for r in after["results"]}
         for key in sorted(old_rows.keys() | new_rows.keys()):
             a, b = old_rows.get(key), new_rows.get(key)
             if a is None:
-                changes.append(f"{lab_id} {key[0]}: added, {_result_line(b)}.")
+                add(f"{lab_id} {key[0]}: added, {_result_line(b)}.")
             elif b is None:
-                changes.append(f"{lab_id} {key[0]}: removed.")
+                add(f"{lab_id} {key[0]}: removed.")
             elif a != b:
                 if a.get("preservation") != b.get("preservation"):
                     details = _preservation_change(a.get("preservation"), b.get("preservation"))
                     if not a.get("preservation"):
-                        changes.append(
+                        add(
                             f"{lab_id} {key[0]}: preservation assessment added "
                             f"(not recorded in the prior version; {details})."
                         )
                     else:
-                        changes.append(
-                            f"{lab_id} {key[0]}: preservation assessment changed ({details})."
-                        )
+                        add(f"{lab_id} {key[0]}: preservation assessment changed ({details}).")
                 if a.get("preparation") != b.get("preparation"):
                     change = (
                         "added (not previously recorded)" if not a.get("preparation") else "changed"
                     )
-                    changes.append(f"{lab_id} {key[0]}: independent preparation evidence {change}.")
+                    add(f"{lab_id} {key[0]}: independent preparation evidence {change}.")
                 if _result_line(a) != _result_line(b):
-                    changes.append(f"{lab_id} {key[0]}: {_result_line(a)} → {_result_line(b)}.")
-                elif {k: v for k, v in a.items() if k not in {"preservation", "preparation"}} != {
-                    k: v for k, v in b.items() if k not in {"preservation", "preparation"}
-                }:
-                    changes.append(
-                        f"{lab_id} {key[0]}: result details changed (revision {b['revision']})."
+                    add(
+                        f"{lab_id} {key[0]}: {_result_line(a)} → {_result_line(b)}.",
+                        subject=f"{lab_id} {key[0]}",
+                        field="result",
+                        old=_result_line(a),
+                        new=_result_line(b),
                     )
-    if old["batches"] != new["batches"]:
-        changes.append("Batch QC summary changed.")
+                elif {k: v for k, v in a.items() if k not in ROW_EVIDENCE} != {
+                    k: v for k, v in b.items() if k not in ROW_EVIDENCE
+                }:
+                    add(f"{lab_id} {key[0]}: result details changed (revision {b['revision']}).")
+    if _without_references(old["batches"]) != _without_references(new["batches"]):
+        add("Batch QC summary changed.")
     if old["methods"] != new["methods"] or old["qualifiers"] != new["qualifiers"]:
-        changes.append("Method or qualifier descriptions changed.")
+        add("Method or qualifier descriptions changed.")
     return changes

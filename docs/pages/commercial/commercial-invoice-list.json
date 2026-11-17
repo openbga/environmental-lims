@@ -1,0 +1,103 @@
+{
+  "id": "commercial-invoice-list",
+  "routes": [
+    "commercial:invoice-list"
+  ],
+  "title": "Draft invoices",
+  "purpose": "Find internal draft invoices and their saved amounts, including cancelled drafts. Only project managers and administrators can use this directory.",
+  "summary": "Find internal draft invoices and their saved amounts, including cancelled drafts. Only project managers and administrators can use this directory.",
+  "tasks": [
+    {
+      "title": "Find a draft",
+      "steps": [
+        "Enter a draft number, client, account code, chain of custody, project or purchase order in [[Search]].",
+        "Choose a [[Status]] if needed and select [[Apply]].",
+        "Select the draft number to open its billing snapshot and history."
+      ]
+    },
+    {
+      "title": "Prepare a new draft",
+      "steps": [
+        "Open the received chain of custody from Chains of custody.",
+        "Select [[New draft invoice]] on that record, then choose an active price list or a matching accepted quote version."
+      ]
+    },
+    {
+      "title": "Find cancelled drafts",
+      "steps": [
+        "Choose Cancelled in [[Status]] and select [[Apply]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The list includes Draft and Cancelled records unless you filter by status.",
+    "Amounts and client labels come from the draft snapshot; changing the client or price list does not update them.",
+    "These drafts are internal. Nothing is issued, emailed or sent to accounting."
+  ],
+  "sections": [
+    {
+      "title": "Access and purpose",
+      "paragraphs": [
+        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. No tax, due date, payment or accounting entry is calculated."
+      ]
+    },
+    {
+      "title": "Search, filters and columns",
+      "items": [
+        {
+          "label": "Search",
+          "description": "Matches draft number, saved client name, account code, chain-of-custody reference, project name and PO. Apply runs the search on the full authorized directory."
+        },
+        {
+          "label": "Status",
+          "description": "All statuses, Draft or Cancelled. Invalid choices show a filter error; correct the field to continue."
+        },
+        {
+          "label": "Draft",
+          "description": "Internal ID number and link to the draft. Newest numbers appear first by default; this is not an issued invoice number."
+        },
+        {
+          "label": "Client / Chain of custody",
+          "description": "Saved billing client label and source order reference."
+        },
+        {
+          "label": "Total (USD)",
+          "description": "Exact sum of saved line amounts. Cancelled records retain their original total for reference; it is not a balance due."
+        },
+        {
+          "label": "Created",
+          "description": "Date and time the draft was created, in the deployment time zone."
+        },
+        {
+          "label": "Project / Purchase order",
+          "description": "Saved project label and PO; initially hidden columns available from Columns."
+        },
+        {
+          "label": "Sort / Columns / rows per page",
+          "description": "Sortable headers order the full result set. Columns shows, hides or reorders columns. Pagination and row counts apply to all matching records; preferences are saved per account."
+        },
+        {
+          "label": "Clear all / empty and no-results states",
+          "description": "Clear active filters. An empty directory points you to a received chain of custody; no matches asks you to change or clear the filters."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "commercial/urls.py",
+    "commercial/invoice_views.py",
+    "commercial/invoice_forms.py",
+    "commercial/invoices.py",
+    "commercial/models.py",
+    "commercial/permissions.py",
+    "commercial/pricing.py",
+    "commercial/templates/commercial/invoice_list.html",
+    "commercial/templates/commercial/_invoice_notice.html",
+    "core/form_surfaces.py",
+    "core/templatetags/navigation.py",
+    "commercial/tests/test_invoices.py",
+    "e2e/test_invoice_drafts.py",
+    "commercial/tests/test_invoice_quote_lookup.py",
+    "e2e/test_invoice_quote.py"
+  ]
+}

@@ -6,12 +6,42 @@
   ],
   "title": "Create or edit import mapping",
   "purpose": "Describe exactly which exported columns provide result fields for a reusable long or wide file import.",
+  "summary": "Describe a long or wide results file once: which column holds the sample, analyte, result and the other values. Then reuse it for imports. Only analysts and admins can save mappings.",
+  "tasks": [
+    {
+      "title": "Describe the file",
+      "steps": [
+        "Enter a [[Profile name]] and choose the [[Layout]], [[Delimiter]] and date format.",
+        "Name the sample ID and analysis start columns, and the reporting limit and dilution, as columns or fixed values."
+      ]
+    },
+    {
+      "title": "Map the results",
+      "steps": [
+        "For a long file, name the analyte, result and unit columns.",
+        "For a wide file, list each analyte column in [[Analyte columns]] with its catalog analyte and unit.",
+        "Select [[Create mapping]]."
+      ]
+    },
+    {
+      "title": "Retire a mapping",
+      "steps": [
+        "Clear [[Active]] and select [[Save changes]]. Earlier imports keep their mapping."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Column headers must match exactly, apart from surrounding spaces. Nothing is guessed from a header.",
+    "Units must match the test unit exactly. Nothing is converted.",
+    "A blank percent solids means unknown, not 100%.",
+    "Saving a mapping does not prove it suits a file. Preview a real file against a batch before importing."
+  ],
   "sections": [
     {
       "title": "Access, variants and file assumptions",
       "paragraphs": [
         "Active internal staff with a laboratory role can read this workspace; clients cannot. Analysts manage mappings and import results. Admin includes analyst operational access; superuser status alone does not grant a laboratory role.",
-        "New mapping starts a new active mapping and offers Create mapping; Edit preloads all fields, adds Active and offers Save changes. Names and header mappings are not inferred. Headers match exactly after surrounding whitespace is removed; sample IDs and analyte names are matched case-insensitively after trimming. Explicit aliases map different names, not approximate spellings. UTF-8 comma/tab-delimited text is supported, including a leading byte order mark; Excel files are not. Keep the source file: the application stores parsed results, mapping snapshots and digests, not uploaded file bytes."
+        "New mapping starts a new active mapping and offers Create mapping; Edit preloads all fields, adds Active and offers Save changes. Names and header mappings are not inferred. Headers match exactly after surrounding whitespace is removed; sample IDs and analyte names are matched case-insensitively after trimming. Explicit aliases map different names, not approximate spellings. UTF-8 comma/tab-delimited text and plain XLSX worksheets are supported. Select the exact visible worksheet name when uploading. XLSX headers, identifiers and timestamps must be text; numbers use stored values without display formatting. Formulas are refused. Keep the source file: the application stores parsed results, mapping snapshots and digests, not uploaded file bytes."
       ]
     },
     {
@@ -27,11 +57,11 @@
         },
         {
           "label": "Delimiter",
-          "description": "Required Comma or Tab; filename extension does not choose it."
+          "description": "Comma or Tab for text files; ignored when importing an XLSX worksheet. The same column mapping can be used for either source."
         },
         {
           "label": "Header row",
-          "description": "Required integer 1 through 50, initially 1. Rows before this CSV record are ignored and counted in preview."
+          "description": "Required integer 1 through 50, initially 1. Rows before this CSV record or physical worksheet row are ignored and counted in preview. XLSX headers must be text."
         },
         {
           "label": "Date format in the file",
@@ -91,7 +121,7 @@
           "description": "Optional mapping, but soil observations require explicit wet or dry. Fixed choices are No fixed basis, Wet weight, Dry weight and Not applicable. Non-soil rows allow only na, with blank interpreted as Not applicable."
         },
         {
-          "label": "Percent solids column / Fixed percent solids (%)",
+          "label": "Percent solids column / Fixed percent solids",
           "description": "Optional exact percentage from 0 through 100 inclusive, for soil only. Blank is unknown, not 100%. Use a fixed value only when the same measured value applies to every imported observation."
         },
         {
@@ -168,6 +198,8 @@
     "analytical/templates/analytical/import_profile_form.html",
     "analytical/parsing.py",
     "analytical/services.py",
-    "core/concurrency.py"
+    "core/concurrency.py",
+    "analytical/workbook_import.py",
+    "analytical/tests/test_workbook_import.py"
   ]
 }

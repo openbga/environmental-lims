@@ -12,7 +12,7 @@ from django.utils.dateparse import parse_datetime
 from django.utils.html import format_html
 from django.views.decorators.http import require_POST
 
-from accounts.roles import RECEIPT_ROLES, require_role, require_staff
+from accounts.roles import RECEIPT_ROLES, has_role, require_role, require_staff
 from analytical.preservation_services import preservation_history
 from core.models import AuditEvent
 
@@ -24,6 +24,7 @@ from .forms import (
     ClientForm,
     ContainerFormSet,
     DispositionForm,
+    LabelOptionsForm,
     OrderActionForm,
     OrderDetailsForm,
     OrderForm,
@@ -57,7 +58,7 @@ from .services import (
     update_order_details,
     update_project,
 )
-from .work_status import requested_test_work
+from .work_status import requested_test_work, sample_route
 
 
 @login_required
@@ -111,7 +112,25 @@ def sample_list(request):
 @login_required
 def sample_create(request):
     require_role(request.user, *RECEIPT_ROLES)
-    form = ReceiptForm(request.POST or None)
+    form = ReceiptForm(request.POST or None, initial={"project": request.GET.get("project")})
+    form.fields["project"].widget.attrs.update(
+        {
+            "hx-get": reverse("receipt:sample-create"),
+            "hx-trigger": "change",
+            "hx-target": "#receipt-account-hold",
+            "hx-include": "this",
+            "hx-sync": "this:replace",
+        }
+    )
+    # Use the field's authorized, active-project queryset for both a changed selection and
+    # invalid receipt submissions. Never trust a posted client ID or the browser's old notice.
+    try:
+        selected_project = form.fields["project"].clean(form["project"].value())
+    except ValidationError:
+        selected_project = None
+    account_client = selected_project.client if selected_project else None
+    if request.method == "GET" and request.headers.get("HX-Target") == "receipt-account-hold":
+        return render(request, "receipt/_account_hold.html", {"account_client": account_client})
     if request.method == "POST" and form.is_valid():
         try:
             sample = receive_sample(actor=request.user, **form.cleaned_data)
@@ -121,7 +140,9 @@ def sample_create(request):
             messages.success(request, f"Received {sample.lab_id}.")
             return redirect("receipt:sample-detail", pk=sample.pk)
     return render(
-        request, "receipt/sample_form.html", {"page_title": "Receive sample", "form": form}
+        request,
+        "receipt/sample_form.html",
+        {"page_title": "Receive sample", "form": form, "account_client": account_client},
     )
 
 
@@ -229,6 +250,11 @@ def sample_detail(request, pk):
             "page_title": sample.lab_id,
             "sample": sample,
             "transfer_form": form,
+            "route": sample_route(sample, test_work),
+            "next_hold": min(
+                (rt for rt in test_work if rt.clock), key=lambda rt: rt.hold_deadline, default=None
+            ),
+            "label_form": LabelOptionsForm(auto_id="vr-labels-%s"),
             "test_work": test_work,
             "test_equipment": {
                 rt.batch.equipment for rt in test_work if rt.batch and rt.batch.equipment_id
@@ -398,7 +424,12 @@ def order_detail(request, pk):
         "receipt/order_detail.html",
         {
             "page_title": order.coc_reference,
+            "can_invoice": has_role(request.user, "project_manager"),
+            "active_invoice_draft": order.invoice_drafts.filter(status="draft").first()
+            if has_role(request.user, "project_manager")
+            else None,
             "order": order,
+            "label_form": LabelOptionsForm(auto_id="vr-labels-%s"),
             "samples": order.samples.prefetch_related("containers").order_by("lab_id"),
             "has_submission": hasattr(order, "submission"),
             "action_form": OrderActionForm(initial={"expected_revision": order.revision}),
@@ -559,6 +590,7 @@ def order_add_sample(request, pk):
             "container_formset": containers,
             "defaults": defaults,
             "offer_next_defaults": True,
+            "cancel_url": reverse("receipt:order-detail", args=[order.pk]),
         },
     )
 

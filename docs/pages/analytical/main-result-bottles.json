@@ -1,0 +1,198 @@
+{
+  "id": "analytical-main-result-bottles",
+  "routes": [
+    "analytical:result-bottles"
+  ],
+  "title": "Record BOD5 bottles",
+  "purpose": "Record complete bottle observations and analyst selection, then save the calculated BOD5 mean as a new result revision.",
+  "summary": "Record BOD5 bottle readings, seed correction evidence and which bottles contribute to the result. Saving creates a new result revision with every recorded bottle retained.",
+  "tasks": [
+    {
+      "title": "Record a BOD5 result",
+      "steps": [
+        "Complete each bottle row, including an explicit [[Entered seed correction]] of zero for an unseeded bottle.",
+        "Choose [[Include]] or [[Exclude]] in [[Selection]]. Give an [[Exclusion reason]] for every excluded bottle.",
+        "Check the result details, including [[Prior dilution factor]], then select [[Save bottle worksheet]]. Review the saved worksheet on the result page."
+      ]
+    },
+    {
+      "title": "Add or remove a bottle row",
+      "steps": [
+        "Select [[Add bottle]] to keep your current input and add a blank row.",
+        "Use the row’s Remove bottle button only for a row that should not belong to this entry. Use [[Exclude]] to retain an observation outside the mean.",
+        "Complete all remaining rows before saving. Add and Remove do not save a result revision."
+      ]
+    },
+    {
+      "title": "Correct a recorded worksheet",
+      "steps": [
+        "Check the prefilled observations against the lab record and make your changes.",
+        "For approved or returned work, give a [[Reason for correction or reanalysis]], then select [[Save bottle worksheet]]. Earlier revisions remain unchanged."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Assess method eligibility and laboratory QC yourself. This worksheet does not automatically accept bottles or calculate CBOD5.",
+    "Each included bottle has equal weight in the mean. Apply only dilution made before the sample aliquot entered the bottle in [[Prior dilution factor]].",
+    "[[Entered seed correction]] is mg/L oxygen demand in this bottle, not a seed volume. A nonzero correction needs a [[Seed record reference]].",
+    "Exclude keeps the complete observation and reason on this revision. Remove leaves the row out of this entry; earlier saved revisions remain.",
+    "A stale save is refused. Reload and compare the latest revision before re-entering your changes. Saving does not submit the result for review."
+  ],
+  "sections": [
+    {
+      "title": "Access and availability",
+      "paragraphs": [
+        "Only signed-in active staff with analyst access can open or save this page; administrators have analyst access. Reviewer-only and client accounts are refused. Superuser status alone is not an application role.",
+        "The test must currently use the BOD5 bottle worksheet calculation. Otherwise the page is unavailable. A current analytical batch assignment is required to save. A submitted latest revision must be returned by a reviewer before editing; unavailable entry controls are disabled and no save action is shown.",
+        "Hold or Reject sample disposition blocks saving. Current batch, preparation dependencies, calculation and result state are rechecked on save. Closed batch membership does not itself prevent entry or correction. Saving keeps the ordinary holding-time, QC, submission and independent-review gates; nobody can review their own entered or submitted result."
+      ]
+    },
+    {
+      "title": "Bottle observations",
+      "paragraphs": [
+        "Keep 1 to 12 complete rows, including excluded bottles, and include at least one. The initial page offers one blank row; an existing worksheet opens with its saved rows and latest result details. No selection, bottle size, DO reading or seed correction is inferred.",
+        "Enter numbers without units, comparison signs or thousands separators; scientific notation is allowed. Numeric text is limited to 60 characters and must fit 14 integer digits and 10 decimal places exactly. ND is not a bottle reading. Original supplied strings, including trailing zeros, remain with the saved worksheet."
+      ],
+      "items": [
+        {
+          "label": "Bottle identifier",
+          "description": "Required nonblank identifier, at most 60 characters. Identifiers must be unique within the worksheet, ignoring case and surrounding spaces."
+        },
+        {
+          "label": "Initial DO",
+          "description": "Required nonnegative dissolved oxygen concentration before incubation, in mg/L, measured for this bottle."
+        },
+        {
+          "label": "Final DO",
+          "description": "Required nonnegative final dissolved oxygen concentration in mg/L. An increase can be retained on an excluded bottle with a reason; it cannot produce an included negative corrected depletion."
+        },
+        {
+          "label": "Sample volume",
+          "description": "Required positive mL of the sample aliquot placed in this bottle. Cannot exceed Filled bottle volume. If the aliquot was prediluted, record that preliminary dilution separately in Prior dilution factor."
+        },
+        {
+          "label": "Filled bottle volume",
+          "description": "Required positive actual filled volume in mL. No 300 mL bottle size is assumed. Each row uses its own volume."
+        },
+        {
+          "label": "Entered seed correction",
+          "description": "Required nonnegative mg/L of oxygen demand attributed to added seed in this specific bottle. Enter zero explicitly for an unseeded bottle. It is subtracted from this bottle’s DO depletion before its sample-volume factor is applied. The worksheet does not derive this value from raw seed-control readings."
+        },
+        {
+          "label": "Seed record reference",
+          "description": "Required nonblank supporting laboratory record reference whenever Entered seed correction is nonzero, including an excluded bottle. Optional for zero. At most 240 characters, retained as text; it does not fetch or validate a linked record."
+        },
+        {
+          "label": "Selection",
+          "description": "Required explicit Include or Exclude; Choose is not a valid saved choice. At least one row must be included. An included row’s initial DO minus final DO minus seed correction must be nonnegative. This arithmetic guard is not QC acceptance."
+        },
+        {
+          "label": "Exclusion reason",
+          "description": "Required nonblank explanation when Selection is Exclude; at most 240 characters. Excluded rows must still have complete numeric readings and any required seed reference. Their signed derived values remain visible on the result page."
+        }
+      ]
+    },
+    {
+      "title": "Result details",
+      "items": [
+        {
+          "label": "Prepared aliquot",
+          "description": "Optional unless required by current test configuration. Choose an available aliquot for this sample/test, matrix and required preparation method/version. The latest revision’s choice is offered initially. Same aliquot means repeat analysis; a new physical aliquot means re-preparation. Its start must be recorded, and analysis cannot precede completion when present, otherwise start."
+        },
+        {
+          "label": "Report as ND",
+          "description": "Optional explicit choice only when the calculated value is below Reporting limit applied. It is refused otherwise. Below-limit numeric reporting needs an active qualifier if Report as ND is not chosen. Readings and the calculated value remain stored; no automatic non-detect interpretation is applied."
+        },
+        {
+          "label": "Reporting limit applied",
+          "description": "Required positive final result limit in mg/L. Initially taken from the latest revision, or the test’s configured limit for first entry. It is analyst entered, not calculated or multiplied by bottle or prior dilution factors."
+        },
+        {
+          "label": "Prior dilution factor",
+          "description": "Required positive preliminary dilution made before the sample aliquot entered the bottle; enter 1 for none. Do not include the bottle’s sample fraction again. One common factor applies to all rows. At most four decimal places and ten integer digits; no factor is inferred from the volumes."
+        },
+        {
+          "label": "Qualifiers",
+          "description": "Optional active codes separated by commas, spaces or semicolons. Unknown or inactive codes are refused. Required for a below-limit calculated numeric result unless Report as ND is chosen. Qualifier meanings are captured with the revision."
+        },
+        {
+          "label": "Analysis start",
+          "description": "Required actual analysis start in the laboratory’s local time zone. Must not precede receipt or applicable preparation and cannot exceed the current time by more than two minutes. Ambiguous or nonexistent daylight-saving local times are refused. This one event does not establish incubation timing."
+        },
+        {
+          "label": "Comments",
+          "description": "Optional comments retained with this result revision. Existing comments are offered when reopening the worksheet."
+        },
+        {
+          "label": "Reason for correction or reanalysis",
+          "description": "Required nonblank when replacing approved or returned work. For a draft replacement, blank saves as Entry revised before submission. Earlier approved/returned revisions remain intact; a prior draft becomes Superseded. First entry does not require a reason."
+        }
+      ]
+    },
+    {
+      "title": "Calculation and retained evidence",
+      "paragraphs": [
+        "Each bottle value in mg/L is (initial DO − final DO − entered seed correction) × filled bottle volume ÷ sample volume. The arithmetic mean gives each included bottle equal weight, even when volumes differ. The common prior dilution factor multiplies that mean once, and only that final result is rounded by the test rule. Excluded bottles never contribute to the mean.",
+        "This is BOD5 arithmetic only. It does not estimate seed demand from controls, subtract dilution-water blank demand, assess incubation or method eligibility, apply automatic bottle QC thresholds, or establish regulatory approval. CBOD5 is outside its scope. The analyst assesses the laboratory method and QC before selection; Include is not an automatic acceptance verdict.",
+        "The worksheet retains all recorded rows, original strings, seed references, selections and reasons with the calculation version, unrounded mean, rounding rule and method/SOP basis. Earlier worksheets are immutable. The result page displays the raw and corrected depletion and each bottle’s value before the prior dilution, including excluded bottles, plus Worked again now from the saved evidence."
+      ]
+    },
+    {
+      "title": "Actions and errors",
+      "items": [
+        {
+          "label": "Add bottle",
+          "description": "Add a blank row while keeping current entered values. Available below 12 rows. This redraws the entry only; it creates no result revision and does not validate the whole worksheet as a save."
+        },
+        {
+          "label": "Remove bottle N",
+          "description": "Remove that row from the current entry and preserve other entered values. Offered only when more than one row remains. It does not erase a saved revision. Use Exclude with a reason to retain a measured bottle in the new worksheet."
+        },
+        {
+          "label": "Save bottle worksheet",
+          "description": "Validate all rows and result details, recheck the latest revision and configured calculation, and save one new entered revision with an attributed audit event. Success returns to the result page with confirmation. Submit separately from the batch; saving is not approval."
+        },
+        {
+          "label": "Cancel",
+          "description": "Return to the result page without saving typed changes."
+        },
+        {
+          "label": "Batches & QC and sample breadcrumb",
+          "description": "Open the batch list or this result’s revision page. The header identifies status, sample, analyte and method. Leaving this page discards unsaved input."
+        },
+        {
+          "label": "Validation errors",
+          "description": "Errors appear beside fields or at the form level and preserve input. No revision is saved when any row or metadata is invalid. Every additional blank row must be completed or removed, even if another row is included."
+        },
+        {
+          "label": "Changed result or calculation",
+          "description": "A result revision created after you opened this page causes save refusal. So does adding, removing or replacing its calculation rule. Reload and compare current records before retrying; unsaved changes are not merged automatically. A rounding-only rule change applies at the next save, while previous worksheets keep their own rounding."
+        }
+      ]
+    },
+    {
+      "title": "Calibration links",
+      "paragraphs": [
+        "This bottle worksheet does not record or carry calibration evidence links. It saves the bottle observations and calculated result under the existing BOD workflow; curve fitting and calibration acceptance are not performed. An earlier result revision keeps any evidence it already has."
+      ]
+    }
+  ],
+  "sources": [
+    "analytical/urls.py",
+    "analytical/bod.py",
+    "analytical/bod_forms.py",
+    "analytical/bod_views.py",
+    "analytical/calculations.py",
+    "analytical/worksheets.py",
+    "analytical/forms.py",
+    "analytical/services.py",
+    "analytical/parsing.py",
+    "analytical/models.py",
+    "analytical/preparation.py",
+    "accounts/roles.py",
+    "analytical/templates/analytical/result_bottles.html",
+    "analytical/templates/analytical/result_detail.html",
+    "analytical/templates/analytical/batch_entry.html",
+    "analytical/tests/test_bod.py"
+  ]
+}

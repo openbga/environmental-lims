@@ -5,6 +5,37 @@
   ],
   "title": "Import results",
   "purpose": "Validate one standard UTF-8 comma-separated results file against tests already assigned to this analytical batch, inspect the preview, and save all rows as entered revisions.",
+  "summary": "Import results for tests already in this batch from one standard CSV file. Check the preview first; nothing is saved until you confirm, and then every row is saved or none.",
+  "tasks": [
+    {
+      "title": "Import a results file",
+      "steps": [
+        "Choose the CSV file and select [[Validate and preview]].",
+        "Check every row reads Ready.",
+        "Confirm the import. The results are saved as entered; submit them for review from the batch."
+      ]
+    },
+    {
+      "title": "Fix a file that has errors",
+      "steps": [
+        "Read the errors listed first in the preview.",
+        "Correct the source file, select [[Upload a corrected file]] and validate it again. Nothing was saved."
+      ]
+    },
+    {
+      "title": "Import an instrument export in another layout",
+      "steps": [
+        "Select the [[Import with a mapping]] tab and use a saved mapping."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Every row must match a sample and analyte already in this batch. Import never adds tests or samples.",
+    "Any error in the file blocks the whole file.",
+    "The same file cannot be imported twice into this batch, even under another name.",
+    "The uploaded file itself is not kept, only the results with the file name, row and digest. Keep your source file.",
+    "Replacing an approved or returned result needs a reason in the reason column."
+  ],
   "sections": [
     {
       "title": "Access",
@@ -191,6 +222,34 @@
         "Preview is not a reservation. Confirmation validates the file again against current records and refuses it if the latest revision or preparation dependency of any targeted result changed after the preview, for example a draft someone else saved. Upload the file again so the preview reflects current records. A failed confirmation may display a re-parsed preview but does not commit it. Hidden confirmation data is validated; damaged, oversized or incomplete confirmation data imports nothing.",
         "The same uploaded bytes cannot be imported twice into the same batch through this page, even under another filename; the preview names who imported them and when. A changed file is a new import and can create new revisions when the current state and reason permit. Imports through a mapping profile are checked separately, on the file and mapping digests together. To change results already imported, correct the source file or enter the correction by hand."
       ]
+    },
+    {
+      "title": "Recorded calibration evidence",
+      "paragraphs": [
+        "The application records curves and verification provenance; it does not fit curves, determine method acceptance, verify independent standard sources or check sequence and bracketing. A calibration link is not required for every test."
+      ],
+      "items": [
+        {
+          "label": "Calibration",
+          "description": "Optional immutable instrument-reported curve for the result’s current batch, test and unit. In the single-result Enter result or Correct result form, choose it explicitly for every revision. Blank means Not linked and never carries an earlier link forward. The curve’s recorded time must precede or coincide with analysis."
+        },
+        {
+          "label": "Calibration verification",
+          "description": "Optional current calibration-verification QC observation for the same batch, test and unit, used only with a selected curve. The observation must be at or after calibration; a closing check may follow sample analysis. Its label, exact observed text, true value, unit, time and identity are frozen with the revision."
+        },
+        {
+          "label": "Correction and independence",
+          "description": "If a selected QC observation is superseded, submission, approval and release are held until a new result revision records current evidence. People who recorded the selected curve or check cannot independently review or release that result. Existing QC, holding-time and preservation gates still apply."
+        },
+        {
+          "label": "Where links are entered",
+          "description": "Only the single-result form offers evidence choices. Grid entry, CSV/TSV/XLSX import and BOD5 bottle entry do not infer or carry calibration links. A later correction using those paths also leaves the new revision unlinked."
+        },
+        {
+          "label": "Stale form",
+          "description": "If a result changed after the single-result form was opened, saving is refused and the input is kept. Reload to inspect the current revision before entering a correction."
+        }
+      ]
     }
   ],
   "sources": [
@@ -207,6 +266,11 @@
     "analytical/tests/test_import.py",
     "analytical/tests/test_views.py",
     "analytical/tests/test_observation_metadata.py",
-    "analytical/tests/test_timezone.py"
+    "analytical/tests/test_timezone.py",
+    "analytical/calibration.py",
+    "analytical/calibration_forms.py",
+    "analytical/calibration_views.py",
+    "analytical/tests/test_calibration.py",
+    "analytical/tests/test_calibration_views.py"
   ]
 }

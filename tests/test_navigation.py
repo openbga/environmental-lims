@@ -12,7 +12,9 @@ import html
 import re
 
 import pytest
+from django.contrib.auth.models import AnonymousUser, Group, Permission
 from django.core.exceptions import SuspiciousOperation
+from django.template.loader import render_to_string
 from django.test import RequestFactory
 from django.urls import NoReverseMatch, get_resolver, reverse
 from django.urls.resolvers import URLResolver
@@ -26,7 +28,9 @@ from core.templatetags.navigation import (
     ROUTE_ITEMS,
     SECTION_TABS,
     SHARED_ROUTES,
+    STAFF_MENU_ROLES,
     STAFF_NAV,
+    STAFF_SECTIONS,
 )
 from receipt.models import Client
 
@@ -53,6 +57,9 @@ ENTRANCE_ROUTES = {
 # Not pages: POST-only actions that redirect, and downloads, PDFs, archives and probes.
 NON_PAGE_ROUTES = {
     "announcement-withdraw",
+    "lab-logo-remove",
+    "lab-logo-image",
+    "lab-certificate-remove",
     "receipt:order-cancel",
     "receipt:order-reinstate",
     "commercial:quote-issue",
@@ -68,6 +75,7 @@ NON_PAGE_ROUTES = {
     "analytical:batch-preparation",
     "analytical:batch-equipment",
     "analytical:batch-submit",
+    "analytical:batch-run-list",
     "analytical:mdl-close",
     "reporting:report-release",
     "client_commercial:quote-accept",
@@ -77,6 +85,8 @@ NON_PAGE_ROUTES = {
     "client_commercial:sample-delete",
     "commercial:submission-labels",
     "health",
+    "lookup",
+    "preference",
     "ready",
     "laboratory:evidence",
     "portal:edd-download",
@@ -88,6 +98,8 @@ NON_PAGE_ROUTES = {
     "reporting:report-preview-pdf",
     "reporting:version-pdf",
     "mfa_download_recovery_codes",
+    "dataimport:template",
+    "dataimport:starter",
 }
 
 # Items whose label does not yet equal the title (h1) of the page they open. The page title is
@@ -209,6 +221,150 @@ def test_shared_routes_name_declared_routes_and_other_items():
         assert route in ROUTE_ITEMS, route
         assert alternatives and alternatives <= STAFF_KEYS, route
         assert ROUTE_ITEMS[route] not in alternatives, route
+
+
+def test_every_staff_destination_has_an_explicit_menu_rule_and_one_section():
+    grouped = [key for _, _, keys in STAFF_SECTIONS for key in keys]
+    assert len(grouped) == len(set(grouped))
+    assert set(grouped) == set(STAFF_MENU_ROLES) == STAFF_KEYS
+
+
+COMMON_MENU = {"dashboard", "training", "nonconformances"}
+ROLE_MENUS = {
+    "custodian": COMMON_MENU
+    | {"client-submissions", "orders", "samples", "storage", "schedule", "subcontracts"},
+    "analyst": COMMON_MENU
+    | {
+        "worklist",
+        "prep",
+        "batches",
+        "subcontracts",
+        "mdl",
+        "charts",
+        "lab-overview",
+        "inventory",
+        "equipment",
+        "import-mappings",
+    },
+    "reviewer": COMMON_MENU
+    | {
+        "samples",
+        "prep",
+        "batches",
+        "subcontracts",
+        "mdl",
+        "charts",
+        "review",
+        "lab-overview",
+        "inventory",
+        "equipment",
+    },
+    "approver": COMMON_MENU | {"reports"},
+    "project_manager": COMMON_MENU
+    | {
+        "quotes",
+        "price-lists",
+        "invoice-drafts",
+        "client-submissions",
+        "clients",
+        "projects",
+        "orders",
+        "samples",
+        "storage",
+        "schedule",
+        "subcontracts",
+        "reports",
+        "spreadsheet-import",
+    },
+    "admin": STAFF_KEYS - {"accounts-roles"},
+}
+
+
+def sidebar_links(response):
+    nav = region(response.content, '<nav class="vr-sidenav')
+    assert nav is not None
+    links = re.findall(r'<a class="vr-navlink" href="([^"]+)"', nav)
+    assert len(links) == len(set(links)), "Menu destinations must not repeat"
+    return {html.unescape(link) for link in links}
+
+
+def menu_urls(keys):
+    return {reverse(ITEMS[key].url_name) for key in keys}
+
+
+@pytest.mark.parametrize("role", ROLE_MENUS)
+def test_staff_menu_matches_work_capabilities_and_every_destination_opens(client, staff, role):
+    client.force_login(staff(f"menu-{role}", role))
+    response = client.get(reverse("dashboard"))
+    assert response.status_code == 200
+    assert sidebar_links(response) == menu_urls(ROLE_MENUS[role])
+    nav = region(response.content, '<nav class="vr-sidenav')
+    # Hidden destinations must not leave empty headings or inaccessible list labels behind.
+    for key, label, keys in STAFF_SECTIONS:
+        if label:
+            assert (f'id="vr-nav-{key}"' in nav) == bool(set(keys) & ROLE_MENUS[role])
+    for url in sidebar_links(response):
+        assert client.get(url).status_code == 200, (role, url)
+
+
+def test_combined_roles_and_revocations_change_the_next_menu(client, staff):
+    user = staff("combined-menu", "analyst")
+    user.groups.add(Group.objects.get_or_create(name="custodian")[0])
+    client.force_login(user)
+    assert sidebar_links(client.get(reverse("dashboard"))) == menu_urls(
+        ROLE_MENUS["analyst"] | ROLE_MENUS["custodian"]
+    )
+    user.groups.remove(Group.objects.get(name="custodian"))
+    assert sidebar_links(client.get(reverse("dashboard"))) == menu_urls(ROLE_MENUS["analyst"])
+
+
+@pytest.mark.parametrize("group_grant", [False, True])
+def test_explicit_release_grant_adds_reports_and_revocation_removes_it(client, staff, group_grant):
+    reviewer = staff("release-menu", "reviewer")
+    permission = Permission.objects.get(
+        content_type__app_label="accounts", codename="authorize_release"
+    )
+    grants = reviewer.groups.get().permissions if group_grant else reviewer.user_permissions
+    client.force_login(reviewer)
+    assert sidebar_links(client.get(reverse("dashboard"))) == menu_urls(ROLE_MENUS["reviewer"])
+    grants.add(permission)
+    assert sidebar_links(client.get(reverse("dashboard"))) == menu_urls(
+        ROLE_MENUS["reviewer"] | {"reports"}
+    )
+    grants.remove(permission)
+    assert sidebar_links(client.get(reverse("dashboard"))) == menu_urls(ROLE_MENUS["reviewer"])
+
+
+def test_hidden_readable_page_does_not_restore_its_menu_or_grant_actions(client, staff):
+    client.force_login(staff("analyst-related", "analyst"))
+    response = client.get(reverse("receipt:sample-list"))
+    assert response.status_code == 200  # related records retain their existing read access
+    assert sidebar_links(response) == menu_urls(ROLE_MENUS["analyst"])
+    assert sidebar_current(response) == []
+    assert client.get(reverse("receipt:sample-create")).status_code == 403
+    assert client.post(reverse("receipt:sample-create"), {}).status_code == 403
+
+
+@pytest.mark.parametrize(
+    "kind", ["anonymous", "inactive", "client", "roleless", "owner", "superuser"]
+)
+def test_staff_menu_respects_account_boundaries(staff, kind):
+    user = AnonymousUser() if kind == "anonymous" else User.objects.create_user(f"boundary-{kind}")
+    if kind == "inactive":
+        user.groups.add(Group.objects.get_or_create(name="admin")[0])
+        user.is_active = False
+    elif kind == "client":
+        user.client = Client.objects.create(name="Example menu client")
+        user.groups.add(Group.objects.get_or_create(name="admin")[0])
+        user.is_staff = user.is_superuser = True
+    elif kind in {"owner", "superuser"}:
+        user.is_superuser = True
+        user.is_staff = kind == "owner"
+    request = RequestFactory().get("/")
+    request.user = user
+    rendered = render_to_string("includes/nav_staff.html", {"request": request})
+    links = re.findall(r'<a class="vr-navlink" href="([^"]+)"', rendered)
+    assert links == ([reverse("admin:index")] if kind == "owner" else [])
 
 
 def test_pages_without_arguments_mark_their_declared_item(client, admin_user, client_user):

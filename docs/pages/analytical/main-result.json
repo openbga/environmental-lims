@@ -5,6 +5,52 @@
   ],
   "title": "Result revisions and correction",
   "purpose": "Inspect one requested test’s complete result revision trail and enter an initial observation, correction or reanalysis without rewriting prior observations.",
+  "summary": "See every revision of one test's result, and enter a first result, a correction or a reanalysis. A result worked from readings shows its worksheet. Earlier revisions are never changed.",
+  "tasks": [
+    {
+      "title": "Enter the first result",
+      "steps": [
+        "Fill in the result, reporting limit, dilution and analysis start.",
+        "Select [[Enter result]]. It is saved as entered; submit it for review from the batch."
+      ]
+    },
+    {
+      "title": "Correct a returned or approved result",
+      "steps": [
+        "Enter the new values.",
+        "Explain why in [[Reason for correction or reanalysis]] and select [[Correct result]]."
+      ]
+    },
+    {
+      "title": "Enter or correct a result worked from readings",
+      "steps": [
+        "Type the readings the form asks for, where a result would be. For a dry-weight calculation also fill in [[Percent solids]] and [[Solids source reference]].",
+        "Add a qualifier, or tick [[Report as ND]], if the value will fall below the reporting limit applied.",
+        "Select [[Enter result]] or [[Correct result]]. The result is worked from the readings and rounded once by the laboratory's rule."
+      ]
+    },
+    {
+      "title": "Check how a calculated result was worked",
+      "steps": [
+        "Find the revision. Under its facts, read the worksheet: the readings as typed, the value and the reporting limit before rounding where shown, and the rounding applied.",
+        "Read [[Worked again now]] to see whether the stored readings still give the recorded result."
+      ]
+    },
+    {
+      "title": "Record or correct BOD5 bottles",
+      "steps": [
+        "Select [[Record BOD5 bottles]] when offered. It opens the dedicated worksheet with the latest saved rows.",
+        "Complete the observations, selection and result details there, then save. Inspect all included and excluded bottles under the new revision."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A correction adds a new revision. Approved and returned revisions stay as they were, and issued reports are not changed.",
+    "A calculated revision keeps its worksheet. A correction adds a revision with its own worksheet, and a later change to the rule or the percent solids never alters an earlier one.",
+    "While the latest revision awaits review, it cannot be corrected. A reviewer must decide it first.",
+    "Each revision keeps the qualifiers, method and reporting limit it was entered with.",
+    "A sample held or rejected at receipt cannot take new results."
+  ],
   "sections": [
     {
       "title": "Access",
@@ -46,7 +92,7 @@
         },
         {
           "label": "Result as supplied",
-          "description": "Original decimal text or ND and frozen unit. ND is displayed with its applied reporting-limit threshold and is stored separately from numeric zero."
+          "description": "Original decimal text or ND and frozen unit. ND is displayed with its applied reporting-limit threshold and is stored separately from numeric zero. Labelled Result as calculated when the revision was worked from readings; the value then carries a calculated marker, and the rounded value is the reported text."
         },
         {
           "label": "Weight basis / supplied solids",
@@ -78,11 +124,11 @@
         },
         {
           "label": "Holding time",
-          "description": "Overall entry-time evaluation plus each configured clock’s name, status, deadline and detail. An end exactly at deadline meets the rule. Missing required events or reversed chronology are Not evaluable; no active rules gives No holding rule."
+          "description": "Overall entry-time evaluation plus the name, status, deadline and detail of each clock that applied to this analyte (its own rule where one was configured, otherwise the method’s). An end exactly at deadline meets the rule. Missing required events or reversed chronology are Not evaluable; no applicable active rule gives No holding rule."
         },
         {
           "label": "Entered",
-          "description": "Entering actor/time, manual or import source and filename/row detail for imported entries."
+          "description": "Entering actor/time, the source (Manual entry, File import, or Calculated from readings) and filename/row detail for imported entries."
         },
         {
           "label": "Submitted",
@@ -107,6 +153,50 @@
       ]
     },
     {
+      "title": "Worksheet of a calculated revision",
+      "paragraphs": [
+        "A revision worked from readings shows a worksheet under its facts, with a link target the review grid uses. Revisions that were typed or imported have none. Worksheets and their readings are never changed or deleted; a correction adds a new revision with its own worksheet, and a later change to the calculation rule does not touch earlier worksheets."
+      ],
+      "items": [
+        {
+          "label": "Worksheet: calculation (version N)",
+          "description": "The calculation's title and the version this result was worked with, with the formula in words."
+        },
+        {
+          "label": "Reading, As typed, Unit",
+          "description": "Every reading exactly as typed, with the unit it was read in. For the dilution and preparation calculations ND can be a reading. A dry-weight calculation lists Percent solids (%) among the readings: the value from the Percent solids field of the entry, not a second box."
+        },
+        {
+          "label": "Calculated value before rounding",
+          "description": "The value at full precision, before the rounding was applied, in the unit of the revision (up to 20 decimal places). Not shown when a reading was ND."
+        },
+        {
+          "label": "Reporting limit before rounding",
+          "description": "Shown where the calculation works out the reporting limit and rounds it (preparation by volume and the prepared solid calculations): the limit at full precision before the test's rounding was applied, in the unit of the revision. Not shown for the other calculations."
+        },
+        {
+          "label": "Rounding applied",
+          "description": "The laboratory's rounding as it was when the result was entered, for example 3 significant figures, half to even, including the second rounding when it applied. Where the calculation also rounds its reporting limit it adds applied to the value and to the reporting limit. When a reading was ND and the limit was rounded it says the rounding was applied to the reporting limit and there was no value to round. Reads None when a reading was ND and the calculation does not round the limit."
+        },
+        {
+          "label": "Reported as ND",
+          "description": "Shown when the analyst reported a calculated value below the reporting limit applied as ND. The readings and the calculated value stay on record."
+        },
+        {
+          "label": "Basis of the rule",
+          "description": "The method or SOP basis the administrator recorded on the rule when the result was entered."
+        },
+        {
+          "label": "Source of the calculation",
+          "description": "The reference for the calculation's formula, kept with the worksheet."
+        },
+        {
+          "label": "Worked again now",
+          "description": "The page recomputes the result from the stored readings, the stored calculation version and the stored rounding. Same result means it matches the recorded value, and the reporting limit with its rounding where the calculation works the limit out. Different result means it does not; tell the laboratory's administrator. If this release no longer holds that calculation version, it says so and the recorded result stands."
+        }
+      ]
+    },
+    {
       "title": "Enter result / Correct result fields",
       "items": [
         {
@@ -114,16 +204,24 @@
           "description": "Optional unless required by current test configuration. Initially the latest revision’s aliquot when present. Choose the same physical aliquot for repeat analysis or a new one for re-preparation; labels/timestamps do not infer identity."
         },
         {
+          "label": "Readings",
+          "description": "For a test with an active calculation rule, one required box for each reading of its calculation, with the unit, typed as read and never rounded. Dilution: Instrument reading and Reporting limit before dilution (offered from the catalog limit). Solids by weight: Dried residue with its filter or dish, Filter or dish alone and Sample volume. Preparation by volume: Instrument reading, Reporting limit in the solution, Sample volume prepared (mL) and Final volume (mL). Prepared solid (as weighed or corrected to dry weight): Instrument reading, Reporting limit in the solution, Final volume (mL) and Sample weight (g), or Sample weight as received for the dry-weight correction. Percent solids and percent moisture: Dish alone, Dish with the sample as received and Dish with the dried sample (g). The limit in the solution is typed; it is not filled in. A note under the form names the calculation, its version and its formula. BOD5 is entered through Record BOD5 bottles on its dedicated page instead of these inline reading boxes."
+        },
+        {
+          "label": "Report as ND",
+          "description": "Only for a calculated value below the reporting limit applied; refused otherwise. A calculated value below the limit with no qualifier and no Report as ND is refused. The readings and the calculated value stay on record."
+        },
+        {
           "label": "Result",
-          "description": "Required supplied number or ND. The form does not prefill the earlier observation."
+          "description": "Required supplied number or ND. The form does not prefill the earlier observation. Not shown for a test with an active calculation rule: the reading fields take its place."
         },
         {
           "label": "Reporting limit applied",
-          "description": "Required positive per-result limit; defaults to the current test definition’s limit when configured, not the prior revision’s applied limit."
+          "description": "Required positive per-result limit; defaults to the current test definition's limit when configured, not the prior revision's applied limit. Not shown for the dilution calculation or the preparation calculations: the limit is worked out from the reading Reporting limit before dilution or Reporting limit in the solution and the other factors, and the preparation calculations round it like the result."
         },
         {
           "label": "Dilution factor",
-          "description": "Required; initially 1."
+          "description": "Required; initially 1. Not shown for the solids calculations, percent solids, percent moisture and titrations, which apply no dilution factor (it is saved as 1)."
         },
         {
           "label": "Qualifiers",
@@ -135,15 +233,15 @@
         },
         {
           "label": "Result basis",
-          "description": "For soil only: Wet weight or Dry weight is required. New soil observations cannot use Not applicable."
+          "description": "For soil only: Wet weight or Dry weight is required. New soil observations cannot use Not applicable. For a calculation that means one basis the form offers it: Dry weight for a prepared solid corrected to dry weight, Wet weight for percent solids and percent moisture. Another basis is refused with what you typed kept. For a prepared solid as weighed you declare wet or dry weight."
         },
         {
-          "label": "Percent solids (%)",
-          "description": "Optional exact supplied percentage from 0 through 100."
+          "label": "Percent solids",
+          "description": "Optional exact supplied percentage from 0 through 100. Required for a calculation corrected to dry weight, where it must be greater than zero, is the value the correction is worked with and is kept on the worksheet as a reading. It is typed here with its source, not taken from the sample's percent solids result."
         },
         {
           "label": "Solids source reference",
-          "description": "Required with supplied percent solids, at most 240 characters; cannot be supplied without a percentage."
+          "description": "Required with supplied percent solids, at most 240 characters; cannot be supplied without a percentage. Always required with a calculation corrected to dry weight."
         },
         {
           "label": "Comments",
@@ -161,7 +259,7 @@
         "Use a plain decimal number, optionally signed or in scientific notation, or ND (case-insensitive) for a non-detect. Zero is a detected numeric observation, never an inferred non-detect. Comparison symbols, units, thousands separators and values needing rounding are rejected. Result text is limited to 60 characters; numeric observations support 14 integer digits and 10 decimal places.",
         "Reporting limit must be positive. Dilution must be positive with at most four decimal places and at most ten integer digits. A detected value below its applied reporting limit needs at least one active qualifier or must be entered as ND where appropriate; the application does not choose that interpretation for you. Units come from the test; nothing is converted.",
         "Analysis cannot precede sample receipt or applicable preparation, and cannot be more than two minutes ahead of the current time. Preparation cannot precede collection, including composite end. Local form times use the deployment’s laboratory time zone; ambiguous/nonexistent daylight-saving local times are rejected.",
-        "For soil, choose Wet weight or Dry weight for every new observation. Enter the final result and reporting limit on that same basis; no conversion is performed. Percent solids is optional exact supplied data between 0 and 100 inclusive, and requires its source reference. A reference without percent solids is invalid. Nonsoil results use Not applicable and reject supplied solids metadata.",
+        "For soil, choose Wet weight or Dry weight for every new observation. For a typed result, enter the final result and reporting limit on that same basis; no conversion is performed. Percent solids is optional exact supplied data between 0 and 100 inclusive, and requires its source reference, unless a dry-weight calculation needs it (then it is required and must be greater than zero). A reference without percent solids is invalid. Nonsoil results use Not applicable and reject supplied solids metadata.",
         "An active independent preparation requirement needs an explicit available aliquot for this sample/test, matrix and required preparation method/version. It must have a recorded start, and analysis cannot precede completion when recorded, otherwise start. Choosing the same aliquot means repeat analysis; choosing a new physical aliquot means re-preparation. No identity is inferred from a legacy batch timestamp."
       ]
     },
@@ -170,11 +268,11 @@
       "items": [
         {
           "label": "Enter result",
-          "description": "Analysts can enter a first observation once the test is assigned to an analytical batch. Saves a new entered revision; it does not submit."
+          "description": "Analysts can enter a first observation once the test is assigned to an analytical batch. Saves a new entered revision; it does not submit. With an active calculation rule the entry is worked from readings and a typed result is refused."
         },
         {
           "label": "Correct result",
-          "description": "Analysts create a new entered revision. A prior draft becomes Superseded; prior approved/returned revisions stay intact. Current result state becomes Entered and the new revision needs submission and independent review. Existing issued report versions remain unchanged."
+          "description": "Analysts create a new entered revision. A prior draft becomes Superseded; prior approved/returned revisions stay intact. Current result state becomes Entered and the new revision needs submission and independent review. Existing issued report versions remain unchanged. A correction of a calculated test takes new readings and gets its own worksheet."
         },
         {
           "label": "Awaiting review",
@@ -189,7 +287,125 @@
     {
       "title": "Errors and next steps",
       "paragraphs": [
-        "Receipt Hold or Reject blocks new entry. Invalid fields remain on the form. A changed batch/preparation dependency requires reload and retry against current records. A submitted revision cannot be replaced even by an analyst/reviewer combination. After saving, return to the current batch, inspect the entered revision and submit it. Closed membership does not prevent correction or entry."
+        "Receipt Hold or Reject blocks new entry. Invalid fields remain on the form. A changed batch/preparation dependency requires reload and retry against current records. A submitted revision cannot be replaced even by an analyst/reviewer combination. After saving, return to the current batch, inspect the entered revision and submit it. Closed membership does not prevent correction or entry. If a calculation rule was added, changed or deactivated after you opened the page, saving is refused with the reason; reload and enter again."
+      ]
+    },
+    {
+      "title": "Titration readings and limits",
+      "paragraphs": [
+        "Alkalinity by titration to pH 4.5, Low alkalinity by two-endpoint titration and Total hardness by EDTA titration produce mg/L as CaCO3. The test must use that exact unit and cannot be soil. The laboratory chooses the calculation per test; a result never switches the procedure automatically.",
+        "Use one uninterrupted burette run. Readings cannot be negative or go backward; a refill is not inferred. The low-alkalinity final burette reading must exceed the first endpoint reading. The single-endpoint equations permit equal initial and final readings.",
+        "These worksheets apply no dilution factor (saved as 1), preparation factor or blank correction. Enter the reporting limit that applies to the result; it is not scaled. Readings must be numbers, not ND. A calculated value below the limit needs a qualifier or Report as ND, with the readings and calculated value retained. A negative low-alkalinity value is not changed to zero.",
+        "The sources are historical EPA method equations, not a statement of current regulatory approval. The pH 3.9 mineral-acid procedure and the separate low-hardness blank procedure are not included. The laboratory checks titrant standardization, endpoint suitability and method acceptance. Low alkalinity describes below 20 mg/L and a 100–200 mL portion in its source; the application does not determine that suitability or enforce those bounds."
+      ],
+      "items": [
+        {
+          "label": "Initial burette reading",
+          "description": "Required mL reading before adding titrant. It is subtracted from each endpoint reading, so the burette need not start at zero."
+        },
+        {
+          "label": "Final burette reading",
+          "description": "Required mL reading at the final endpoint, on the same burette run. For alkalinity to pH 4.5 and hardness, titrant volume is final minus initial. For low alkalinity it gives C, the total volume from the initial reading, not the additional volume after the first endpoint."
+        },
+        {
+          "label": "First endpoint burette reading",
+          "description": "Low alkalinity only. Required mL reading at the first endpoint. B is this reading minus the initial reading; the equation uses 2B minus C, not B minus C."
+        },
+        {
+          "label": "Sample volume",
+          "description": "Required positive mL of original sample aliquot titrated. For either alkalinity worksheet use an unaltered sample, with no added dilution water. For hardness exclude reagents and water added in the titration vessel from the original aliquot volume. No separate preparation dilution correction is applied."
+        },
+        {
+          "label": "Standardized acid normality",
+          "description": "Alkalinity only. Required positive actual standardized acid strength in N (equivalents per liter). No nominal strength is assumed."
+        },
+        {
+          "label": "Standardized EDTA normality",
+          "description": "Hardness only. Required positive actual standardized EDTA strength in N (equivalents per liter), not molarity or mg CaCO3 per mL. No nominal strength is assumed."
+        },
+        {
+          "label": "Endpoint pH",
+          "description": "Alkalinity to pH 4.5 only. Required measured endpoint pH, exactly 4.5 for this equation; 4.50 is equivalent. Another endpoint is refused with the entered readings kept. No acceptance tolerance is inferred."
+        },
+        {
+          "label": "First endpoint pH",
+          "description": "Low alkalinity only. Required measured first endpoint pH, from 4.3 through 4.7 inclusive."
+        },
+        {
+          "label": "Final endpoint pH",
+          "description": "Low alkalinity only. Required measured pH after further acid addition, exactly 0.3 below the first endpoint pH. A different pair is refused with the readings kept; no tolerance or interpolation is applied."
+        }
+      ]
+    },
+    {
+      "title": "BOD5 bottle observations",
+      "paragraphs": [
+        "Each bottle value in mg/L is (initial DO − final DO − entered seed correction) × filled bottle volume ÷ sample volume. The arithmetic mean gives each included bottle equal weight, even when volumes differ. The common prior dilution factor multiplies that mean once, and only that final result is rounded by the test rule. Excluded bottles never contribute to the mean.",
+        "For a current BOD5 calculation, analysts use Record BOD5 bottles in the entry/correction panel rather than a numeric form here. The link is unavailable while the latest revision awaits review or the test has no assigned batch. The dedicated page checks analyst access, current state and stale revisions on save.",
+        "Each revision keeps 1–12 complete bottle rows with original numeric strings, explicit selection and exclusion reasons, seed correction evidence, calculation version and saved rounding. A correction adds a revision; Add or Remove on the entry page never changes an earlier saved worksheet.",
+        "This is BOD5 arithmetic only. It does not estimate seed demand from controls, subtract dilution-water blank demand, assess incubation or method eligibility, apply automatic bottle QC thresholds, or establish regulatory approval. CBOD5 is outside its scope. The analyst assesses the laboratory method and QC before selection; Include is not an automatic acceptance verdict."
+      ],
+      "items": [
+        {
+          "label": "Record BOD5 bottles",
+          "description": "Open the dedicated bottle worksheet to enter or correct a result. Submitted work must first be returned by a reviewer. Save there creates an entered revision and returns here; submit separately from the batch."
+        },
+        {
+          "label": "Bottle, Initial DO, Final DO, Sample, Filled bottle",
+          "description": "Bottle identifier, initial/final dissolved oxygen in mg/L, sample aliquot volume in mL and actual filled bottle volume in mL, as originally supplied."
+        },
+        {
+          "label": "Seed correction, Seed record reference",
+          "description": "Entered mg/L oxygen demand attributed to added seed in this bottle, with a supporting laboratory record reference required when nonzero. Zero explicitly represents no correction; raw seed-control estimation is outside this worksheet."
+        },
+        {
+          "label": "Depletion, Corrected depletion",
+          "description": "Initial DO minus final DO, and that depletion minus the entered seed correction, both in mg/L. Excluded observations may show negative derived values; they are not clamped or used in the mean."
+        },
+        {
+          "label": "Bottle value before prior dilution",
+          "description": "Corrected depletion × filled bottle volume ÷ sample volume, in mg/L, displayed for every retained bottle. The common prior dilution is applied to the selected mean, not to these displayed bottle values."
+        },
+        {
+          "label": "Selection / reason",
+          "description": "Included or Excluded and any recorded reason. Each included bottle contributes equally; exclusion requires a reason and preserves the entire bottle observation."
+        },
+        {
+          "label": "Prior dilution factor",
+          "description": "The common preliminary dilution recorded with this revision, before the aliquot entered the bottle. The bottle’s sample fraction is already included in each bottle value."
+        },
+        {
+          "label": "Worked again now",
+          "description": "Uses the saved bottle rows, selection, prior dilution, calculation version and rounding to reproduce the recorded result. Later configuration changes do not alter this saved evidence."
+        }
+      ]
+    },
+    {
+      "title": "Recorded calibration evidence",
+      "paragraphs": [
+        "The application records curves and verification provenance; it does not fit curves, determine method acceptance, verify independent standard sources or check sequence and bracketing. A calibration link is not required for every test."
+      ],
+      "items": [
+        {
+          "label": "Calibration",
+          "description": "Optional immutable instrument-reported curve for the result’s current batch, test and unit. In the single-result Enter result or Correct result form, choose it explicitly for every revision. Blank means Not linked and never carries an earlier link forward. The curve’s recorded time must precede or coincide with analysis."
+        },
+        {
+          "label": "Calibration verification",
+          "description": "Optional current calibration-verification QC observation for the same batch, test and unit, used only with a selected curve. The observation must be at or after calibration; a closing check may follow sample analysis. Its label, exact observed text, true value, unit, time and identity are frozen with the revision."
+        },
+        {
+          "label": "Correction and independence",
+          "description": "If a selected QC observation is superseded, submission, approval and release are held until a new result revision records current evidence. People who recorded the selected curve or check cannot independently review or release that result. Existing QC, holding-time and preservation gates still apply."
+        },
+        {
+          "label": "Where links are entered",
+          "description": "Only the single-result form offers evidence choices. Grid entry, CSV/TSV/XLSX import and BOD5 bottle entry do not infer or carry calibration links. A later correction using those paths also leaves the new revision unlinked."
+        },
+        {
+          "label": "Stale form",
+          "description": "If a result changed after the single-result form was opened, saving is refused and the input is kept. Reload to inspect the current revision before entering a correction."
+        }
       ]
     }
   ],
@@ -209,6 +425,26 @@
     "analytical/tests/test_workflow.py",
     "analytical/tests/test_integrity.py",
     "analytical/tests/test_observation_metadata.py",
-    "analytical/tests/test_views.py"
+    "analytical/tests/test_views.py",
+    "analytical/calculations.py",
+    "analytical/worksheets.py",
+    "analytical/tests/test_calculations.py",
+    "analytical/tests/test_calculation_pages.py",
+    "analytical/tests/test_prepared_calculations.py",
+    "analytical/tests/test_prepared_pages.py",
+    "analytical/tests/test_titration_calculations.py",
+    "analytical/tests/test_titration_pages.py",
+    "analytical/urls.py",
+    "analytical/bod.py",
+    "analytical/bod_forms.py",
+    "analytical/bod_views.py",
+    "analytical/templates/analytical/result_bottles.html",
+    "analytical/templates/analytical/batch_entry.html",
+    "analytical/tests/test_bod.py",
+    "analytical/calibration.py",
+    "analytical/calibration_forms.py",
+    "analytical/calibration_views.py",
+    "analytical/tests/test_calibration.py",
+    "analytical/tests/test_calibration_views.py"
   ]
 }

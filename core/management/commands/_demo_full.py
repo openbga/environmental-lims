@@ -23,6 +23,7 @@ from accounts.roles import can_authorize_release
 from analytical import mdl_services, preparation
 from analytical import services as bench
 from analytical.models import PreparationRequirement, Result, ResultRevision
+from analytical.synthetic_dataset import BOD_BOTTLES
 from catalog.models import Method, TestDefinition
 from laboratory.models import Equipment
 from receipt import services as receipt
@@ -61,6 +62,26 @@ VALUES = {
 LCS_AQUEOUS = ["19.6", "20.3", "19.8", "20.2", "19.4", "20.6", "19.9", "20.1", "19.5", "20.4"]
 LCS_SOIL = ["48.6", "50.9", "49.3", "51.2"]
 SPIKE = {"water": "20.0", "wastewater": "20.0", "soil": "50.0"}
+# Invented balance and cylinder readings for the solids worksheet: dried residue with its filter
+# (g), the filter alone (g) and the volume filtered (mL). The result is worked from them.
+SOLIDS = [
+    ("0.1183", "0.1058", "300"),
+    ("0.1097", "0.1041", "500"),
+    ("0.1262", "0.1049", "250"),
+]
+# Invented balance readings for percent solids: the dish alone, with the soil as received and
+# with the dried soil (g). They work out to 81.6, 77.9 and 84.2 percent.
+DRYING = [
+    ("21.4035", "31.6182", "29.7391"),
+    ("20.9126", "30.4410", "28.3352"),
+    ("22.1508", "33.0271", "31.3089"),
+]
+# Invented extract readings for nitrate in soil: the reading in mg/L (or ND), the reporting limit
+# in the extract (mg/L), the final volume (mL) and the weight extracted as received (g).
+EXTRACTS = [
+    ("1.84", "0.05", "50", "5.03"),
+    ("ND", "0.05", "50", "5.21"),
+]
 MDL_SPIKES = [  # (days ago, preparation batch, observed); spiking level 2.00
     (20, "MDL-A", "1.82"),
     (20, "MDL-A", "2.11"),
@@ -269,6 +290,7 @@ class Week:
         discrepancy="",
         location="",
         collector="Example County Field Crew",
+        container_preservation=None,
     ):
         matrix = tests[0].matrix
         collected_at = collected_at or received_at - timedelta(hours=2)
@@ -283,7 +305,13 @@ class Week:
             expected_revision=Order.objects.values_list("revision", flat=True).get(pk=order.pk),
             tests=tests,
             containers=[
-                {"description": container[0], "condition": "Intact", "preservation": container[1]}
+                {
+                    "description": container[0],
+                    "condition": "Intact",
+                    "preservation": container[1]
+                    if container_preservation is None
+                    else container_preservation,
+                }
             ],
             relinquished_by="Example Courier",
             client_sample_id=ident,
@@ -356,12 +384,16 @@ class Week:
         approved. The analyst enters and submits; the reviewer, a different person, decides."""
         if stage == "awaiting":
             return None
-        text, qualifiers = extra.pop("value", None) or self.value(rt.definition)
+        if "readings" in extra or "bottle_data" in extra:
+            text, qualifiers = "", ()  # a calculated test: the service works the result
+        else:
+            text, qualifiers = extra.pop("value", None) or self.value(rt.definition)
         revision = bench.enter_result(
             actor=self.analyst,
             result_id=Result.objects.get(requested_test=rt).pk,
             supplied_text=text,
-            reporting_limit_applied=_rl(rt.definition),
+            # A calculation that works out the limit itself takes none: pass limit="".
+            reporting_limit_applied=extra.pop("limit", _rl(rt.definition)),
             dilution_factor="1",
             analysis_started_at=at,
             qualifier_codes=qualifiers,
@@ -415,6 +447,113 @@ class Week:
         if not stages and stage != "awaiting":
             bench.close_batch(actor=self.analyst, batch_id=batch.pk)
         return batch
+
+    def solids_batch(self, samples, *, analysed_at, stages):
+        """Suspended solids by weight: each result is worked from its balance and volume
+        readings by the demo calculation rule. Method blank and a laboratory duplicate; the
+        batch stays open because one test still awaits its weights."""
+        method = Method.objects.get(code="DEMO-TSS-AQ", version=VERSION)
+        batch = bench.create_batch(
+            actor=self.analyst,
+            method=method,
+            matrix="wastewater",
+            notes="Synthetic demonstration batch. Results are calculated from the readings.",
+        )
+        tests = self.requested(samples, method)
+        bench.add_tests_to_batch(
+            actor=self.analyst, batch_id=batch.pk, requested_test_ids=[rt.pk for rt in tests]
+        )
+        definition = tests[0].definition
+        common = dict(
+            actor=self.analyst,
+            definition_id=definition.pk,
+            reporting_limit_applied=_rl(definition),
+            analysis_started_at=analysed_at,
+        )
+        blank = bench.add_qc_sample(
+            actor=self.analyst, batch_id=batch.pk, qc_type="method_blank", label="MB-1"
+        )
+        bench.record_qc_measurement(qc_sample_id=blank.pk, observed_text="ND", **common)
+        duplicate = bench.add_qc_sample(
+            actor=self.analyst,
+            batch_id=batch.pk,
+            qc_type="lab_duplicate",
+            label="DUP-1",
+            parent_sample=tests[0].sample,
+        )
+        bench.record_qc_measurement(
+            qc_sample_id=duplicate.pk, observed_text="43", reference_value="42", **common
+        )
+        for rt, weights in zip(tests, cycle(SOLIDS), strict=False):
+            gross, tare, volume = weights
+            self.entry(
+                rt,
+                analysed_at,
+                stages.get(rt.sample.client_sample_id, "awaiting"),
+                readings={"gross": gross, "tare": tare, "volume": volume},
+            )
+        return batch
+
+    def dry_weight_batches(self, samples, *, weighed_at, analysed_at):
+        """Percent solids worked from three weights, then nitrate in the extract taken back
+        to the soil on a dry-weight basis with that percent solids. Two percent solids results
+        are reviewed before they are used; the third is entered, so its nitrate still waits.
+        Both batches stay open."""
+        solids_method = Method.objects.get(code="DEMO-SOLIDS-SOIL", version=VERSION)
+        drying = bench.create_batch(
+            actor=self.analyst,
+            method=solids_method,
+            matrix="soil",
+            notes="Synthetic demonstration batch. Results are calculated from the weights.",
+        )
+        weighed = self.requested(samples, solids_method)
+        bench.add_tests_to_batch(
+            actor=self.analyst, batch_id=drying.pk, requested_test_ids=[rt.pk for rt in weighed]
+        )
+        solids = {}
+        for rt, (tare, wet, dry), stage in zip(
+            weighed, DRYING, ("approved", "approved", "entered"), strict=True
+        ):
+            solids[rt.sample_id] = self.entry(
+                rt,
+                weighed_at,
+                stage,
+                readings={"tare": tare, "wet": wet, "dry": dry},
+                result_basis="wet",
+            )
+        nitrate_method = Method.objects.get(code="DEMO-NITRATE-SOIL", version=VERSION)
+        run = bench.create_batch(
+            actor=self.analyst,
+            method=nitrate_method,
+            matrix="soil",
+            notes="Synthetic demonstration batch. Results are calculated from the extract "
+            "readings and each sample's percent solids.",
+        )
+        extracted = self.requested(samples, nitrate_method)
+        bench.add_tests_to_batch(
+            actor=self.analyst, batch_id=run.pk, requested_test_ids=[rt.pk for rt in extracted]
+        )
+        self.qc(run, [extracted[0].definition], analysed_at)
+        for rt, (reading, limit, volume, weight), stage in zip(
+            extracted, EXTRACTS, ("submitted", "entered"), strict=False
+        ):
+            percent = solids[rt.sample_id]
+            self.entry(
+                rt,
+                analysed_at,
+                stage,
+                readings={
+                    "reading": reading,
+                    "base_limit": limit,
+                    "final_volume": volume,
+                    "weight": weight,
+                },
+                limit="",
+                result_basis="dry",
+                percent_solids=percent.supplied_text,
+                solids_reference=f"{rt.sample.lab_id} percent solids, batch {drying.number}",
+            )
+        return drying, run
 
     def soil_batch(self, samples, *, prepared_at, completed_at, analysed_at):
         """Independent digestion, then analysis with blank, LCS and matrix spike; dry-basis
@@ -675,7 +814,7 @@ class Week:
             self.receive(
                 order,
                 ident,
-                wastewater,
+                [*wastewater, *tss],
                 source=source,
                 received_at=self.at(1, 14, minute),
                 composite_hours=24 if source == "influent" else None,
@@ -700,6 +839,13 @@ class Week:
             analysed_at=self.ago(hours=2),
             stage="awaiting",
             stages={"P2-INF-102": "returned", "P2-EFF-103": "entered", "P2-EFF-104": "entered"},
+        )
+        # Their suspended solids, worked from the weights: two awaiting review, one entered and
+        # one still to weigh.
+        self.solids_batch(
+            bench_today,
+            analysed_at=self.ago(hours=1),
+            stages={"P2-INF-102": "submitted", "P2-EFF-103": "submitted", "P2-EFF-104": "entered"},
         )
         self.receive(
             order,
@@ -769,6 +915,131 @@ class Week:
             "transcription check.",
         )
         self.report(self.plant, "Plant 2 metals, week summary", plant_done)
+
+        # Drying-bed soils for nitrate, last so the numbers of the work above stay as they were:
+        # percent solids by weight, then nitrate worked from the extract to a dry-weight result.
+        solids = self.tests("DEMO-SOLIDS-SOIL", "soil")
+        nitrate = self.tests("DEMO-NITRATE-SOIL", "soil")
+        order = self.order(self.beds, self.at(2, 11))
+        cores = [
+            self.receive(
+                order,
+                f"DB-N{n:02d}",
+                [*solids, *nitrate],
+                source="soil",
+                received_at=self.at(2, 11, n),
+                location=f"Synthetic drying bed {n}",
+            )
+            for n in (1, 2, 3)
+        ]
+        for sample in cores:
+            self.store(sample)
+        self.dry_weight_batches(cores, weighed_at=self.at(1, 9), analysed_at=self.at(1, 14))
+        self.titration_batches()
+        self.bod_batch()
+
+    def bod_batch(self):
+        """Invented BOD bottles: one recorded worksheet and one sample ready for entry."""
+        definitions = self.tests("DEMO-BOD-AQ", "water")
+        order = self.order(self.river, self.at(1, 9))
+        samples = [
+            self.receive(
+                order,
+                f"BOD-{n:02d}",
+                definitions,
+                source="surface_water",
+                received_at=self.at(1, 9, n),
+                location=f"Synthetic BOD sampling point {n}",
+                container_preservation="Cool; no chemical preservative (synthetic)",
+            )
+            for n in (1, 2)
+        ]
+        batch = bench.create_batch(
+            actor=self.analyst,
+            method=definitions[0].method,
+            matrix="water",
+            notes="Synthetic BOD demonstration: invented readings and seed corrections. "
+            "No automatic assessment of incubation or QC. Second sample ready for entry.",
+        )
+        requested = self.requested(samples, definitions[0].method)
+        bench.add_tests_to_batch(
+            actor=self.analyst,
+            batch_id=batch.pk,
+            requested_test_ids=[rt.pk for rt in requested],
+        )
+        self.entry(requested[0], self.at(1, 11), "entered", bottle_data=BOD_BOTTLES)
+
+    def titration_batches(self):
+        """Separate invented portions for each titration, with one worksheet and one open row.
+
+        Normal and low alkalinity are separate tests, never an inferred choice from a value.
+        These samples have no chemical preservative; do not reuse the metals' acidified bottle.
+        """
+        order = self.order(self.river, self.at(1, 9))
+        for prefix, code, readings in (
+            (
+                "ALK",
+                "DEMO-ALKALINITY-AQ",
+                {
+                    "initial": "0.20",
+                    "final": "12.70",
+                    "sample_volume": "100.0",
+                    "normality": "0.0200",
+                    "final_ph": "4.50",
+                },
+            ),
+            (
+                "LOW",
+                "DEMO-LOW-ALK-AQ",
+                {
+                    "initial": "0.20",
+                    "first_endpoint": "1.50",
+                    "final": "1.70",
+                    "sample_volume": "200.0",
+                    "normality": "0.0200",
+                    "first_ph": "4.60",
+                    "final_ph": "4.30",
+                },
+            ),
+            (
+                "HARD",
+                "DEMO-HARDNESS-AQ",
+                {
+                    "initial": "0.10",
+                    "final": "8.60",
+                    "sample_volume": "25.0",
+                    "normality": "0.0200",
+                },
+            ),
+        ):
+            definitions = self.tests(code, "water")
+            samples = [
+                self.receive(
+                    order,
+                    f"TT-{prefix}-{n:02d}",
+                    definitions,
+                    source="surface_water",
+                    received_at=self.at(1, 9, n),
+                    location=f"Synthetic titration sampling point {prefix}-{n}",
+                    container_preservation="Cool; no chemical preservative (synthetic)",
+                )
+                for n in (1, 2)
+            ]
+            batch = bench.create_batch(
+                actor=self.analyst,
+                method=definitions[0].method,
+                matrix="water",
+                notes="Synthetic titration demonstration. Readings and titrant strength are "
+                "invented. The second sample is ready for entry.",
+            )
+            requested = self.requested(samples, definitions[0].method)
+            bench.add_tests_to_batch(
+                actor=self.analyst,
+                batch_id=batch.pk,
+                requested_test_ids=[rt.pk for rt in requested],
+            )
+            self.qc(batch, definitions, self.at(1, 11))
+            self.entry(requested[0], self.at(1, 11), "approved", readings=readings)
 
     def mdl_study(self, water):
         """An initial MDL study for lead in water: seven spikes over three preparation batches

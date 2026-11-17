@@ -1,0 +1,153 @@
+{
+  "id": "commercial-invoice-detail",
+  "routes": [
+    "commercial:invoice-detail"
+  ],
+  "title": "Draft invoice",
+  "purpose": "Review an internal draft’s saved billing details, source tests, exact USD amounts and change history; edit it or record its cancellation.",
+  "summary": "Review an internal draft’s saved billing details, source tests, exact USD amounts and change history; edit it or record its cancellation.",
+  "tasks": [
+    {
+      "title": "Check the prepared charges",
+      "steps": [
+        "Review [[Billing snapshot]] and [[Draft lines]] against the intended work.",
+        "Select [[Edit]] to correct billing details, descriptions, quantities or prices with a reason."
+      ]
+    },
+    {
+      "title": "Add a fee or discount",
+      "steps": [
+        "Select [[Add fee or discount]] on an active draft.",
+        "Choose the kind, describe it, enter the quantity and signed USD price, and give a reason.",
+        "Save the line, then review the updated total and [[History]]."
+      ]
+    },
+    {
+      "title": "Cancel a draft",
+      "steps": [
+        "Select [[Cancel draft invoice]].",
+        "Record why it is no longer needed and confirm. Its snapshot and history stay available."
+      ]
+    },
+    {
+      "title": "Review the source order",
+      "steps": [
+        "Select the reference under [[Chain of custody]] to open the current order."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Source labels and amounts are snapshots. Current receipt records and prices can differ.",
+    "The total is a draft amount in USD, not a balance due.",
+    "Cancelled drafts retain their amounts and history but cannot be edited or cancelled again.",
+    "No part of this draft is visible in the client portal."
+  ],
+  "sections": [
+    {
+      "title": "Access and purpose",
+      "paragraphs": [
+        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. No tax, due date, payment or accounting entry is calculated."
+      ]
+    },
+    {
+      "title": "Billing snapshot",
+      "items": [
+        {
+          "label": "Client name / Account code",
+          "description": "The client name is required, up to 160 characters; account code is optional, up to 40. Copied from the client at creation and editable on the draft. Editing these labels does not change the source order or its client relationship."
+        },
+        {
+          "label": "Invoice-to contact / Invoice email",
+          "description": "Optional contact name, up to 160 characters, and a valid email address. Initially copied from the invoice contact and email; blank invoice values use the primary contact and email. Nothing is emailed."
+        },
+        {
+          "label": "Billing address",
+          "description": "Initially the invoice address, or the client mailing address when blank. Optional text, up to 4000 characters when edited. Line breaks are preserved."
+        },
+        {
+          "label": "Payment terms",
+          "description": "Optional: Due on receipt, Net 15 days, Net 30 days, Net 45 days, Net 60 days or Prepaid. Initially the client terms. Information only; no due date or payment is calculated."
+        },
+        {
+          "label": "Purchase order",
+          "description": "Optional text up to 60 characters. Initially the order PO, or the project standing PO when the order has none. A missing PO is not a draft-creation gate."
+        }
+      ]
+    },
+    {
+      "title": "Draft record and lines",
+      "items": [
+        {
+          "label": "Kind",
+          "description": "Fixed Test, Fee or Discount. Fees and discounts have no sample or requested test. Quoted lines keep their quote number, version and source line; a line added by staff is marked Manually added and has no quote link. Kind and origin remain fixed through edits and cancellation. Discounts are signed amounts, not percentages."
+        },
+        {
+          "label": "Status / Internal only / Total",
+          "description": "The header identifies Draft or Cancelled, saved client name and exact USD total."
+        },
+        {
+          "label": "Chain of custody / Project",
+          "description": "Saved source order reference with a link to the current order, and saved project name."
+        },
+        {
+          "label": "Price list / Created",
+          "description": "Saved list name/revision for list-priced drafts, plus creation time and responsible staff member. Quote-priced drafts show their accepted quote instead."
+        },
+        {
+          "label": "Accepted quote / Quote accepted",
+          "description": "For quote-priced drafts, the saved quote number and version link to that issued quote; the frozen title, acceptance time and accepting account identify the agreed source. This provenance remains fixed through later invoice edits and cancellation. Billing fields still come from the order/client; the quote is not consumed or modified."
+        },
+        {
+          "label": "Source sample / Source requested test",
+          "description": "Saved lab ID, client sample ID and disposition, plus the analyte, method/version, matrix and result unit. These source labels remain fixed when descriptions or billing amounts are edited. Quote-priced lines also identify the original quote number, version and line position. Descriptions and prices initially come from that line; the reference remains after reasoned edits. Fee and discount rows show No sample / No requested test instead of sample or test details."
+        },
+        {
+          "label": "Description / Quantity / Unit price (USD)",
+          "description": "The editable charge description, positive integer count and whole-cent USD price. Tests and fees use nonnegative prices; discounts use zero or negative prices. An explicitly entered zero price is allowed."
+        },
+        {
+          "label": "Amount (USD) / Draft total (USD)",
+          "description": "Each amount is quantity multiplied by signed unit price; total is their exact sum and cannot be negative. Values are bounded to the stored precision and never converted through binary floating point."
+        },
+        {
+          "label": "Edit / Cancel draft invoice",
+          "description": "Available only while the draft is active. Editing and cancellation require a reason and recheck its revision."
+        },
+        {
+          "label": "Add fee or discount",
+          "description": "Open a form to append one manual fee or discount to an active draft. A reason is required. The combined draft is limited to 200 lines; at the limit, additions are unavailable. The total must remain nonnegative. A stale revision or cancelled draft is refused. No quote, sample or test is fabricated, and the original pricing source is unchanged."
+        },
+        {
+          "label": "Cancelled / History",
+          "description": "Cancellation shows actor, time and reason. History records creation, line additions and each saved or cancelled change with actor, time, reason and prior/new values."
+        }
+      ]
+    },
+    {
+      "title": "Source and history",
+      "paragraphs": [
+        "The draft keeps its source chain of custody, project, sample identities, requested test identities, method/version, matrix, unit, disposition and selected price-list name/revision or accepted quote version, acceptance snapshot and source quote lines. Each current requested test on a received sample creates one line, initially quantity 1. Each fee or discount from an accepted quote creates one additional line with its original quantity and signed price, without a sample or test identity. Held, rejected and qualified samples are included with their disposition; the preparer decides whether work is chargeable. Later source corrections, withdrawn tests and price changes do not update the draft.",
+        "There can be one active draft per order and at most 200 combined test, fee and discount lines. Every line and its kind and origin are retained; lines cannot be removed or reassigned. Use Add fee or discount on the draft record to append a manual line with a reason, within the same bounds. To remove an unwanted amount, edit its price to zero with a reason. Cancel a draft and create a replacement to take a new source snapshot. A cancelled draft and its history remain readable. Invoice billing data never changes custody, results or released reports."
+      ]
+    }
+  ],
+  "sources": [
+    "commercial/urls.py",
+    "commercial/invoice_views.py",
+    "commercial/invoice_forms.py",
+    "commercial/invoices.py",
+    "commercial/models.py",
+    "commercial/permissions.py",
+    "commercial/pricing.py",
+    "commercial/templates/commercial/invoice_detail.html",
+    "commercial/templates/commercial/_invoice_notice.html",
+    "core/form_surfaces.py",
+    "core/templatetags/navigation.py",
+    "commercial/tests/test_invoices.py",
+    "e2e/test_invoice_drafts.py",
+    "commercial/tests/test_invoice_quote_lookup.py",
+    "e2e/test_invoice_quote.py",
+    "commercial/tests/test_invoice_manual.py",
+    "e2e/test_invoice_manual.py"
+  ]
+}

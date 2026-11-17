@@ -1,0 +1,97 @@
+{
+  "id": "commercial-invoice-cancel",
+  "routes": [
+    "commercial:invoice-cancel"
+  ],
+  "title": "Cancel draft invoice",
+  "purpose": "Record why an internal draft is no longer needed, keeping its billing snapshot, source lines and history available.",
+  "summary": "Record why an internal draft is no longer needed, keeping its billing snapshot, source lines and history available.",
+  "tasks": [
+    {
+      "title": "Cancel the active draft",
+      "steps": [
+        "Enter [[Reason for cancellation]].",
+        "Select [[Cancel draft invoice]] to preserve the record as Cancelled."
+      ]
+    },
+    {
+      "title": "Keep the draft active",
+      "steps": [
+        "Select [[Cancel]] or close the form without saving."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Cancellation keeps the saved lines, total and history. It does not delete the record.",
+    "The order can have a new active draft after cancellation, using its current tests and prices.",
+    "This does not cancel a chain of custody, sample, test, quote or issued report.",
+    "A changed or already cancelled draft is refused; reload and review its current state."
+  ],
+  "sections": [
+    {
+      "title": "Access and purpose",
+      "paragraphs": [
+        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. No tax, due date, payment or accounting entry is calculated."
+      ]
+    },
+    {
+      "title": "Cancellation",
+      "items": [
+        {
+          "label": "Keep the record",
+          "description": "Identifies the draft being cancelled and explains that a replacement can be created from the source order."
+        },
+        {
+          "label": "Reason for cancellation",
+          "description": "Required explanation, up to 2000 characters; saved with the actor and time."
+        },
+        {
+          "label": "Cancel draft invoice",
+          "description": "Changes an active draft to Cancelled after rechecking its revision. The snapshot, total and audit history remain; there is no payment, credit note or ledger action. Opening this form for an already-cancelled draft returns to its detail page; a cancellation that happens after opening is still rechecked on submit."
+        },
+        {
+          "label": "Replacement draft",
+          "description": "Return to the source chain of custody and select New draft invoice. Choose an active list covering every received test or an accepted quote matching all received tests and quantities."
+        }
+      ]
+    },
+    {
+      "title": "Form states and navigation",
+      "items": [
+        {
+          "label": "Errors and concurrent changes",
+          "description": "Errors appear above the form or beside the field, with submitted values preserved. A source or revision change requires reloading and reviewing the current record before retrying. No partial draft or audit event is saved on failure."
+        },
+        {
+          "label": "Cancel / Close form",
+          "description": "Leave without saving. A dialog with changed input offers Keep editing or Discard changes. This ordinary Cancel action does not cancel an existing draft invoice."
+        },
+        {
+          "label": "Maximize / Restore size / Try again",
+          "description": "Resize a dialog without saving, or retry a failed dialog load. On narrow screens the dialog uses the full screen. Wait for saving to finish before continuing."
+        },
+        {
+          "label": "Draft invoices / draft number",
+          "description": "Breadcrumb links return to the directory or draft record without saving."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "commercial/urls.py",
+    "commercial/invoice_views.py",
+    "commercial/invoice_forms.py",
+    "commercial/invoices.py",
+    "commercial/models.py",
+    "commercial/permissions.py",
+    "commercial/pricing.py",
+    "commercial/templates/commercial/invoice_cancel.html",
+    "commercial/templates/commercial/_invoice_notice.html",
+    "core/form_surfaces.py",
+    "core/templatetags/navigation.py",
+    "commercial/tests/test_invoices.py",
+    "e2e/test_invoice_drafts.py",
+    "commercial/tests/test_invoice_quote_lookup.py",
+    "e2e/test_invoice_quote.py"
+  ]
+}

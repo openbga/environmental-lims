@@ -5,6 +5,35 @@
   ],
   "title": "Dashboard",
   "purpose": "See the work waiting for your laboratory roles and open the queue that needs attention.",
+  "summary": "The work waiting for your roles, grouped by laboratory area, and the samples received most recently.",
+  "tasks": [
+    {
+      "title": "Start on the work that is waiting",
+      "steps": [
+        "Find the line for your area under Your work queues.",
+        "Select a queue's label to open the list of those items. Queues showing 0 have no link."
+      ]
+    },
+    {
+      "title": "Receive a shipment",
+      "steps": [
+        "Select [[Receive samples]]. A new chain of custody opens for the actual receipt."
+      ]
+    },
+    {
+      "title": "Open a recently received sample",
+      "steps": [
+        "Under Recently received, select the Lab ID. Select [[All samples]] for the complete list."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Counts are live and count different things: samples, tests, batches, reports or records. Do not add them across queues.",
+    "A batch with only your own results is noted separately. Another reviewer must review it.",
+    "A delivery target is the date agreed with the client. It is separate from a method holding time.",
+    "The colour of a line only marks its area. The status and icon tell you the state.",
+    "Announcements cannot be dismissed. They disappear when they end or are withdrawn."
+  ],
   "sections": [
     {
       "title": "Actions and sections",
@@ -19,28 +48,32 @@
         },
         {
           "label": "Your work queues",
-          "description": "Queue labels open the corresponding filtered list when the count is nonzero. Zero counts remain visible without a link. “Nothing is waiting for you right now” means all your displayed queues are zero."
+          "description": "Your queues, grouped into lines by laboratory area: Intake, Sales, Bench, Release and Laboratory, in work order. Each line shows its area’s total. An area appears only when one of your roles has a queue there. The header shows how many items wait in all your queues together. A queue’s label opens the corresponding filtered list when its count is nonzero. Empty queues stay on their line with a muted label and 0, without a link. “Nothing is waiting for you right now” means all your displayed queues are zero."
         },
         {
           "label": "Recently received / All samples",
-          "description": "Shows the ten most recently received samples across the laboratory. Lab ID opens the sample; All samples opens the complete sample list. There are no dashboard search, sorting or paging controls."
+          "description": "Shows the ten most recently received samples across the laboratory. Lab ID opens the sample; All samples opens the complete sample list, including for staff whose sidebar omits Samples. These links retain the sample pages’ access checks. There are no dashboard search, sorting or paging controls."
         }
       ]
     },
     {
-      "title": "Queue columns",
+      "title": "Each queue on a line",
       "items": [
         {
           "label": "Queue",
-          "description": "Type of work, with notes about conditions or items requiring another person."
+          "description": "Type of work, with notes about conditions or items requiring another person. Opens the filtered list while the count is above zero."
         },
         {
-          "label": "Waiting",
+          "label": "Status",
+          "description": "Shown while work waits: Needs a decision (samples on hold), Waiting, In review, Returned, At risk, Changed, Open, Due, Needs attention or Overdue, with the matching tone and icon. The line colours only mark the area; they never mean a status."
+        },
+        {
+          "label": "Oldest",
+          "description": "Age of the earliest relevant timestamp when that queue supplies one. Hover over it for the exact time."
+        },
+        {
+          "label": "Count",
           "description": "Computed number of records matching that queue’s filters. Different queues count samples, tests, batches, reports or laboratory records; these counts are not interchangeable."
-        },
-        {
-          "label": "Oldest item",
-          "description": "Age of the earliest relevant timestamp when that queue supplies one; a dash means no age is supplied. Hover over a timestamp for the exact time."
         }
       ]
     },
@@ -129,7 +162,7 @@
     {
       "title": "Access and records",
       "paragraphs": [
-        "Active internal users see queues for their effective roles; admin includes operational roles but does not imply report-release authority. Client-linked users are redirected to their own portal. Dashboard counts are live queries over the linked operational records, not saved tasks."
+        "Active internal users see queues for their effective roles; admin includes operational roles but does not imply report-release authority. The sidebar offers destinations for your work capabilities and combines them when you hold several roles. Related record links may open pages beyond those destinations when existing page permissions allow. Client-linked users are redirected to their own portal. Dashboard counts are live queries over the linked operational records, not saved tasks."
       ]
     }
   ],
@@ -141,6 +174,9 @@
     "core/announcements.py",
     "core/templatetags/announcements.py",
     "templates/includes/announcements.html",
-    "tests/test_announcements.py"
+    "tests/test_announcements.py",
+    "core/templatetags/navigation.py",
+    "templates/includes/nav_staff.html",
+    "tests/test_navigation.py"
   ]
 }

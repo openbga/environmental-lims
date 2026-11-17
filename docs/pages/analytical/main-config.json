@@ -4,7 +4,42 @@
     "analytical:qc-config"
   ],
   "title": "QC configuration",
-  "purpose": "Inspect six types of laboratory configuration controlling preservation, independent preparation, holding clocks, QC frequencies/limits and result qualifiers.",
+  "purpose": "Inspect seven types of laboratory configuration controlling preservation, independent preparation, calculated results, holding clocks, QC frequencies/limits and result qualifiers.",
+  "summary": "See the lab's configured preservation rules, preparation requirements, calculation rules, holding-time rules, QC requirements, QC limits and result qualifiers. Only administrators can change them.",
+  "tasks": [
+    {
+      "title": "See one method's configuration",
+      "steps": [
+        "Choose the [[Method]] and select [[Apply]]. Qualifiers are not filtered by method."
+      ]
+    },
+    {
+      "title": "Add a rule, requirement, limit or qualifier",
+      "steps": [
+        "Select the add button in that table's header, for example [[Add QC limit]], [[Add holding-time rule]] or [[Add calculation rule]]."
+      ]
+    },
+    {
+      "title": "Make a test calculated from readings",
+      "steps": [
+        "In Calculation rules, select [[Add calculation rule]] and choose the test, the calculation, the rounding and the basis.",
+        "Save. Analysts then enter readings for that test instead of a final result."
+      ]
+    },
+    {
+      "title": "Change a configured row",
+      "steps": [
+        "Select the row's first cell to open its edit form. Only administrators see these as links."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "These values are the lab's own policy, not regulatory defaults. The demonstration values are synthetic and not validated.",
+    "Missing configuration is never a pass. No QC limit means Not evaluated, and no holding rule means holding time is not evaluated.",
+    "Changes apply to new work. Results already entered and reports already issued keep the values they were made with.",
+    "Inactive rows stay listed so their history remains visible.",
+    "A calculation rule changes how manual results of one test are entered. Typed and imported results are never rounded, and worksheets already recorded keep the rule they were worked with."
+  ],
   "sections": [
     {
       "title": "Access",
@@ -17,11 +52,11 @@
       "items": [
         {
           "label": "Method",
-          "description": "All methods by default; choices include inactive method versions. Filters preservation rules, independent preparation requirements, holding rules, QC requirements and QC limits. It does not filter result qualifiers."
+          "description": "All methods by default; choices include inactive method versions. Filters preservation rules, independent preparation requirements, calculation rules, holding rules, QC requirements and QC limits. It does not filter result qualifiers."
         },
         {
           "label": "Apply",
-          "description": "Apply the selected method across five tables. An invalid method shows an error and no rows in those five tables; qualifiers remain visible."
+          "description": "Apply the selected method across six tables. An invalid method shows an error and no rows in those six tables; qualifiers remain visible."
         },
         {
           "label": "Clear all",
@@ -34,6 +69,10 @@
         {
           "label": "Rows per page",
           "description": "Only QC limits are paginated: 25 by default, 50 or 100. Their page links retain the method filter. Other tables show their full selected sets."
+        },
+        {
+          "label": "Spreadsheet import",
+          "description": "Administrators can also create or change QC requirements, holding-time rules, QC limits and preservation rules from CSV files under Setup → Spreadsheet import, with a row-by-row preview and the same checks and history as these forms. Preparation requirements, calculation rules and qualifiers are not imported."
         }
       ]
     },
@@ -88,6 +127,39 @@
       ]
     },
     {
+      "title": "Calculation rules",
+      "paragraphs": [
+        "A rule makes manual results of one test calculated from readings and sets how the calculated value is rounded. The readings, the calculation version and the rounding are kept with each result as a worksheet. Typed and imported results are never rounded, and file imports still supply final values. There is no default rounding: it is the laboratory's own rule, recorded with its basis. One rule can exist per test, so a test uses one calculation: it is either corrected to dry weight or not. The rounding also applies to a reporting limit that a preparation calculation works out.",
+        "With no rule, the test takes typed results as before. An empty table says that every result is typed or imported as a final value; a method filter with no match says there are no calculation rules for these filters and to clear the method filter."
+      ],
+      "items": [
+        {
+          "label": "Test",
+          "description": "Exact test definition (method/version, analyte and matrix); opens the edit form for administrators and is plain text for everyone else."
+        },
+        {
+          "label": "Calculation",
+          "description": "The calculation and its current version, for example Solids by weight, balance in grams (version 1) or Prepared solid corrected to dry weight, mg/L in solution to mg/kg (version 1). A rule that names a calculation this release does not have shows Not in this release with its stored key; an administrator must change it, and entry of that test is refused until then."
+        },
+        {
+          "label": "Rounding",
+          "description": "The laboratory's rounding in words: significant figures or decimal places, with the optional second rounding for larger values, and half to even or half up. For example 3 significant figures, half to even."
+        },
+        {
+          "label": "Source / applicability",
+          "description": "The method or SOP basis recorded with the rule."
+        },
+        {
+          "label": "Active",
+          "description": "Whether the rule currently applies. An inactive rule is ignored: the test takes typed results again, and worksheets already recorded stay."
+        },
+        {
+          "label": "Add calculation rule",
+          "description": "Administrators create a rule for one exact test. Other staff do not see this action, and the empty state offers it to administrators only."
+        }
+      ]
+    },
+    {
       "title": "Holding-time rules",
       "items": [
         {
@@ -103,6 +175,10 @@
           "description": "Water, Wastewater or Soil."
         },
         {
+          "label": "Applies to",
+          "description": "All analytes for a method-wide rule, or the one analyte the rule is limited to."
+        },
+        {
           "label": "From → to",
           "description": "Collection/composite end or Preparation start through Preparation start or Analysis start."
         },
@@ -116,8 +192,11 @@
         },
         {
           "label": "Add holding-time rule",
-          "description": "Administrators define an explicit clock. No active rule gives a not-evaluated holding status, not a fabricated threshold."
+          "description": "Administrators define an explicit clock for the whole method or for one analyte. No applicable active rule gives a not-evaluated holding status, not a fabricated threshold."
         }
+      ],
+      "paragraphs": [
+        "A rule applies to every analyte of its method and matrix unless it names one. A rule that names an analyte replaces the method-wide rule with the same start and end events for that analyte only; other clocks and other analytes are unaffected. Method-wide rules are listed before the analyte rules of the same clock."
       ]
     },
     {
@@ -212,6 +291,21 @@
       "paragraphs": [
         "Only administrators can save configuration. Existing edits require a reason, preserve before/after audit values and reject stale edit forms. Inactive rows remain listed. Configuration represents lab-owned policy, not regulatory defaults; synthetic seed values are not validated. Frozen result/report snapshots retain their earlier values, while current QC and preservation checks can change approval/release eligibility. Empty sections explain the consequence of absent configuration and offer Add controls to administrators."
       ]
+    },
+    {
+      "title": "Titration calculations",
+      "paragraphs": [
+        "Alkalinity by titration to pH 4.5, Low alkalinity by two-endpoint titration and Total hardness by EDTA titration produce mg/L as CaCO3. The test must use that exact unit and cannot be soil. The laboratory chooses the calculation per test; a result never switches the procedure automatically.",
+        "The three titration calculations retain burette readings, sample volume and actual standardized titrant normality. Alkalinity also keeps endpoint pH. They apply no dilution or blank correction and do not scale the reporting limit. The calculation rule form describes each equation and its limits."
+      ]
+    },
+    {
+      "title": "BOD5 bottle worksheets",
+      "paragraphs": [
+        "Each bottle value in mg/L is (initial DO − final DO − entered seed correction) × filled bottle volume ÷ sample volume. The arithmetic mean gives each included bottle equal weight, even when volumes differ. The common prior dilution factor multiplies that mean once, and only that final result is rounded by the test rule. Excluded bottles never contribute to the mean.",
+        "BOD5 bottle worksheet is available for nonsoil tests in mg/L. Administrators choose it per exact test with the lab’s rounding and method/SOP basis. Analysts then use Record BOD5 bottles from the entry grid or result page; a final numeric value cannot be entered in that grid for the test.",
+        "This is BOD5 arithmetic only. It does not estimate seed demand from controls, subtract dilution-water blank demand, assess incubation or method eligibility, apply automatic bottle QC thresholds, or establish regulatory approval. CBOD5 is outside its scope. The analyst assesses the laboratory method and QC before selection; Include is not an automatic acceptance verdict."
+      ]
     }
   ],
   "sources": [
@@ -226,6 +320,26 @@
     "analytical/holding.py",
     "analytical/tests/test_views.py",
     "analytical/tests/test_lists.py",
-    "analytical/tests/test_preservation_workflow.py"
+    "analytical/tests/test_preservation_workflow.py",
+    "dataimport/importing.py",
+    "analytical/tests/test_holding_per_analyte.py",
+    "analytical/calculations.py",
+    "analytical/worksheets.py",
+    "analytical/tests/test_calculations.py",
+    "analytical/tests/test_calculation_pages.py",
+    "analytical/templates/analytical/_active_status.html",
+    "analytical/tests/test_prepared_calculations.py",
+    "analytical/tests/test_titration_calculations.py",
+    "analytical/tests/test_titration_pages.py",
+    "analytical/urls.py",
+    "analytical/bod.py",
+    "analytical/bod_forms.py",
+    "analytical/bod_views.py",
+    "analytical/parsing.py",
+    "analytical/preparation.py",
+    "analytical/templates/analytical/result_bottles.html",
+    "analytical/templates/analytical/result_detail.html",
+    "analytical/templates/analytical/batch_entry.html",
+    "analytical/tests/test_bod.py"
   ]
 }

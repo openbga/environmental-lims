@@ -6,7 +6,7 @@ from django.shortcuts import redirect, resolve_url
 from django.urls import include, path
 from django.views.decorators.cache import never_cache
 
-from core import announcement_views, views
+from core import announcement_views, lab_profile_views, lookups, preferences, views
 
 
 @never_cache
@@ -47,7 +47,33 @@ urlpatterns = [
         announcement_views.announcement_withdraw,
         name="announcement-withdraw",
     ),
+    path("lab/profile/", lab_profile_views.lab_profile, name="lab-profile"),
+    path("lab/profile/edit/", lab_profile_views.lab_profile_edit, name="lab-profile-edit"),
+    path("lab/profile/logo/", lab_profile_views.lab_logo_edit, name="lab-logo-edit"),
+    path("lab/profile/logo/remove/", lab_profile_views.lab_logo_remove, name="lab-logo-remove"),
+    path(
+        "lab/profile/logo/<str:sha256>/",
+        lab_profile_views.lab_logo_image,
+        name="lab-logo-image",
+    ),
+    path(
+        "lab/profile/certificates/new/",
+        lab_profile_views.lab_certificate_edit,
+        name="lab-certificate-create",
+    ),
+    path(
+        "lab/profile/certificates/<int:pk>/",
+        lab_profile_views.lab_certificate_edit,
+        name="lab-certificate-edit",
+    ),
+    path(
+        "lab/profile/certificates/<int:pk>/remove/",
+        lab_profile_views.lab_certificate_remove,
+        name="lab-certificate-remove",
+    ),
     path("ready/", views.ready, name="ready"),
+    path("lookups/<slug:name>/", lookups.lookup, name="lookup"),
+    path("preferences/", preferences.preference, name="preference"),
     path("accounts/", include("allauth.urls")),
     path("admin/", admin.site.urls),
     path("", include("receipt.urls")),
@@ -56,6 +82,7 @@ urlpatterns = [
     path("analytical/", include("analytical.urls")),
     path("laboratory/", include("laboratory.urls")),
     path("reports/", include("reporting.urls")),
+    path("setup/import/", include("dataimport.urls")),
     path("portal/", include("reporting.portal_urls")),
     path("portal/", include("commercial.portal_urls")),
 ]

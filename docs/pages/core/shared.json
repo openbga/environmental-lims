@@ -31,12 +31,16 @@
       "title": "Navigation and appearance",
       "items": [
         {
-          "label": "Smart Roots / Find sample ID",
-          "description": "The brand (the mark, Smart Roots and An OpenBGA project; the name alone on phones) returns to the workspace home. In the client portal the laboratory name takes its place. On staff pages, Find sample ID submits a search to Samples; its guide describes the search scope. Press Enter to search. On wide screens the laboratory name beside the brand identifies this deployment."
+          "label": "OpenBGA Environmental LIMS / Find sample ID",
+          "description": "The brand (the mark, OpenBGA and Environmental LIMS; the mark alone in the top bar on phones) returns to the workspace home. In the client portal the laboratory name takes its place. On staff pages, Find sample ID submits a search to Samples; its guide describes the search scope. Press Enter to search. On wide screens the laboratory name beside the brand identifies this deployment."
         },
         {
           "label": "Menus and section tabs",
-          "description": "Select a menu destination or a section tab to change pages. The current destination is marked and keyboard focus has a visible outline. Portal destinations wrap onto another line on narrow screens. Availability depends on the signed-in account and role; opening a direct link still checks permission."
+          "description": "Select a menu destination or a section tab to change pages. The current destination is marked when it appears in your menu, and keyboard focus has a visible outline. The staff sidebar shows destinations for the work your roles can perform, combines destinations when you hold several roles, and omits empty sections. Related record links and direct pages retain their existing access checks, so a readable record may have no sidebar destination for your role; no sidebar item is marked on that page. Portal destinations wrap onto another line on narrow screens; client portal navigation is unchanged."
+        },
+        {
+          "label": "Collapse menu / Expand menu",
+          "description": "On wide screens (992px and up) the button at the top of the staff sidebar folds the menu into a rail of icons, leaving more room for tables. In the rail, hover over or focus an icon to see its label; the current destination stays highlighted and section names become short coloured rules. Select Expand menu to restore the full menu. The choice is saved for your account, so it follows you to any workstation and does not affect other people. On narrow screens the menu opens from the Menu button instead and is always full width."
         },
         {
           "label": "Theme",
@@ -57,6 +61,43 @@
       ]
     },
     {
+      "title": "Staff sidebar destinations",
+      "items": [
+        {
+          "label": "Every internal role",
+          "description": "Dashboard, Training and Nonconformances are available to every active internal laboratory role. Training still limits whose records you may read, and each page checks its own actions."
+        },
+        {
+          "label": "Project manager",
+          "description": "Clients, Projects, Quotes and Price lists support client and quotation work. Draft invoices prepares internal charges from received work; Spreadsheet import loads clients and projects from CSV files. Client submissions, Chains of custody, Sample storage and Delivery schedule are shared with custodians. Samples is shared with custodians and reviewers."
+        },
+        {
+          "label": "Custodian",
+          "description": "Client submissions, Chains of custody, Samples, Sample storage and Delivery schedule support intake, custody and delivery work."
+        },
+        {
+          "label": "Analyst and reviewer",
+          "description": "Both roles see Preparation batches, Batches & QC, MDL studies, QC control charts, Lab overview, Inventory and Equipment. Analysts also see Worklist and Import mappings. Reviewers also see Samples for preservation assessment and Technical review. Individual actions still require the page’s permissions."
+        },
+        {
+          "label": "Subcontracted tests",
+          "description": "Available to custodians, project managers, analysts and reviewers for their parts of subcontracted work."
+        },
+        {
+          "label": "Reports",
+          "description": "Available to project managers, approvers and internal staff with explicit report-release permission. Release itself still requires that explicit permission and the report’s checks."
+        },
+        {
+          "label": "Admin",
+          "description": "Admin includes the operational destinations of custodians, project managers, analysts and reviewers, plus Catalog, QC configuration, Laboratory profile, Spreadsheet import for every record type, Record retention and Announcements. The admin role does not grant report-release permission."
+        },
+        {
+          "label": "Accounts & roles",
+          "description": "Available only to an active internal account with both Django staff and superuser status. The laboratory admin role alone does not grant account administration."
+        }
+      ]
+    },
+    {
       "title": "Tables where these controls appear",
       "items": [
         {
@@ -65,11 +106,11 @@
         },
         {
           "label": "Sort and pages",
-          "description": "Linked column headings change server-side ordering. Pagination moves through the filtered result set; the count describes that set. Choose Rows per page, then select Show to apply that page size and return to page 1 while keeping the other filters. Changing the selection alone does not reload the page."
+          "description": "Linked column headings change server-side ordering. Pagination moves through the filtered result set; the count describes that set. Choose Rows per page, then select Show to apply that page size and return to page 1 while keeping the other filters. Changing the selection alone does not reload the page. Your sort and rows per page are saved for your account on each list: opening the list again, on any workstation, uses them until you choose others. Clear all removes filters only."
         },
         {
           "label": "Columns",
-          "description": "Opens column visibility and order preferences. Use the controls to show/hide or move supported columns, or Reset columns to restore the defaults. Columns marked Always shown are locked. These preferences stay in this browser and do not change permissions or the underlying records."
+          "description": "Opens column visibility and order preferences. Use the controls to show/hide or move supported columns, or Reset columns to restore the defaults. Columns marked Always shown are locked. These preferences are saved for your account, on any workstation, and do not change permissions or the underlying records."
         }
       ]
     },
@@ -99,6 +140,13 @@
     "tests/test_core_request_limits.py",
     "accounts/middleware.py",
     "accounts/adapter.py",
-    "accounts/tests/test_locked_credentials.py"
+    "accounts/tests/test_locked_credentials.py",
+    "accounts/roles.py",
+    "core/templatetags/navigation.py",
+    "templates/includes/nav_staff.html",
+    "tests/test_navigation.py",
+    "static/js/sidebar.js",
+    "static/js/preferences.js",
+    "core/preferences.py"
   ]
 }

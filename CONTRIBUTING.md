@@ -1,6 +1,6 @@
-# Contributing to Smart Roots LIMS
+# Contributing to OpenBGA Environmental LIMS
 
-Thank you for your interest. Smart Roots LIMS is a LIMS for commercial US water, wastewater and
+Thank you for your interest. OpenBGA Environmental LIMS is a LIMS for commercial US water, wastewater and
 soil laboratories. Bug reports, fixes, documentation and focused improvements are welcome and
 are reviewed on a best-effort basis.
 
@@ -58,7 +58,7 @@ Follow [Local development](README.md#local-development) in the README. You need 
   concurrency. Do not add tests that only restate framework behaviour or templates.
 - **Update the page help.** Every page has operator help under `docs/pages/`. When a page, form,
   field, action, permission, filter or workflow rule changes, update its help in the same pull
-  request. The [`document-page` skill](skills/document-page/SKILL.md) describes the standard and
+  request. The [`document-page` skill](.agents/skills/document-page/SKILL.md) describes the standard and
   `tests/test_page_docs.py` checks coverage.
 - Follow the [UI standards](docs/ui-standards.md) for templates, navigation and tables.
 - Migrations must stay backward compatible with the previous release. Never edit a migration
@@ -96,7 +96,9 @@ Notes:
 ### Browser journeys
 
 Browser tests are opt-in. They use a separate pytest PostgreSQL database, an ephemeral server
-port and one headless Chromium worker, not your development server.
+port and one headless Chromium worker, not your development server. The database is
+`test_<database>_e2e`; when several people or agents run the suite at once, give each run its own
+with `TEST_DATABASE_NAME=test_<you>` (the browser suite then uses `test_<you>_e2e`).
 
 ```sh
 uv sync --frozen --group e2e
@@ -113,8 +115,9 @@ installation command. On Apple Silicon run the last command as
 ### Continuous integration
 
 Every pull request runs the checks above, the browser journeys, and a container smoke test that
-builds the Docker image, migrates a disposable PostgreSQL database, renders a PDF and starts
-Gunicorn for health, readiness, sign-in and static checks. These checks never publish or deploy.
+builds the Docker image, migrates a disposable PostgreSQL database, renders a PDF, runs the
+acceptance scripts inside the image and starts Gunicorn for health, readiness, sign-in and static
+checks. These checks never publish or deploy.
 A separate workflow publishes the static presentation in `website/about` to GitHub Pages when it
 changes on `main`.
 
@@ -127,7 +130,7 @@ pull request.
 
 ## Licence of contributions
 
-Smart Roots LIMS is licensed under [AGPL-3.0-only](LICENSE). By submitting a contribution you agree
+OpenBGA Environmental LIMS is licensed under [AGPL-3.0-only](LICENSE). By submitting a contribution you agree
 that it is licensed under the same terms, and you confirm that you have the right to submit it.
 Do not copy code or text from sources whose licence is incompatible with AGPL-3.0-only, and
 keep third-party notices intact (see [Third-party notices](THIRD_PARTY_NOTICES.md)).
@@ -137,3 +140,20 @@ keep third-party notices intact (see [Third-party notices](THIRD_PARTY_NOTICES.m
 [`AGENTS.md`](AGENTS.md) holds the working rules for AI coding agents in this repository. They
 are the same rules as above, in more detail. If you use an agent, you remain responsible for
 the change you submit.
+
+### Agent tooling
+
+Shared agent instructions live in `.agents/`. `.claude/skills` and `.claude/rules` are symlinks
+to `.agents/skills` and `.agents/rules`, so Claude Code and Codex (which reads `.agents/skills`)
+load the same files.
+
+| Kind | File | Use |
+| --- | --- | --- |
+| Skill | [`build-page`](.agents/skills/build-page/SKILL.md) | Building or changing any page, form, dialog or template: page types, shared components, controls, tokens, icons, lists |
+| Skill | [`document-page`](.agents/skills/document-page/SKILL.md) | Writing the in-app page help under `docs/pages/` |
+| Skill | [`project-code-review`](.agents/skills/project-code-review/SKILL.md) | The pre-PR gate: diff review against `AGENTS.md` and the UI rules, fixes, checks, browser journeys, before/after screenshots |
+| Rule | [`frontend.md`](.agents/rules/frontend.md) | Short frontend rules: components, tokens, icons, controls, validation |
+| Rule | [`backend.md`](.agents/rules/backend.md) | The helpers behind the backend rules: role and release checks, client scoping, audit events, concurrency, exact decimals, lookups, migrations, tests |
+
+Before/after screenshots for pull requests come from `scripts/ui_compare/capture.py`
+(see the `project-code-review` skill).

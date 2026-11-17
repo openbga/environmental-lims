@@ -23,12 +23,12 @@ secrets from it. Keep the same key when recovering unless you intend those effec
 
 **Immutability protection, exactly.** Row triggers on the history tables (audit and custody
 events, result revisions, issued reports and files, EDD exports, subcontract and external
-results, MDL records) raise an error on `UPDATE` or `DELETE`. They do not block `INSERT`, so
-`pg_restore` works. They do not block `TRUNCATE`, `DROP TABLE` or schema changes, and the table
-owner or a superuser can disable them (`ALTER TABLE ... DISABLE TRIGGER`,
-`session_replication_role`). Runtime and migration use the same database role today. Do not
-repair history in place; restore into a new database and compare instead. This is not tamper
-evidence against database administrators.
+results, MDL records, uploaded laboratory logos) raise an error on `UPDATE` or `DELETE`. They
+do not block `INSERT`, so `pg_restore` works. They do not block `TRUNCATE`, `DROP TABLE` or
+schema changes, and the table owner or a superuser can disable them
+(`ALTER TABLE ... DISABLE TRIGGER`, `session_replication_role`). Runtime and migration use
+the same database role today. Do not repair history in place; restore into a new database
+and compare instead. This is not tamper evidence against database administrators.
 
 ## Decisions the operator must make
 
@@ -128,6 +128,53 @@ against a newer schema, but check the migrations added since it (a dropped or re
 breaks it). Do not restore the
 database: that would discard records entered since the backup.
 
+One case to check: holding-time rules that name an analyte (migration `analytical.0009`). A
+release from before that change reads every active rule as method-wide, so it holds each
+analyte of the method to the shortest of those limits (stricter, never a silent pass), and its
+rule form, import and seed can refuse or pick the wrong row. Create analyte rules only once no
+instance of an older release is running, and deactivate them before running an older release
+against the database. The migration's reverse refuses while any rule names an analyte.
+
+Client account-hold notices add defaulted columns in `receipt.0013`; existing clients start
+without a hold. Keep the additive schema on a code rollback. Older code does not show these
+notices, so staff must check account instructions separately until compatible code returns.
+No normal deployment or migration changes an existing client's hold or resets demo data.
+
+Draft invoices add two tables in `commercial.0005`. Reversing refuses once a draft exists;
+keep them during a code rollback. Older code can continue running but cannot show or edit
+these drafts. Return to compatible code to
+use the retained billing snapshots and audit history. Include the tables in normal database
+backups; a deploy neither creates invoices nor resets the demonstration.
+
+Quote-based pricing adds nullable provenance fields in `commercial.0006` and permits a quote
+instead of a price list. Keep these fields on code rollback; reversal refuses once quote
+provenance exists. Earlier code can still create list-priced drafts but cannot correctly present
+or edit quote-priced drafts. Use compatible code for those records. Existing invoices and issued
+quotes are not rewritten, and deployment does not seed or reset data.
+
+Quote fee and discount lines add a defaulted kind in `commercial.0007` and allow their
+sample/test references to be empty. Existing lines remain tests, and a database default supports
+previous code inserting test lines during deployment. Reversal refuses once a fee or discount
+line exists, including cancelled drafts. Keep the schema on code rollback and use compatible
+code to view or edit drafts with these lines: earlier code cannot correctly present or edit them.
+This migration does not change accepted quotes or existing draft amounts, and does not reset data.
+
+Manual fees and discounts relax only the quote-source requirement for non-test lines in
+`commercial.0008`; no rows or amounts are rewritten. Keep that constraint expansion on code
+rollback. Previous code can still read and cancel these drafts, but cannot edit drafts containing manual
+lines, add manual lines or label their manual origin. Use compatible code for these records. Reversal
+refuses once a manual line exists, including on cancelled drafts; never invent a quote source
+to force reversal. Normal backup/restore covers these lines and their audit history.
+
+BOD bottle worksheets add the nullable `bottle_data` column in `analytical.0012`. Keep that column during a code rollback: reversing the migration refuses once any bottle snapshot exists. Older code cannot show or reproduce those bottle observations and cannot accept entries for a BOD calculation rule; deactivate that rule before using older code for new entries, and return to a compatible release to inspect retained worksheets. A normal deploy does not reseed; the synthetic BOD example appears at the demonstration’s next scheduled reset.
+
+Run calibration evidence adds `analytical.0013`: an immutable calibration table and nullable
+result-provenance fields. Keep these objects during a code rollback; reversing refuses once a
+calibration record exists. Older code can run with this additive schema but cannot display the
+new evidence or enforce its selected-check and contributor gates. Do not review or release
+calibration-linked work on older code. Restore a compatible release to inspect and use it.
+Normal deployment does not reseed the demonstration.
+
 **Data loss or corruption.** Recover into a new database; never overwrite or discard the
 current one.
 
@@ -141,6 +188,79 @@ current one.
 
 A migration that must be reverted needs a deliberately written reverse or a staged fix, not a
 blind restore. Take a backup before each deploy that adds migrations.
+
+## Acceptance run after installation and upgrade
+
+`run_acceptance` runs scripted checks of the first journey and the controls it rests on (role
+refusals, client isolation, independent review, release permission, holding time, QC gates,
+a result calculated from its readings, a soil result taken back to the sample on a dry-weight
+basis, a two-endpoint titration with retained burette readings and titrant strength, a BOD mean with retained bottle selections and entered seed-correction sources, report
+immutability and amendments, audit events) on
+synthetic records, and writes an evidence
+package for the laboratory to keep. Run it after installing, after each upgrade once the
+release's migrations have run, and after changing the database server or container image.
+
+```sh
+python manage.py run_acceptance --operator "Full Name" --output /path/to/new-directory
+```
+
+It never uses the laboratory's records. It creates a database named
+`acceptance_<database name>` on the same server, migrates it from empty, runs the steps and
+drops it; this takes well under a minute. The database role needs `CREATEDB`. Where it has not,
+create an empty database for acceptance runs, owned by the application's role (the role must
+own the database's current schema so the run can empty it), and pass its URL in
+`ACCEPTANCE_DATABASE_URL` (or `--scratch-database-url`, which shows the password in the process
+list). The run refuses a URL that reaches the working database, however it is written, and a
+database that holds anything other than an earlier acceptance run, and empties it afterwards.
+On the working database the run only reads the migration table and the server's identity and,
+in the default mode, holds an advisory lock and creates and drops the scratch database; a
+second run started meanwhile is refused.
+
+Every connection that creates, marks, empties or drops checks first that it reached the
+database it should and not the working one. If such a check fails, the run stops and cleans up
+nothing; the message names what exists. Ctrl-C ends the run and removes the scratch database.
+A killed process leaves `acceptance_<database name>` behind (marked by an
+`acceptance_scratch_marker` table); the next run reports it and stops until you pass
+`--drop-stale-scratch-database`. `--keep-scratch-database` leaves it for inspection; it then
+holds the synthetic accounts' password hashes, so drop it when done.
+
+The run uses the deployment's own settings. Run it with `DEBUG=false` and the production
+settings; with `DEBUG=true` the report says the production protections were off. Requests carry
+what the configured proxy settings expect: the `X-Forwarded-Proto` header of
+`SECURE_PROXY_SSL_HEADER`, and the client-address header named by
+`ALLAUTH_TRUSTED_CLIENT_IP_HEADER` or an `X-Forwarded-For` with `ALLAUTH_TRUSTED_PROXY_COUNT`
+entries, each with `127.0.0.1`. The run signs in fewer than fifteen times, within the sign-in
+rate limits. Inside the container, write to a mounted directory the image's user (uid 10001)
+can write, or the package is lost when the container exits; on a hosted service, copy the
+package off the instance before the shell closes.
+
+The package, in a new or empty directory (default: `environmental-lims-acceptance-<UTC time>` in the
+current directory, never inside the static or website directories). The run creates the
+directory and tests that it can write there before anything else:
+
+| File | Contents |
+| --- | --- |
+| `report.html`, `report.pdf` | Software version and commit (where the environment or a Git checkout supplies it), Python, Django and PostgreSQL versions, time zone and security settings, migrations, the operator as stated, start and finish times, every step with requirement, expected and observed result, and blank Performed by and Reviewed by lines |
+| `evidence.json` | The same, with every observation and the full migration list |
+| `artifacts/` | The issued and amended report PDFs the run produced |
+| `manifest-sha256.txt` | SHA-256 of every other file; check with `sha256sum -c manifest-sha256.txt` |
+
+| Exit status | Meaning |
+| --- | --- |
+| 0 | Every step passed and the package is complete |
+| 1 | The package was written, but a step failed or did not run, `report.pdf` could not be rendered, or the scratch database could not be removed (the report says which) |
+| 2 | Refused or stopped before any step ran; the message says whether anything was created |
+| 3 | Unexpected failure. No package was written, or files without a manifest were left because the package could not be completed; the message says which |
+
+Keep the package with the laboratory's other records of the installation; sign the printed
+report as your procedure requires.
+
+What it does not show: anything about the laboratory's own methods, limits, catalog, accounts
+or records (it uses the synthetic `DEMO-` method set), backups and restore, mail delivery,
+browser behaviour or performance. Requests are made in process, so TLS, the proxy and Gunicorn
+are not exercised; check `/ready/` over the real address separately. A passing run is a record
+that these checks passed on this installation at that time, not a validation of the software
+or the laboratory; the laboratory decides what it means in its quality system.
 
 ## Sign-in limits behind a proxy
 
@@ -200,10 +320,32 @@ identifiers; a request shows `route=accounts/confirm-email/<key>/`, or `<unmatch
 that match nothing. The ID is generated by the server, never taken from a client header, and is
 returned in the `X-Request-ID` response header. Quote it to find related errors.
 
+Sign-in activity writes `roots.signin` lines to the same stdout stream: `signin.success`,
+`signin.failed` and `signout`, with the stored username. Unknown or ambiguous identifiers show
+`user=<unknown>`; submitted login text, passwords and codes are never logged. Usernames are
+URL-escaped so they cannot add log lines or fields. Password failures include attempts refused
+by the sign-in rate limit; rejected email sign-in codes for known accounts and rejected MFA
+sign-in codes also log a failure. Success is logged once, after all required authentication
+stages complete. Explicit account and administration sign-outs are logged; anonymous sign-outs,
+abandoned authentication stages and browser/session expiry do not emit a sign-out event.
+These are operational logs, separate from laboratory audit history and database backups; a demo
+database reset does not erase the platform's existing logs. Treat usernames as personal data and
+set an appropriate retention period or stream to a controlled destination for longer history.
+
+On Render, open the web service's **Logs** page and search for `roots.signin` (or an event such
+as `signin.failed`). Every application log line also has `render_request_id`, the validated
+`Rndr-Id` header, or `-` when absent or malformed. This field is for correlation only; it never
+replaces the server-generated `request_id` or grants trust to the caller. Search that Render ID
+to find the associated HTTP request log when the workspace has Pro or higher. Runtime log
+retention follows the workspace's plan. Verify the header reaches the app
+with a sign-in after deployment. Source: [Render logging](https://render.com/docs/logging),
+checked 2026-11-12.
+
 Django's own error and security records are rewritten to the same ID, status, route and exception
 class. Tracebacks keep their frames but exception messages are withheld, because Django and
-libraries can embed request details in them. Query strings, bodies, cookies, headers, usernames
-and local variables are not logged. Frame lines show source code text, never values.
+libraries can embed request details in them. Query strings, bodies, cookies, other headers and
+local variables are not logged; usernames appear only in the sign-in activity lines described
+above. Frame lines show source code text, never values.
 
 Limit: Gunicorn's access log and the development server's own request line (both log the raw path)
 are off, and Gunicorn's error log stays on for worker-level problems. Messages that application code logs itself are not rewritten, so

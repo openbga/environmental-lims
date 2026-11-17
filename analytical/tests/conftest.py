@@ -133,6 +133,57 @@ def config(lab, db):
     return lab
 
 
+@pytest.fixture
+def soil(config, analyst):
+    """A synthetic soil method (nitrate in mg/kg, zinc in ug/kg, percent solids), one soil
+    sample requesting all three, and a batch holding them."""
+    from analytical import services
+    from analytical.models import Result
+
+    method = Method.objects.create(code="DEMO-SOIL", version="r1", title="Synthetic soil demo")
+    defs = {}
+    for name, unit, limit in (
+        ("Nitrate", "mg/kg", "0.5"),
+        ("Zinc", "ug/kg", "5"),
+        ("Solids", "%", "0.1"),
+    ):
+        analyte = Analyte.objects.create(name=f"{name} (synthetic soil)")
+        defs[name] = TestDefinition.objects.create(
+            method=method, analyte=analyte, matrix="soil", unit=unit, reporting_limit=Decimal(limit)
+        )
+        PreservationRule.objects.create(
+            definition=defs[name],
+            temperature_mode="not_required",
+            basis="SYNTHETIC TEST: no temperature requirement; not method guidance.",
+        )
+    now = timezone.now()
+    sample = Sample.objects.create(
+        lab_id="VR-DEMO-S1",
+        order=config["samples"][0].order,
+        client_sample_id="DB-1",
+        matrix="soil",
+        collected_at=now - timedelta(days=3),
+        received_at=now - timedelta(days=2),
+        received_by=config["creator"],
+        collector_name="Synthetic Collector",
+        cooler_temperature=Decimal("4.0"),
+        seal_condition="intact",
+        preservation_check="ok",
+        current_location="Bench",
+        collection_location="Synthetic drying bed 1",
+    )
+    tests = [RequestedTest.objects.create(sample=sample, definition=d) for d in defs.values()]
+    batch = services.create_batch(actor=analyst, method=method, matrix="soil")
+    services.add_tests_to_batch(
+        actor=analyst, batch_id=batch.pk, requested_test_ids=[t.pk for t in tests]
+    )
+    results = {
+        name: Result.objects.get(batch=batch, requested_test__definition=d)
+        for name, d in defs.items()
+    }
+    return {"method": method, "defs": defs, "sample": sample, "batch": batch, "results": results}
+
+
 @pytest.fixture(autouse=True)
 def plain_static_storage(settings):
     """Tests render real templates without a collectstatic manifest."""

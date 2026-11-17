@@ -1,6 +1,6 @@
-# Smart Roots LIMS: product scope
+# OpenBGA Environmental LIMS: product scope
 
-Smart Roots LIMS is a free, open-source laboratory information management system (LIMS) for US environmental testing labs. This document says what the product must do, why, and in what order. It does not prescribe architecture. Domain claims cite public sources, linked under Evidence and limits so they stay checkable after cloning. Researched 2026-11-08.
+OpenBGA Environmental LIMS is a free, open-source laboratory information management system (LIMS) for US environmental testing labs. This document says what the product must do, why, and in what order. It does not prescribe architecture. Domain claims cite public sources, linked under Evidence and limits so they stay checkable after cloning. Researched 2026-11-08.
 
 ## Working assumptions
 
@@ -16,7 +16,7 @@ Confirmed: lab type (commercial US water, wastewater and soil lab) and one lab o
 
 ## What this product claims
 
-Smart Roots LIMS supports a lab's own quality system. It does not make a lab compliant, accredited or certified. Accreditation (for example under the National Environmental Laboratory Accreditation Program, run by The NELAC Institute, TNI) and drinking water certification belong to the lab and its accreditation body. Do not write UI copy, README text or reports that claim compliance. Say "supports" and name the record or control.
+OpenBGA Environmental LIMS supports a lab's own quality system. It does not make a lab compliant, accredited or certified. Accreditation (for example under the National Environmental Laboratory Accreditation Program, run by The NELAC Institute, TNI) and drinking water certification belong to the lab and its accreditation body. Do not write UI copy, README text or reports that claim compliance. Say "supports" and name the record or control.
 
 Restricted standards (TNI, ISO/IEC 17025) are not reproduced here or in code. Requirements below come from public federal rules and EPA material, plus paraphrased public interpretations.
 
@@ -61,13 +61,19 @@ These are the rules where a plausible but wrong implementation misleads a lab. D
 | Exceeding a hold | For Clean Water Act compliance monitoring, results past the limit are not valid unless stability data and a regional variance exist. Other programs differ. The product flags and qualifies. It never silently passes or deletes | 136.3 fn. 4, 136.3(e) |
 | Preservation | Preservation is a per-method rule, not a lab-wide policy. Where a method's rule requires cooling to 6 C or below without freezing (many Clean Water Act aqueous methods), that rule forbids rounding a reading down to pass. Always keep the original reading, with unit and instrument or thermometer if known, and evaluate it against the rule of each requested method. Some tests have no temperature requirement, and other methods use different limits | 136.3 fn. 18 |
 | Examples | Nitrate and BOD: cool, 48 hours. Most metals: nitric acid to pH below 2, 6 months. Mercury (cold vapor atomic absorption): 28 days. Illustrative only, boron, hexavalent chromium and other analytes differ | 136.3 Table II |
-| Method-specific | Containers, preservation and holding times differ by method and matrix. Seed a small editable set, never hard-code in logic | Table II, SW-846 |
+| Method-specific | Containers, preservation and holding times differ by method and matrix. Seed a small editable set, never hard-code in logic. The starter files under Setup are that set: a laboratory downloads them, checks and edits each row, and imports them. Table II sets its limits per parameter, so a holding rule covers every analyte of its method and matrix or names one analyte, whose rule then replaces the method-wide rule for that analyte and clock. A starter method that covers parameters with different limits carries a method-wide rule at the shortest limit and a rule for each analyte with a longer one | Table II, SW-846 |
 | QC elements | Methods call for demonstration of capability, method detection limit (MDL), blanks, laboratory control samples, matrix spike and duplicate, calibration checks, surrogates, control charts and corrective action. Frequency and limits come from the method or lab SOP | 40 CFR 136.7 |
 | Batches | Preparation batch and analytical batch can differ. QC frequency is defined per method, so do not hard-code "one per 20" | 136.7 |
 | MDL | Determined from spiked samples and method blanks, using the greater value. Spikes run each quarter the method is used, and the MDL is recalculated at least every 13 months | 40 CFR 136 App. B Rev. 2 |
 | Reporting limits | Vary per result: dilution, sample size and soil moisture all change them. Store the limit applied to each result, not only the method default | General practice |
+| Calculated results | Where a result is worked out from bench readings, the readings are the original observations: keep each one exactly as read, with its unit. Carry the arithmetic at full precision and round once, at the end. How a value is rounded is the laboratory's documented choice: significant figures or decimal places, and whether a dropped 5 goes to the even digit or always up. A method can ask for different rounding by the size of the result. Keep the calculation and its version with the result so the reported value can be worked out again. A typed or imported value is never rounded | NIST SP 811 B.7.1; NIST GLP 9 (2019); USGS I-3765-85, section 8 |
+| Preparation factors | The solution an instrument reads is not the sample: a measured portion was digested, extracted or diluted to a final volume first. Take the reading back to the sample with the amounts actually prepared (final volume over the volume or weight prepared) and any further dilution, and take the reporting limit with it by the same factors. The amounts are readings: keep them with the result | EPA 200.7 Rev. 4.4, sections 12.3 and 12.5; SW-846 6010D Rev. 5, section 12.1. For the reporting limit: general practice (the EPA CLP SOM01.2 equations, 2007, adjust a contract quantitation limit the same way) |
+| Dry weight and percent solids | A soil result is on the basis of the portion as weighed. Where the portion is weighed as received and a dry-weight result is wanted, divide by percent solids ÷ 100. Where the method dries the portion before weighing, the result is already dry weight and nothing is divided, so the correction is never inferred from the basis alone. Percent solids (dry ÷ wet × 100) and percent moisture ((wet − dry) ÷ wet × 100) are shares of the sample as received. A dry-weight result says which percent solids it was worked with, and where that came from | SW-846 6010D Rev. 5, sections 11.5 and 12.2; EPA 200.7 Rev. 4.4, sections 11.3, 12.5 and 12.6; EPA CLP SOM01.2 equations (2007), Exhibit D, Low/Medium Volatiles, EQ. 6 and 8a |
+| Titration worksheets | Retain initial and endpoint burette readings, sample aliquot volume and actual standardized titrant normality. Alkalinity to pH 4.5 and EDTA hardness use titrant volume × normality × 50,000 ÷ sample mL, in mg/L as CaCO3. Low alkalinity uses (2B − C) instead of titrant volume, with B and C the cumulative volumes to the two endpoints. Keep both endpoint pH readings: the first is 4.3–4.7 and the second is 0.3 lower. These are explicit calculations selected for a test; neither titrant strength nor the choice of procedure is inferred | EPA 310.1 sections 6–7 and EPA 130.2 section 8, historical public method texts read 2026-11-15; the application boundary is a product choice, not a current regulatory-approval claim |
+| BOD bottle worksheets | Retain each bottle’s identity, initial and final dissolved oxygen, sample aliquot and filled bottle volumes, entered seed correction in mg/L, its source, and the analyst’s inclusion or exclusion with a reason. Calculate each concentration as (initial DO − final DO − seed correction) × bottle volume ÷ sample volume, then take the mean of the selected bottles and apply the common preliminary dilution. Round only the final mean. The laboratory chooses usable bottles and supplies its reporting limit; the worksheet does not establish that a method or QC requirement was met | Washington Ecology publication 91e20, BOD item 24 (historical equation); Wisconsin DNR BOD Seed and Method Details (public guidance), read 2026-11-15. Equal bottle weighting and the 12-bottle bound are product choices |
 | Records | Monitoring records must show sample date, place and time, who sampled, analysis dates, who analyzed, method and result. Keep at least 3 years for NPDES. Make retention a lab setting because states and accreditors may require longer | 40 CFR 122.41(j) |
 | Certified scope | Drinking water compliance samples count only if a lab certified by EPA or the state analyzed them. Some field measurements are exempt. A register of which methods, analytes and matrices fall in the lab's certified or accredited scope per program, with marking of results outside it, is milestone 4 work with the deferred drinking water and program support. Until then the product holds no scope register, performs no scope check and makes no certification or accreditation claim | 40 CFR 141.28; EPA 815-R-05-004 |
+| Laboratory identity on reports | A report names the laboratory and gives its address. A certificate or laboratory ID is not required on every report. Where one is printed it reads as a claim of that certification: it should be the certificate valid when the report is issued, and results outside its scope must be identified. The product prints the address, contact details, logo and certificates the laboratory recorded, leaves a certificate off a report issued outside its recorded validity and tells the preparer, and prints a statement that results were not checked against any scope unless the laboratory supplies its own. The laboratory's own logo is presentation only. Accreditation body symbols are the laboratory's to use under that body's rules | NY ELAP quality systems checklist items 5133 (2023-11-22) and Certification Manual Item 132 (2024-02-12); TCEQ accreditation page (2026-09-18); 25 Pa. Code 252.401(j) and 252.705, read as a 2015 draft and a summary. Other states not reviewed |
 | Amended reports | A change after issue must be clearly identified with reason. An amendment is a further document that names the original, and a replacement names what it replaces | ISO/IEC 17025:2017 7.8.8, via European Accreditation interpretation |
 | Electronic records | Electronic records are acceptable if secured with an audit trail and access control | TNI interpretation, via secondary summary |
 | Chain of custody | Sign at each transfer, seal containers, record seal condition and discrepancies at receipt, compare labels, COC and sample appearance, check field preservation. Practice from EPA program guidance, details vary by program and client | EPA guidance (CLP, Region 4, MARLAP) |
@@ -90,7 +96,7 @@ Rules that follow:
 - Field QC designation describes what the client sent. Laboratory QC samples stay in analytical batches.
 - Pick-lists for observations and containers are starter vocabularies with an "Other" entry, stored as text. They are not method requirements, and values recorded before a list existed stay valid. A lab-managed bottle catalog is a later option, not built.
 - Informational fields (payment terms, PO required, report instructions, delivery method) trigger no automatic invoicing, emailing or blocking.
-- New reports print the client mailing address and, when recorded, the sample source, field designation and coolant. Issued reports never change. The laboratory's own address is not yet on the lab record or the report.
+- New reports print the client mailing address and, when recorded, the sample source, field designation and coolant. Issued reports never change. New reports also print the laboratory's address, contact details, logo and marked certificates from the laboratory profile (see Laboratory identity on reports above).
 - Not recorded as structured data yet: field measurements, soil depth, field-filtered flag, QC deliverable level, quote link on the chain of custody.
 
 ### Why this shapes the design
@@ -109,9 +115,123 @@ Rules that follow:
 | 3. Quality system and operations | Standards, reagents and inventory with expiry, instrument calibration and maintenance, analyst training and demonstrations of capability, nonconformance and corrective action, sample storage and disposal, retention policies, laboratory announcements for staff, client users and the sign-in page | Lab can show equipment and personnel records beside sample data |
 | 4. Programs and breadth | Program certification or accreditation scope register and marking (drinking water first), more deliverable formats (federal and state), permit-reporting exports, additional disciplines such as microbiology, multi-lab | Chosen later by the project |
 
-Status, 2026-11-12: milestones 1 to 3 are implemented, with the limits in [Workflow rules and limits](workflows.md). What comes after them is the public [roadmap](../website/about/roadmap/index.html), published at <https://openbga.github.io/smart-roots-lims/roadmap/>. It carries no dates and sorts the remaining work into Next (what a laboratory needs for daily use: a stable release, bench calculations, instrument data, invoicing, notifications and deliverables), Later (quality system records, management view and milestone 4's programs and disciplines) and Exploring. The roadmap is the one list of planned work: change it in the same increment when an area ships or the order changes, and keep this document for the requirements and domain rules of work being built. Its order rests on the public rules cited here and on its own page, on public laboratory system requirements and on the gaps recorded in these documents, reviewed on that date.
+Status, 2026-11-15: milestones 1 to 3 are implemented, with the limits in [Workflow rules and limits](workflows.md). What comes after them is the public [roadmap](../website/about/roadmap/index.html), published at <https://openbga.github.io/environmental-lims/roadmap/>. It carries no dates and sorts the remaining work into Next (what a laboratory needs for daily use: a stable release, instrument data, invoicing, notifications and deliverables), Later (quality system records, management view and milestone 4's programs and disciplines) and Exploring. From its first Next area these are implemented (2026-11-12): the laboratory's address, logo and certificate numbers on reports; import of clients, projects, methods, tests, limits and rules from spreadsheets saved as CSV; starter files for common methods, each rule naming its public source; and acceptance scripts a laboratory runs on its own installation, which record what passed on synthetic data and make no validation claim. Holding-time limits per analyte, added to that area when the starter files showed the gap, are implemented (2026-11-14): a rule may name one analyte of its method, and the starter files give EPA 300.0 and EPA 365.1 their Table II limits per analyte. Versioned releases remain. From the second Next area, calculated results at the bench, these are implemented (2026-11-14): versioned calculations whose readings, version and rounding are kept with each result so the reported value can be worked out again; rounding rules set by the laboratory per test; a dilution factor applied to the result and the reporting limit; and a worksheet for solids by weight. A second increment the same day added preparation factors applied to results and reporting limits (by volume and by weight), percent solids and percent moisture by weight, and a dry-weight correction for soil that keeps the percent solids on the worksheet. A third increment (2026-11-15) added alkalinity titrations (pH 4.5 and the low-alkalinity two-endpoint equation) and total hardness by EDTA, with burette readings and actual titrant normality retained. A fourth increment (2026-11-15) added BOD bottle worksheets: initial and final dissolved oxygen, actual sample and bottle volumes, entered seed correction with its source, and explicit bottle selection. The reported value is the equally weighted mean of selected bottle concentrations, multiplied by the common preliminary dilution and rounded once. Seed-control calculations, automatic bottle eligibility, CBOD-specific records and other titrations are outside the implemented set. The roadmap is the one list of planned work: change it in the same increment when an area ships or the order changes, and keep this document for the requirements and domain rules of work being built. Its order rests on the public rules cited here and on its own page, on public laboratory system requirements and on the gaps recorded in these documents, reviewed on that date.
 
-Initial instrument-file support uses explicit long/wide CSV/TSV mappings. Qualifying a particular instrument/software export requires representative files; these mappings are not vendor-qualified adapters.
+Instrument-file support uses explicit long/wide CSV/TSV mappings and, from 2026-11-15,
+plain XLSX worksheets. An analyst names the visible worksheet for each upload and previews
+its values against the batch before confirming. Text and stored numeric decimal text are
+preserved without binary-float conversion; display formatting does not supply significant
+digits, units or leading zeros. Digits already lost when a spreadsheet was saved cannot be
+recovered. Identifiers and analysis timestamps must be text. Formulas, cached formula results,
+merged cells, error cells and typed dates in the selected sheet are refused; hidden rows and
+columns are included. Macro-enabled, encrypted and external-link workbooks are outside this
+bounded input format. The original file remains the laboratory's record; the application keeps
+its digest, selected worksheet, row/column provenance and mapping snapshot with the import.
+Confirmation rechecks the source and current records atomically. Resource bounds (1 MiB upload,
+20 MiB expanded workbook, 200 ZIP members, 10,000 worksheet rows, 256 columns, 100,000 cells and
+2,000 results/blank mapped cells) are product choices for synchronous processing. Setup imports
+remain CSV-only. Qualifying a particular instrument/software export still requires representative
+files; these mappings are not vendor-qualified adapters.
+
+Analysts can export a generic CSV run list of the current analytical batch's assigned tests and
+recorded QC samples for instrument setup. It includes sample disposition and disposal state,
+current configured units and limits, and the latest result's explicitly recorded preparation
+identity only when that revision belongs to this batch. It never chooses an aliquot, supplies
+missing QC or calibration standards, assigns injection order, or sends commands to an instrument.
+The laboratory maps the columns and verifies the intended run. Closed batches remain exportable
+as current inventories, not historical snapshots. The 2,000-row bound is a product choice for
+synchronous downloads; formula-like text is refused without rewriting identifiers. No vendor
+qualification or analytical acceptance is implied. Vendor-specific run formats remain roadmap work.
+
+Run calibration evidence, added 2026-11-15, records the instrument-reported fit/equation,
+standard references and exact concentration/response text for one test in an analytical batch.
+Each record freezes its method, analyte, units and recorded equipment identity. An analyst may
+explicitly choose that curve and one calibration-verification QC observation on a new result
+revision through the single-result form; no curve is inferred for grid, file or BOD-bottle entries.
+Corrections add distinct records and result revisions. Selected evidence is retained in the result
+and new report snapshots; issued versions remain unchanged. A superseded selected verification
+requires a new result revision, and people who recorded the selected curve or check cannot review
+or release that result. Existing configured QC checks still apply.
+
+This records evidence, not method acceptance: it does not fit curves, evaluate fit quality,
+choose standards, determine independent sources or check run sequence and verification bracketing.
+EPA 200.7 Rev. 4.4 (1994), sections 9.3.4 and 11.4.4, and SW-846 6010D Rev. 5 (July 2018),
+sections 10.7–10.8, describe different calibration and verification arrangements. Their rules
+cannot be reduced to a universal point count or recovery limit. The 50-point record limit and
+one optional check per result revision are product bounds, not laboratory requirements; negative
+instrument responses are allowed. Source references remain the laboratory's responsibility.
+US method sources checked 2026-11-15: [EPA 200.7 Rev. 4.4](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P10177CN.txt)
+and [EPA 6010D Rev. 5](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P1017DDQ.txt).
+
+Account-hold notices, added 2026-11-16, are the first invoicing increment. Project managers
+and administrators can mark a client on hold and record a staff note. Client edits retain the
+actor, reason and old/new values and reject stale changes. Staff see the current notice while
+receiving samples and on the report-release preview. It is informational: the laboratory decides
+what to do, and neither receipt nor release is automatically blocked. The flag is distinct from
+client inactivity, sample disposition, QC holds and explicit release authority. Notes remain
+internal and are excluded from client pages, report snapshots, PDFs and deliverables. Clearing
+the flag retains the note for staff unless explicitly changed. The 500-character note bound and
+notice-only behavior are product choices, not billing or regulatory requirements. There is no
+balance calculation, invoice, automatic payment action or accounting integration in this increment.
+
+Draft invoices, added 2026-11-16, let project managers and administrators prepare charges from
+the current requested tests on a received order and an explicitly selected active price list
+or accepted quote version. Every test needs a recorded price. Amounts use exact USD decimals,
+and each draft retains the source test identities, sample dispositions, selected pricing source
+and billing details used to
+prepare it. The order PO takes precedence over the project's standing PO; a blank invoice
+address uses the client's mailing address. Blank invoice contact/email use the primary contact/email.
+Later source changes do not update a draft.
+Staff review the included work and may edit the billing details, descriptions, quantities and
+prices with a reason. Inclusion does not establish that a test is chargeable, completed or
+analytically accepted. One active draft per order and a 200-line limit are product bounds.
+Creation, edits and cancellation retain attributed history and reject stale submissions;
+cancelled drafts remain available internally. Drafts cannot be issued, paid or viewed by
+clients. Tax, due dates, payments, issued invoices and
+accounting export remain roadmap work.
+
+Accepted-quote pricing, added 2026-11-16, is an explicit alternative to a price list. The quote
+must be accepted for this client and either this project or no particular project, and the
+selected issued version must be the accepted version. Its full set of test identities and
+quantities must exactly match the received order, with one quote line per test definition.
+Missing, extra and duplicate test lines are refused; nothing falls back to a list or
+is silently omitted. Each received requested test copies its quoted description and exact unit
+price at quantity one. The draft retains the accepted version, its number/title/acceptance
+snapshot and each source quote line through later edits and cancellation. Billing details and
+PO still come from client/project/order records; quote terms are not copied. The quote's
+valid-until date governs acceptance, not use of an already accepted version.
+
+Quote fees and discounts, added 2026-11-16, transfer once per accepted quote line after the
+received-test lines. Their kind, description, positive whole-number quantity, signed USD unit
+price and source quote line are retained; they have no sample or requested-test identity.
+Tests and fees use nonnegative prices; discounts use zero or negative prices, in whole cents.
+The combined draft is limited to 200 lines and a nonnegative total. These sign and size rules
+are product bounds, not tax or accounting requirements. Reasoned edits can change descriptions,
+quantities and prices but preserve every line, its kind and provenance. Discounts are fixed
+amounts multiplied by quantity; percentage discounts are not supported.
+Matching and transfer are per order and do not allocate a quote across multiple orders.
+
+Manually added fees and discounts, added 2026-11-16, extend an active draft without changing
+its original received-test or quote snapshot. A project manager or administrator chooses the
+kind, description, positive whole-number quantity and signed whole-cent USD price and gives a
+reason. Each added line has a distinct manual origin, without a fabricated sample, test or quote
+link. The same sign rules, combined 200-line bound and nonnegative total apply. Adding a line
+rechecks the locked draft revision and records its actor, reason and before/after state together.
+Every line stays in the draft with its kind and origin fixed; staff correct an unwanted amount
+to zero with a reason or cancel the draft. Cancelled drafts cannot receive more lines. These are
+product choices for retained internal billing preparation, not tax or accounting requirements.
+
+These are deliberately bounded product choices for whole-order draft preparation, not a
+contract interpretation or billing qualification. Quote quantities are matched per order;
+no cumulative consumption, reservation, repeated-use prohibition or ledger is implied. Staff
+review applicability before creating a draft and retain responsibility for reasoned later edits.
+Accepted quotes becoming invoice sources are an established software pattern
+([Stripe quote acceptance](https://docs.stripe.com/api/quotes/accept), checked 2026-11-16).
+
+The distinction between editable preparation and a finalized invoice follows a common
+software workflow ([Stripe invoice lifecycle](https://docs.stripe.com/invoicing/overview),
+checked 2026-11-16). The snapshot timing, retained cancellations and bounds above are this
+product's choices, not accounting or regulatory requirements. No Stripe integration is used.
 
 Deliverable and reporting targets for milestones 2 to 4. All are exploratory. A recipient accepts an EDD only against its own current specification and reference values, so no format here is claimed as accepted until tested against one named recipient's spec.
 
@@ -129,6 +249,7 @@ The project wants clean, reusable code, standard libraries and components, a pro
 
 - Prefer a few well-modeled concepts (sample, container, test, batch, result, report version) over configurable generality. Add configuration only where a lab must change it: methods, analytes, units, limits, holding rules, qualifiers.
 - Professional means dense, scannable, keyboard-friendly tables for receipt, batches and review, with clear status, holding-time warnings and queues per role. Chemists work in volume.
+- Staff navigation shows work destinations for the account’s effective roles and explicit capabilities, combines destinations across roles, and omits empty sections. Related record links and direct pages retain their existing authorization; client portal navigation remains separate.
 - Tests concentrate on the rules in the table above: holding-time computation, QC evaluation, separation of duties, report immutability and amendment lineage, audit completeness. Skip tests that restate framework behavior.
 - Keep documentation to intent and constraints. Do not duplicate the code in prose.
 - Every application page has contextual operator documentation, opened by a top-right icon
@@ -157,7 +278,15 @@ The project wants clean, reusable code, standard libraries and components, a pro
 - Drinking water certification follows EPA manual EPA 815-R-05-004, fifth edition, with two supplements. No newer edition was found.
 - State rules differ. Texas, California, New York, Florida and other NELAP states each have their own report and record rules. This research did not review them.
 - The TNI standard and ISO/IEC 17025 are sold standards. Statements here rely on public interpretations and summaries, marked as such, and are not a substitute for reading the standard.
+- Certificate numbers on reports were researched 2026-11-12 for New York, Texas and Pennsylvania only (Pennsylvania through a 2015 draft and a summary of the current text). No source gives approved wording for a report that cannot mark which results a certificate covers, so the default statement is the project's own. A laboratory's phone, email and website on a report are general practice, not a cited rule. A subcontract laboratory's certificate number, which Pennsylvania asks for on the final report, is not recorded or printed.
+- The starter files were read on 2026-11-12 from 40 CFR 136.3 Tables IB and II (eCFR current to 2026-11-10; section last amended 2024-06-17), EPA methods 200.7, 200.8, 245.1, 300.0, 350.1, 351.2, 353.2, 365.1, 410.4 and 180.1, and SW-846 Chapter Three (Update VI, 2018) with methods 6010D, 6020B and 7471B. A second reader then compared every value with the saved source text, and the corrections from that reading were applied. Standard Methods texts were not read: those entries carry only what the CFR says about them. The files hold no reporting limits, no soil tests (no source gives a unit) and no preparation methods, and "6 months" is entered as 180 days. Units are the ones Table IB names. The quality-control rows cover only the laboratory fortified blank and matrix recoveries and frequencies of EPA 200.7, 200.8, 245.1 and 300.0, with the method's conditions quoted beside each limit. The files are starting points: Table II is a Clean Water Act rule for aqueous samples, not a drinking water rule, and a state, permit or method can be stricter. The per-analyte holding rules added on 2026-11-14 rest on the Table II rows read on 2026-11-12, compared that day with the eCFR text current to 2026-11-12 (the eCFR lists a non-substantive reissue of the section on 2026-11-12, and a comparison of the two texts found only table markup differences; last amended 2024-06-17). That an analyte's rule replaces the method-wide rule, and that the method-wide starter rule carries the shortest limit, are the project's conventions, not a source's.
+- Calculated results were researched on 2026-11-14. Rounding: NIST SP 811 (Guide to the SI) section B.7.1, read from the NIST page updated 2025-08-18, gives the half-to-even rule; NIST GLP 9 (NISTIR 6969, 2019) presents three options in common use (that rule, spreadsheet rounding, and rounding uncertainties up), says the laboratory should document which it uses and says not to round intermediate values. Both are metrology guidance, not an environmental rule: no federal source read here sets one rounding for laboratory results, so the product offers both and has no default. Solids by weight: USGS methods I-3765-85, I-1749-85 and I-3750-85 give solids in mg/L as 1,000 ÷ mL of sample × mg of residue and report whole numbers below 1,000 mg/L and three significant figures from there up; the texts were read from the National Environmental Methods Index. Standard Methods 2540 and EPA 160.2 were not read. The USGS suspended-solids method applies a correction for any loss shown by a blank, which the product does not do. That a dilution factor multiplies both the reading and the reporting limit is general practice, not verified against a source. The project's own conventions, not a source's: one calculation per test, a typed result refused where a rule is active, a calculated value below the reporting limit reported with a qualifier or as ND by the analyst, comparison of the rounded value with the limit, the choice between two roundings by the size of the value before rounding, and 50 significant digits carried before rounding.
+- Preparation factors and dry weight were researched on 2026-11-14 from EPA Method 200.7, Revision 4.4 (1994), sections 11.3 and 12.3 to 12.6, and SW-846 Method 6010D, Revision 5 (July 2018), sections 11.5, 12.1 and 12.2 (both EPA files saved 2026-11-12; their equations are images and were read from the rendered pages), and from EPA's Contract Laboratory Program document "Equations utilized in conjunction with SOM01.2" (2007-08-22), Exhibit D, Low/Medium Volatiles, EQ. 6, 8a, 10 and 11 (the numbers differ in its other exhibits), read from an EPA web snapshot. The two methods differ: 6010D weighs the portion as received and divides by percent solids, 200.7 dries the portion first, so the product offers both as separate calculations for the laboratory to choose per test. EPA 200.7 section 12.4 rounds the solution concentration before the solids calculation; the product uses each reading as typed and rounds only the result, so a laboratory following that section types the rounded concentration. The CLP equations adjust a contract quantitation limit from a contract sample amount by the amount prepared, the dilution and the moisture, and EPA 200.7 section 12.3 speaks of a detection limit adjusted for the aliquot and dilutions. Neither is a rule for a laboratory's own reporting limit, so scaling that limit by the same factors stays general practice. The product takes the limit of the measured solution as a reading and scales it; it does not adjust the catalog limit from nominal amounts. The project's own conventions, not a source's: rounding the limit worked out by the test's rounding rule; requiring the dry-weight basis for a corrected result and the wet-weight basis for percent solids and moisture; typing the percent solids with its source, with no link to the sample's percent solids result; the three unit pairings offered (mg/L to mg/kg, ug/L to ug/kg, ug/L to mg/kg); refusing percent solids weights in which the dried sample weighs less than the dish or more than the sample as received; and reading the micro sign, the Greek mu and a plain u as one spelling of the same unit. Soil mechanics uses a water content that divides by the dry weight; that is a different quantity, it is not offered, and this note about it is general knowledge that was not checked against a source. Standard Methods 2540 G and the SW-846 preparation methods (3050B and others) were not read.
 - Items marked "not verified" or "general practice" are common domain knowledge that should be confirmed against the method or state before they become hard rules.
+
+The titration equations were read on 2026-11-15 in EPA Method 310.1 (issued 1971, editorial revision 1978), sections 6.2–6.3 and 7.1–7.2, and EPA Method 130.2 (editorial revisions 1978 and 1982), section 8. The low-alkalinity procedure describes concentrations below 20 mg/L and 100–200 mL portions; the worksheet does not infer suitability from the result. The pH 3.9 mineral-acid variant, low-hardness blank correction, burette refills and other titrations are outside this increment. Choosing a rounding, reporting limit, qualified method and acceptance criteria remains the laboratory’s work. The software checks the stated pH endpoint values without inventing a tolerance; it does not perform a titration or establish method qualification.
+
+BOD arithmetic and seed-correction meaning were researched on 2026-11-15 from Washington Ecology publication 91e20, BOD checklist item 24, and Wisconsin DNR’s public BOD Seed and Method Details guidance. The seed correction is the oxygen demand attributable to added seed in that particular bottle, in mg/L; it is supplied with a source reference, not estimated by the application. Raw seed-control readings and their selection remain in the referenced laboratory record. No dilution-water blank correction is applied. The 2023 Wisconsin checklist discusses bottle depletion, residual oxygen and QC criteria, but this increment does not encode those thresholds or decide method eligibility. It requires nonnegative measured DO and correction, positive volumes, sample volume no greater than filled volume, an explicit selection and a reason for every excluded bottle. A selected bottle cannot have negative seed-corrected depletion; excluded bottles can retain that observation. These are product entry rules, not a claim of analytical acceptance. At least one complete selected bottle is required; all-bottles-fail bounds and exception reporting are outside this calculation. Setup/readout times and incubator records are not added as structured bottle fields. The result’s analysis start records setup time; further details belong in comments and the laboratory’s records. The US federal 40 CFR 136.3 Table IB and footnote 12 distinguish BOD5 from CBOD5 and their inhibitor treatment. The worksheet does not infer inhibition, validate incubation or claim current method approval. EPA 405.1 full text was not read and is not used as a current approval source.
 
 ### Primary sources
 
@@ -165,6 +294,13 @@ The project wants clean, reusable code, standard libraries and components, a pro
 |---|---|
 | Holding times, preservation, footnotes 4, 18, 22 | [40 CFR 136.3](https://www.ecfr.gov/current/title-40/part-136/section-136.3) |
 | QC elements | [40 CFR 136.7](https://www.ecfr.gov/current/title-40/part-136/section-136.7) |
+| Starter methods, analytes and QC recoveries | [EPA approved Clean Water Act chemical test methods](https://www.epa.gov/cwa-methods/approved-cwa-chemical-test-methods), [SW-846 compendium](https://www.epa.gov/hw-sw846/sw-846-compendium) |
+| Rounding of calculated values | [NIST SP 811, Appendix B, section B.7](https://www.nist.gov/pml/special-publication-811/nist-guide-si-appendix-b-conversion-factors), [NIST GLP 9, 2019](https://www.nist.gov/system/files/documents/2019/05/14/glp-9-rounding-20190506.pdf) |
+| Solids by weight | USGS methods (Techniques of Water-Resources Investigations, book 5, chapter A1) in the National Environmental Methods Index: [I-3765-85, suspended](https://www.nemi.gov/methods/method_pdf/5495/), [I-1749-85, dissolved](https://www.nemi.gov/methods/method_pdf/5473/), [I-3750-85, total](https://www.nemi.gov/methods/method_pdf/5493/) |
+| Preparation factors, dry-weight results and percent solids | [EPA Method 200.7, Revision 4.4 (1994)](https://www.epa.gov/sites/default/files/2015-08/documents/method_200-7_rev_4-4_1994.pdf), [SW-846 Method 6010D, Revision 5 (2018)](https://www.epa.gov/sites/default/files/2015-12/documents/6010d.pdf) |
+| Percent moisture and adjusted quantitation limits | [EPA Contract Laboratory Program, Equations utilized in conjunction with SOM01.2, 2007-08-22](https://19january2021snapshot.epa.gov/sites/static/files/2015-03/documents/som12_eq_guidance_08-22-07.pdf) |
+| BOD bottle arithmetic and seed correction | [Washington Ecology publication 91e20](https://apps.ecology.wa.gov/publications/documents/91e20.pdf), [Wisconsin DNR BOD Seed](https://dnr.wisconsin.gov/topic/labCert/BODSeeding.html), [Wisconsin DNR Method Details](https://dnr.wisconsin.gov/topic/labCert/BODMethod.html), [Wisconsin BOD/CBOD checklist, 2023](https://dnr.wisconsin.gov/sites/default/files/topic/LabCert/BOD_Final_2023-11-23.pdf) |
+| Titration equations | [EPA 310.1, archived method text](https://semspub.epa.gov/work/03/160260.pdf), [EPA 130.2, method text at NEMI](https://www.nemi.gov/methods/method_pdf/4684/) |
 | MDL procedure | [40 CFR 136 Appendix B](https://www.ecfr.gov/current/title-40/part-136/appendix-Appendix%20B%20to%20Part%20136), [EPA MDL FAQ](https://www.epa.gov/cwa-methods/method-detection-limit-frequent-questions), [2017 rule](https://www.federalregister.gov/documents/2017/08/28/2017-17271/clean-water-act-methods-update-rule-for-the-analysis-of-effluent) |
 | NPDES monitoring records and retention | [40 CFR 122.41(j)](https://www.ecfr.gov/current/title-40/part-122/section-122.41) |
 | NPDES electronic reporting dates | [40 CFR 127.16](https://www.ecfr.gov/current/title-40/part-127/subpart-B/section-127.16) |
@@ -172,4 +308,5 @@ The project wants clean, reusable code, standard libraries and components, a pro
 | Amended reports | [European Accreditation interpretation of ISO/IEC 17025 7.8.8](https://european-accreditation.org/sp_accordion_faqs/45-2-question-on-amendments-to-test-reports-iso-iec-17025-clause-7-8-8-1/) |
 | NELAP and TNI recognition | [TNI 2023 status report](https://nelac-institute.org/docs/comm/advocacy/Correspondence/State%20of%20National%20Accreditation%20%282023%29.pdf) |
 | Chain of custody and receipt | [CLP Sampler's Guide 2020](https://www.epa.gov/sites/default/files/2021-03/documents/samplers_guide_clp_guidance_for_field_samplers_november_2020.pdf), [Region 4 sample management](https://www.epa.gov/sites/default/files/2015-06/documents/Sample-and-Evidence-Management.pdf), [MARLAP ch. 11](https://www.epa.gov/sites/default/files/2015-05/documents/402-b-04-001b-11-final.pdf) |
+| Laboratory identity and certificate numbers on reports | [NY ELAP quality systems checklist, 2023-11-22](https://www.wadsworth.org/sites/default/files/WebDoc/NYSELAP_QSChecklist_Final_11222023.pdf), [NY ELAP Certification Manual Item 132, 2024-02-12](https://www.wadsworth.org/sites/default/files/2024-02/Item_132-07.pdf), [TCEQ laboratory accreditation, modified 2026-09-18](https://www.tceq.texas.gov/agency/qa/env_lab_accreditation.html), [25 Pa. Code 252.705](https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/025/chapter252/s252.705.html) |
 | EDD formats | [EarthSoft EQuIS lab guide, Oct 2024](https://earthsoft.com/wp-content/uploads/2024/10/EQuIS-EDD-Quick-Reference-Guide-for-Laboratories-2024.pdf), [NYSDEC EDD v5, May 2024](https://dec.ny.gov/sites/default/files/2024-05/eddmanualnewv2024.pdf), [EPA SEDD](https://www.epa.gov/clp/staged-electronic-data-deliverable-sedd), [CA GeoTracker EDF 1.2i](https://geotracker.waterboards.ca.gov/regulators/library/5878544449/LAB_EDF_FormatSpecs_rev11_2023-08-11.pdf), [EPA WQX](https://www.epa.gov/waterdata/water-quality-data-upload-wqx) |

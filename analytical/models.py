@@ -13,6 +13,8 @@ from django.db import models
 from django.db.models import F, Q
 from django.db.models.functions import Lower
 
+from catalog.models import TestDefinition
+
 
 class QCType(models.TextChoices):
     METHOD_BLANK = "method_blank", "Method blank"
@@ -69,7 +71,11 @@ class Qualifier(models.Model):
 
 
 class HoldingTimeRule(models.Model):
-    """Start event, end event and duration for a method and matrix."""
+    """Start event, end event and duration for a method and matrix.
+
+    A rule without an analyte applies to every analyte of the method. A rule that names an
+    analyte applies to that analyte only and, for it, replaces the method-wide rule with the
+    same start and end events (holding.for_analyte is the one definition of that)."""
 
     class Start(models.TextChoices):
         COLLECTION = "collection", "Collection (composite: end of collection)"
@@ -82,6 +88,15 @@ class HoldingTimeRule(models.Model):
     method = models.ForeignKey("catalog.Method", on_delete=models.PROTECT)
     matrix = models.CharField(
         max_length=20, choices=[("water", "Water"), ("wastewater", "Wastewater"), ("soil", "Soil")]
+    )
+    analyte = models.ForeignKey(
+        "catalog.Analyte",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        help_text="Leave unset for a rule that applies to every analyte of the method. With an "
+        "analyte, the rule applies to that analyte only and replaces, for it, the method-wide "
+        "rule with the same start and end events.",
     )
     name = models.CharField(max_length=120)
     start_event = models.CharField(max_length=20, choices=Start.choices)
@@ -96,11 +111,24 @@ class HoldingTimeRule(models.Model):
     is_active = models.BooleanField(default=True)
 
     class Meta:
-        ordering = ["method__code", "method__version", "matrix", "start_event", "end_event"]
+        verbose_name = "holding-time rule"
+        ordering = [
+            "method__code",
+            "method__version",
+            "matrix",
+            "start_event",
+            "end_event",
+            F("analyte__name").asc(nulls_first=True),  # the method-wide rule, then its analytes
+        ]
         constraints = [
+            # One method-wide rule per clock and one per analyte: two rows without an analyte
+            # are duplicates too, so NULL analytes are not distinct.
             models.UniqueConstraint(
-                fields=["method", "matrix", "start_event", "end_event"],
-                name="analytical_holding_rule_unique",
+                fields=["method", "matrix", "analyte", "start_event", "end_event"],
+                nulls_distinct=False,
+                name="analytical_holding_rule_scope_unique",
+                violation_error_message="A holding-time rule already exists for this method, "
+                "matrix, analyte, start event and end event.",
             ),
             models.CheckConstraint(
                 condition=Q(duration__gt=timedelta(0)), name="analytical_holding_duration_pos"
@@ -117,6 +145,24 @@ class HoldingTimeRule(models.Model):
             raise ValidationError("A preparation-start clock can only end at analysis start.")
         if self.duration is not None and self.duration <= timedelta(0):
             raise ValidationError({"duration": "Duration must be positive."})
+        if self.analyte_id and self.method_id and self.matrix and not self._analyte_is_tested():
+            raise ValidationError(
+                {
+                    "analyte": "This method has no test for this analyte in this matrix, so the "
+                    "rule would never apply. Create the test first, or leave the analyte blank."
+                }
+            )
+
+    def _analyte_is_tested(self):
+        """The analyte has a test of this method and matrix, or one prepared by this method."""
+        tests = TestDefinition.objects.filter(analyte_id=self.analyte_id, matrix=self.matrix)
+        return tests.filter(
+            Q(method_id=self.method_id) | Q(preparationrequirement__method_id=self.method_id)
+        ).exists()
+
+    @property
+    def applies_to(self):
+        return self.analyte.name if self.analyte_id else "All analytes"
 
     def __str__(self):
         return f"{self.name} ({self.method})"
@@ -283,6 +329,52 @@ class Batch(models.Model):
 
     def __str__(self):
         return self.number
+
+
+class RunCalibration(models.Model):
+    """Immutable instrument-reported curve evidence; no fitting or acceptance decision."""
+
+    batch = models.ForeignKey(Batch, on_delete=models.PROTECT, related_name="calibrations")
+    definition = models.ForeignKey(
+        "catalog.TestDefinition", on_delete=models.PROTECT, related_name="+"
+    )
+    reference = models.CharField(max_length=120)
+    calibrated_at = models.DateTimeField()
+    model_text = models.TextField(max_length=1000)
+    response_unit = models.CharField(max_length=40)
+    source_reference = models.CharField(max_length=240)
+    points = models.JSONField(help_text="Recorded standards and exact concentration/response text.")
+    method_code = models.CharField(max_length=60)
+    method_version = models.CharField(max_length=40)
+    analyte_name = models.CharField(max_length=160)
+    matrix = models.CharField(max_length=20)
+    unit = models.CharField(max_length=40)
+    equipment_label = models.CharField(max_length=240, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-calibrated_at", "-pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["batch", "reference"], name="analytical_calibration_reference"
+            )
+        ]
+
+    def __str__(self):
+        return self.reference
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError(
+                "Calibration records cannot be changed. Record a new calibration."
+            )
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Calibration records cannot be deleted.")
 
 
 class QCSample(models.Model):
@@ -494,6 +586,7 @@ class ResultRevision(models.Model):
     class Source(models.TextChoices):
         MANUAL = "manual", "Manual entry"
         IMPORT = "import", "File import"
+        CALCULATED = "calculated", "Calculated from readings"
 
     result = models.ForeignKey(Result, on_delete=models.PROTECT, related_name="revisions")
     number = models.PositiveIntegerField()
@@ -502,6 +595,18 @@ class ResultRevision(models.Model):
     prepared_aliquot = models.ForeignKey(
         "PreparedAliquot", null=True, blank=True, on_delete=models.PROTECT, related_name="revisions"
     )
+
+    calibration = models.ForeignKey(
+        RunCalibration, null=True, blank=True, on_delete=models.PROTECT, related_name="revisions"
+    )
+    calibration_verification = models.ForeignKey(
+        QCMeasurement,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="calibration_revisions",
+    )
+    calibration_evidence = models.JSONField(null=True, blank=True)
 
     # Provenance snapshots: what was analysed, by which method version, in which unit.
     definition = models.ForeignKey(
@@ -582,6 +687,10 @@ class ResultRevision(models.Model):
             models.CheckConstraint(
                 condition=Q(result_basis__in=ResultBasis.values),
                 name="analytical_result_basis_valid",
+            ),
+            models.CheckConstraint(
+                condition=Q(calibration_verification__isnull=True) | Q(calibration__isnull=False),
+                name="analytical_verification_has_curve",
             ),
             models.CheckConstraint(
                 condition=Q(percent_solids__isnull=True)
@@ -1139,3 +1248,251 @@ class PreparedTest(models.Model):
                 fields=["aliquot", "requested_test"], name="preparation_test_unique"
             )
         ]
+
+
+# ------------------------------------------------------------------- calculated results
+# calculations.py holds the arithmetic and its versions; worksheets.py works an entry.
+
+
+class CalculationRule(models.Model):
+    """Laboratory setup for one test: the calculation its manual results are worked with and
+    how the calculated value is rounded. Rounding is the laboratory's own rule; nothing here
+    has a default, and typed or imported results are never rounded."""
+
+    class RoundingMode(models.TextChoices):
+        SIGNIFICANT = "significant_figures", "Significant figures"
+        PLACES = "decimal_places", "Decimal places"
+
+    class RoundingMethod(models.TextChoices):
+        HALF_EVEN = "half_even", "Half to even: a final 5 rounds to the nearest even digit"
+        HALF_UP = "half_up", "Half up: a final 5 always rounds away from zero"
+
+    definition = models.OneToOneField("catalog.TestDefinition", on_delete=models.PROTECT)
+    # Validated against the registry in clean(), not by choices: registering a calculation
+    # must not need a migration.
+    calculation = models.CharField(max_length=40)
+    rounding_method = models.CharField(max_length=12, choices=RoundingMethod.choices)
+    rounding_mode = models.CharField(max_length=20, choices=RoundingMode.choices)
+    rounding_digits = models.PositiveSmallIntegerField(
+        help_text="How many significant figures or decimal places. 0 decimal places rounds to "
+        "whole numbers. Results keep at most 10 decimal places: a value that would need more "
+        "is refused at entry."
+    )
+    threshold = models.DecimalField(
+        null=True,
+        blank=True,
+        **VALUE_FIELD,
+        help_text="Optional, in the unit of the test. Values whose size before rounding is at "
+        "or above it use the second rounding below. Blank: one rounding for every value.",
+    )
+    upper_rounding_mode = models.CharField(
+        max_length=20, choices=RoundingMode.choices, blank=True, default=""
+    )
+    upper_rounding_digits = models.PositiveSmallIntegerField(null=True, blank=True)
+    basis = models.TextField(
+        help_text="Method or SOP reference for this calculation and its rounding."
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["definition__method__code", "definition__analyte__name", "definition__matrix"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(rounding_method__in=["half_even", "half_up"]),
+                name="analytical_calculation_rounding_method",
+            ),
+            models.CheckConstraint(
+                condition=Q(rounding_mode="significant_figures", rounding_digits__range=(1, 15))
+                | Q(rounding_mode="decimal_places", rounding_digits__lte=10),
+                name="analytical_calculation_rounding_digits",
+            ),
+            models.CheckConstraint(
+                condition=Q(
+                    threshold__isnull=True,
+                    upper_rounding_mode="",
+                    upper_rounding_digits__isnull=True,
+                )
+                | (
+                    Q(threshold__gt=0)
+                    & (
+                        Q(
+                            upper_rounding_mode="significant_figures",
+                            upper_rounding_digits__range=(1, 15),
+                        )
+                        | Q(upper_rounding_mode="decimal_places", upper_rounding_digits__lte=10)
+                    )
+                ),
+                name="analytical_calculation_upper_rounding",
+            ),
+            models.CheckConstraint(condition=~Q(basis=""), name="analytical_calculation_basis"),
+        ]
+
+    def clean(self):
+        from . import calculations
+
+        errors = {}
+        calculation = calculations.current(self.calculation)
+        if calculation is None:
+            errors["calculation"] = "Choose a calculation."
+        elif self.definition_id and not calculation.gives(self.definition.unit):
+            errors["calculation"] = (
+                f"This calculation gives {calculation.result_unit}; the test's unit is "
+                f"{self.definition.unit}. Units are not converted."
+            )
+        elif self.definition_id and calculation.soil_only and self.definition.matrix != "soil":
+            errors["calculation"] = (
+                "This calculation corrects a soil result to dry weight with its percent "
+                f"solids; the test's matrix is {self.definition.get_matrix_display().lower()}."
+            )
+        elif self.definition_id and calculation.liquid_only and self.definition.matrix == "soil":
+            errors["calculation"] = (
+                "This calculation takes a volume of sample; this is a soil test. Choose a "
+                "prepared solid calculation, which takes the weight prepared."
+            )
+        errors.update(_digit_errors(self.rounding_mode, self.rounding_digits, "rounding_digits"))
+        upper = (self.upper_rounding_mode, self.upper_rounding_digits)
+        if self.threshold is None:
+            if upper != ("", None):
+                errors["threshold"] = (
+                    "Give the size from which the second rounding applies, or clear the second "
+                    "rounding."
+                )
+        else:
+            if self.threshold <= 0:
+                errors["threshold"] = "The threshold must be greater than zero."
+            if not self.upper_rounding_mode or self.upper_rounding_digits is None:
+                errors["upper_rounding_mode"] = (
+                    "Choose the rounding for values at or above the threshold, or clear the "
+                    "threshold."
+                )
+            else:
+                errors.update(_digit_errors(*upper, "upper_rounding_digits"))
+        if not (self.basis or "").strip():
+            errors["basis"] = "Record the method or SOP this calculation and rounding come from."
+        if errors:
+            raise ValidationError(errors)
+
+    @property
+    def rounding(self):
+        from .calculations import Rounding
+
+        return Rounding(
+            method=self.rounding_method,
+            mode=self.rounding_mode,
+            digits=self.rounding_digits,
+            threshold=self.threshold,
+            upper_mode=self.upper_rounding_mode,
+            upper_digits=self.upper_rounding_digits,
+        )
+
+    def __str__(self):
+        return f"Calculation · {self.definition}"
+
+
+def _digit_errors(mode, digits, field):
+    if digits is None or not mode:
+        return {}
+    if mode == "significant_figures" and not 1 <= digits <= 15:
+        return {field: "Use 1 to 15 significant figures."}
+    if mode == "decimal_places" and digits > 10:
+        return {field: "Use 0 to 10 decimal places: results are stored to 10."}
+    return {}
+
+
+class ResultWorksheet(models.Model):
+    """The arithmetic behind one calculated result revision, kept with it and never changed.
+
+    It names the calculation and version used, the unrounded value and the rounding applied,
+    as they were when the result was entered. Its readings are WorksheetReading rows. Later
+    changes to the calculation rule do not touch it."""
+
+    revision = models.OneToOneField(
+        ResultRevision, on_delete=models.PROTECT, related_name="worksheet"
+    )
+    calculation = models.CharField(max_length=40)
+    version = models.PositiveSmallIntegerField()
+    title = models.CharField(max_length=120)
+    formula = models.TextField()
+    source = models.TextField(blank=True)
+    unrounded_value = models.DecimalField(
+        null=True,
+        blank=True,
+        max_digits=44,
+        decimal_places=20,
+        help_text="Calculated value before rounding. Empty when a reading was ND.",
+    )
+    rounding = models.JSONField(
+        default=dict, help_text="Snapshot of the rounding rule and the range that applied."
+    )
+    reported_as_nd = models.BooleanField(
+        default=False,
+        help_text="The analyst reported a calculated value below the reporting limit as ND.",
+    )
+    rule_basis = models.TextField(blank=True)
+    bottle_data = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="BOD bottle observations and selections, with measured values kept as text. "
+        "Empty for other calculations.",
+    )
+    unrounded_limit = models.DecimalField(
+        null=True,
+        blank=True,
+        max_digits=44,
+        decimal_places=20,
+        help_text="Reporting limit before rounding, where the calculation works the limit "
+        "out and rounds it. Empty otherwise.",
+    )
+
+    class Meta:
+        ordering = ["revision_id"]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("Result worksheets cannot be changed.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Result worksheets cannot be deleted.")
+
+    def __str__(self):
+        return f"Worksheet of {self.revision}"
+
+
+class WorksheetReading(models.Model):
+    """One reading of a worksheet, exactly as typed and as the exact decimal it was read as."""
+
+    worksheet = models.ForeignKey(
+        ResultWorksheet, on_delete=models.PROTECT, related_name="readings"
+    )
+    position = models.PositiveSmallIntegerField()
+    key = models.CharField(max_length=40)
+    label = models.CharField(max_length=120)
+    unit = models.CharField(max_length=40)
+    supplied_text = models.CharField(max_length=60, help_text="Exactly as typed.")
+    kind = models.CharField(max_length=12, choices=ResultKind.choices)
+    value = models.DecimalField(null=True, blank=True, **VALUE_FIELD)
+
+    class Meta:
+        ordering = ["worksheet_id", "position"]
+        constraints = [
+            models.UniqueConstraint(fields=["worksheet", "key"], name="analytical_reading_key"),
+            models.CheckConstraint(
+                condition=(
+                    Q(kind="detected", value__isnull=False)
+                    | Q(kind="non_detect", value__isnull=True)
+                ),
+                name="analytical_reading_kind_value",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("Worksheet readings cannot be changed.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Worksheet readings cannot be deleted.")
+
+    def __str__(self):
+        return f"{self.label}: {self.supplied_text} {self.unit}"

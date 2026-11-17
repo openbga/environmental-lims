@@ -6,6 +6,28 @@
   ],
   "title": "Verify two-factor authentication",
   "purpose": "Confirm a sign-in or sensitive account action with an enrolled factor.",
+  "summary": "Enter a code from your authenticator app, or a recovery code, to finish signing in or to confirm a sensitive account action.",
+  "tasks": [
+    {
+      "title": "Finish signing in",
+      "steps": [
+        "Type the six-digit code from your app, or an unused eight-digit recovery code, in [[Code]].",
+        "Select [[Sign In]]. To give up, select [[Cancel]]; you return to sign in."
+      ]
+    },
+    {
+      "title": "Confirm a sensitive action",
+      "steps": [
+        "Type the code in [[Code]] and select [[Confirm]]. The action you started then continues."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A recovery code works only once.",
+    "The same app code cannot be used twice. Wait for the next one if it was just accepted.",
+    "Wrong codes are rate limited.",
+    "A confirmed code counts as recent for five minutes."
+  ],
   "sections": [
     {
       "title": "Page variants",
@@ -43,12 +65,20 @@
       "paragraphs": [
         "A successful code proves this account’s enrolled factor, not a laboratory qualification or role. The committed configuration does not offer trusted-browser skipping. Reauthentication is considered recent for five minutes; normal sign-in and sensitive-action policies remain distinct."
       ]
+    },
+    {
+      "title": "Sign-in activity",
+      "paragraphs": [
+        "In the sign-in variant, a rejected code records a failed sign-in in the deployment’s application logs. Completing all required sign-in stages records one successful sign-in. Logs name the stored username and never include the code. Canceling an unfinished sign-in does not record a sign-out for an authenticated session. These logs follow the deployment’s retention and survive database resets. The reauthentication variant does not create a new sign-in or sign-out event."
+      ]
     }
   ],
   "sources": [
     "config/settings.py",
     "templates/allauth/layouts/base.html",
     "templates/allauth/layouts/manage.html",
-    "uv.lock"
+    "uv.lock",
+    "accounts/signin_log.py",
+    "accounts/tests/test_signin_log.py"
   ]
 }

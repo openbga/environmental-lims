@@ -12,6 +12,7 @@ from decimal import Decimal
 from catalog.models import Analyte, Method, TestDefinition
 
 from .models import (
+    CalculationRule,
     HoldingTimeRule,
     PreparationRequirement,
     PreservationRule,
@@ -30,6 +31,27 @@ BASIS = "SYNTHETIC DEMONSTRATION VALUE. Not validated, not a regulatory limit."
 
 AQUEOUS = ("water", "wastewater")
 
+# Invented oxygen readings and corrections: each selected bottle gives 30 mg/L.
+# The excluded bottle stays in the record; these are not laboratory QC criteria.
+BOD_BOTTLES = [
+    {
+        "identifier": identifier,
+        "initial_do": "8.00",
+        "final_do": final,
+        "sample_volume": sample,
+        "bottle_volume": "300.0",
+        "seed_correction": "0.50",
+        "seed_reference": "Synthetic seed correction record DEMO-SEED-01",
+        "selected": selected,
+        "reason": reason,
+    }
+    for identifier, final, sample, selected, reason in (
+        ("DEMO-BOD-1", "4.50", "30.0", True, ""),
+        ("DEMO-BOD-2", "6.00", "15.0", True, ""),
+        ("DEMO-BOD-3", "0.00", "60.0", False, "Synthetic full depletion; analyst excluded"),
+    )
+]
+
 QUALIFIERS = [
     ("J", "Estimated value below the reporting limit (demonstration set)", False),
     ("H", "Holding time exceeded (demonstration set)", True),
@@ -39,7 +61,10 @@ QUALIFIERS = [
 
 # analytes: name, CAS (blank if unsure), {matrix: (unit, reporting limit)}
 # hold: (hours, warning hours) per matrix group. qc: type -> (active, min per batch, every N)
+# analyte_hold: analyte -> (hours, warning hours), a limit of its own that replaces the method's.
 # limits: lcs/ccv/ms recovery (lower, upper) percent; rpd upper percent.
+# calculation: (calculation key, rounding fields) for every test of the method: manual results
+# are then worked from readings. The rounding is as invented as every other value here.
 # Catalog descriptors for the invented methods and analytes (set when a row is first created).
 TECHNIQUES = {
     "DEMO-METALS-AQ": "icp_ms",
@@ -48,6 +73,11 @@ TECHNIQUES = {
     "DEMO-NUTRIENTS-AQ": "colorimetric",
     "DEMO-BOD-AQ": "electrode",
     "DEMO-TSS-AQ": "gravimetric",
+    "DEMO-SOLIDS-SOIL": "gravimetric",
+    "DEMO-NITRATE-SOIL": "colorimetric",
+    "DEMO-ALKALINITY-AQ": "titration",
+    "DEMO-LOW-ALK-AQ": "titration",
+    "DEMO-HARDNESS-AQ": "titration",
 }
 ANALYTE_GROUPS = {
     "Lead": "metals",
@@ -58,6 +88,9 @@ ANALYTE_GROUPS = {
     "Total phosphorus": "nutrients",
     "BOD, 5-day": "demand",
     "Total suspended solids": "solids",
+    "Percent solids": "solids",
+    "Alkalinity as CaCO3": "general",
+    "Total hardness as CaCO3": "general",
 }
 METHODS = [
     {
@@ -102,6 +135,7 @@ METHODS = [
             ("Total phosphorus", "7723-14-0", {m: ("mg/L", "0.02") for m in AQUEOUS}),
         ],
         "hold": {m: (48, 6) for m in AQUEOUS},
+        "analyte_hold": {"Total phosphorus": (24 * 28, 24 * 3)},
         "qc": {
             "method_blank": (True, 1, 20),
             "lcs": (True, 1, 20),
@@ -116,6 +150,14 @@ METHODS = [
         "code": "DEMO-BOD-AQ",
         "title": "Five-day oxygen demand, aqueous (synthetic demonstration)",
         "analytes": [("BOD, 5-day", "", {m: ("mg/L", "2.0") for m in AQUEOUS})],
+        "calculation": (
+            "bod_bottles",
+            {
+                "rounding_method": "half_even",
+                "rounding_mode": "decimal_places",
+                "rounding_digits": 1,
+            },
+        ),
         "hold": {m: (48, 6) for m in AQUEOUS},
         "qc": {
             "method_blank": (True, 1, 20),
@@ -132,6 +174,17 @@ METHODS = [
         "title": "Total suspended solids, aqueous (synthetic demonstration)",
         "analytes": [("Total suspended solids", "", {m: ("mg/L", "5.0") for m in AQUEOUS})],
         "hold": {m: (24 * 7, 24) for m in AQUEOUS},
+        "calculation": (
+            "residue_g",
+            {
+                "rounding_method": "half_even",
+                "rounding_mode": "decimal_places",
+                "rounding_digits": 0,
+                "threshold": Decimal("1000"),
+                "upper_rounding_mode": "significant_figures",
+                "upper_rounding_digits": 3,
+            },
+        ),
         "qc": {
             "method_blank": (True, 1, 20),
             "lcs": (False, 1, 20),
@@ -161,7 +214,114 @@ METHODS = [
         },
         "limits": {"lcs": ("80", "120"), "ccv": ("90", "110"), "ms": ("70", "130"), "rpd": "25"},
     },
+    {
+        "code": "DEMO-SOLIDS-SOIL",
+        "title": "Percent solids by weight, soil (synthetic demonstration)",
+        "analytes": [("Percent solids", "", {"soil": ("%", "0.1")})],
+        "hold": {"soil": (24 * 7, 24)},
+        "calculation": (
+            "percent_solids",
+            {
+                "rounding_method": "half_even",
+                "rounding_mode": "decimal_places",
+                "rounding_digits": 1,
+            },
+        ),
+        # No QC sample is required: seed_analytical_config would otherwise require a blank and
+        # an LCS, which a weight does not have.
+        "qc": {
+            "method_blank": (False, 1, 20),
+            "lcs": (False, 1, 20),
+            "matrix_spike": (False, 1, 20),
+            "matrix_spike_duplicate": (False, 1, 20),
+            "lab_duplicate": (False, 1, 10),
+            "calibration_verification": (False, 1, 10),
+        },
+        "limits": {"lcs": ("90", "110"), "ccv": ("90", "110"), "ms": ("80", "120"), "rpd": "10"},
+    },
+    {
+        "code": "DEMO-NITRATE-SOIL",
+        "title": "Extractable nitrate, soil (synthetic demonstration)",
+        "analytes": [("Nitrate as N", "14797-55-8", {"soil": ("mg/kg", "0.5")})],
+        "hold": {"soil": (24 * 14, 24 * 2)},
+        # Worked from the extract reading, the volumes and weights of the preparation and the
+        # sample's percent solids: a dry-weight result with a limit worked out the same way.
+        "calculation": (
+            "solid_dry_mg_l",
+            {
+                "rounding_method": "half_even",
+                "rounding_mode": "significant_figures",
+                "rounding_digits": 3,
+            },
+        ),
+        "qc": {
+            "method_blank": (True, 1, 20),
+            "lcs": (True, 1, 20),
+            "matrix_spike": (False, 1, 20),
+            "matrix_spike_duplicate": (False, 1, 20),
+            "lab_duplicate": (False, 1, 20),
+            "calibration_verification": (False, 1, 10),
+        },
+        "limits": {"lcs": ("85", "115"), "ccv": ("90", "110"), "ms": ("75", "125"), "rpd": "20"},
+    },
 ]
+
+
+# Three independent demonstrations of the titration worksheets. The equations have public
+# sources; these catalog entries, limits, rounding and QC requirements are invented.
+for code, title, analyte, calculation, limit in (
+    (
+        "DEMO-ALKALINITY-AQ",
+        "Alkalinity by titration",
+        "Alkalinity as CaCO3",
+        "alkalinity_titration",
+        "1.0",
+    ),
+    (
+        "DEMO-LOW-ALK-AQ",
+        "Low alkalinity by two-endpoint titration",
+        "Alkalinity as CaCO3",
+        "alkalinity_low_titration",
+        "0.5",
+    ),
+    (
+        "DEMO-HARDNESS-AQ",
+        "Total hardness by EDTA titration",
+        "Total hardness as CaCO3",
+        "hardness_edta_titration",
+        "1.0",
+    ),
+):
+    METHODS.append(
+        {
+            "code": code,
+            "title": f"{title}, aqueous (synthetic demonstration)",
+            "analytes": [(analyte, "", {"water": ("mg/L as CaCO3", limit)})],
+            "hold": {"water": (24 * 14, 24)},
+            "calculation": (
+                calculation,
+                {
+                    "rounding_method": "half_even",
+                    "rounding_mode": "decimal_places",
+                    "rounding_digits": 1,
+                },
+            ),
+            "qc": {
+                "method_blank": (True, 1, 20),
+                "lcs": (True, 1, 20),
+                "matrix_spike": (False, 1, 20),
+                "matrix_spike_duplicate": (False, 1, 20),
+                "lab_duplicate": (False, 1, 10),
+                "calibration_verification": (False, 1, 10),
+            },
+            "limits": {
+                "lcs": ("85", "115"),
+                "ccv": ("90", "110"),
+                "ms": ("75", "125"),
+                "rpd": "20",
+            },
+        }
+    )
 
 
 def _limit_rows(spec, reporting_limit):
@@ -195,6 +355,7 @@ def seed_synthetic_dataset():
         "qualifiers": 0,
         "preservation_rules": 0,
         "preparation_requirements": 0,
+        "calculation_rules": 0,
     }
 
     def make(model, lookup, defaults, key):
@@ -256,12 +417,21 @@ def seed_synthetic_dataset():
                         {"lower": lower, "upper": upper, "basis": BASIS},
                         "limits",
                     )
+                if "calculation" in spec:
+                    calculation, rounding = spec["calculation"]
+                    make(
+                        CalculationRule,
+                        {"definition": definition},
+                        {"calculation": calculation, **rounding, "basis": BASIS},
+                        "calculation_rules",
+                    )
         for matrix, (hours, warn) in spec["hold"].items():
             make(
                 HoldingTimeRule,
                 {
                     "method": method,
                     "matrix": matrix,
+                    "analyte": None,
                     "start_event": "collection",
                     "end_event": "analysis",
                 },
@@ -273,6 +443,24 @@ def seed_synthetic_dataset():
                 },
                 "rules",
             )
+            for name, (own_hours, own_warn) in spec.get("analyte_hold", {}).items():
+                make(
+                    HoldingTimeRule,
+                    {
+                        "method": method,
+                        "matrix": matrix,
+                        "analyte": Analyte.objects.get(name=name),
+                        "start_event": "collection",
+                        "end_event": "analysis",
+                    },
+                    {
+                        "name": f"Demo: {name[0].lower()}{name[1:]}, collection to analysis",
+                        "duration": timedelta(hours=own_hours),
+                        "warning_window": timedelta(hours=own_warn),
+                        "basis": BASIS,
+                    },
+                    "rules",
+                )
         for qc_type, (active, minimum, every) in spec["qc"].items():
             make(
                 QCRequirement,

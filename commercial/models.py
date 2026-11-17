@@ -46,6 +46,194 @@ class PriceListItem(models.Model):
         ]
 
 
+class InvoiceDraft(models.Model):
+    """Internal billing worksheet; never an issued invoice or a client balance."""
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        CANCELLED = "cancelled", "Cancelled"
+
+    number = models.CharField(max_length=20, unique=True)
+    order = models.ForeignKey(Order, on_delete=models.PROTECT, related_name="invoice_drafts")
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.DRAFT)
+    revision = models.PositiveIntegerField(default=1)
+    price_list = models.ForeignKey(
+        PriceList, null=True, blank=True, on_delete=models.PROTECT, related_name="invoice_drafts"
+    )
+    price_list_name = models.CharField(max_length=120, blank=True)
+    price_list_revision = models.PositiveIntegerField(null=True, blank=True)
+    quote_version = models.ForeignKey(
+        "QuoteVersion",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="invoice_drafts",
+    )
+    quote_snapshot = models.JSONField(null=True, blank=True)
+    order_reference = models.CharField(max_length=120)
+    project_name = models.CharField(max_length=160)
+    client_name = models.CharField(max_length=160)
+    account_code = models.CharField(max_length=40, blank=True)
+    billing_contact_name = models.CharField(max_length=160, blank=True)
+    billing_email = models.EmailField(blank=True)
+    billing_address = models.TextField(blank=True)
+    payment_terms = models.CharField(max_length=16, blank=True, choices=Client.PaymentTerms.choices)
+    po_number = models.CharField(max_length=60, blank=True)
+    total = models.DecimalField(max_digits=14, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"
+    )
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancelled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    cancel_reason = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["order"],
+                condition=models.Q(status="draft"),
+                name="invoice_one_active_draft",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(total__gte=0), name="invoice_total_nonnegative"
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        price_list__isnull=False,
+                        price_list_revision__isnull=False,
+                        quote_version__isnull=True,
+                        quote_snapshot__isnull=True,
+                    )
+                    | models.Q(
+                        price_list__isnull=True,
+                        price_list_revision__isnull=True,
+                        price_list_name="",
+                        quote_version__isnull=False,
+                        quote_snapshot__isnull=False,
+                    )
+                ),
+                name="invoice_pricing_source",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    status="draft",
+                    cancelled_at__isnull=True,
+                    cancelled_by__isnull=True,
+                    cancel_reason="",
+                )
+                | (
+                    models.Q(
+                        status="cancelled", cancelled_at__isnull=False, cancelled_by__isnull=False
+                    )
+                    & ~models.Q(cancel_reason="")
+                ),
+                name="invoice_cancel_attributed",
+            ),
+        ]
+
+    def __str__(self):
+        return self.number
+
+
+class InvoiceDraftLine(models.Model):
+    class Kind(models.TextChoices):
+        TEST = "test", "Test"
+        FEE = "fee", "Fee"
+        ADJUSTMENT = "adjustment", "Discount"
+
+    draft = models.ForeignKey(InvoiceDraft, on_delete=models.PROTECT, related_name="lines")
+    position = models.PositiveSmallIntegerField()
+    kind = models.CharField(
+        max_length=12, choices=Kind.choices, default=Kind.TEST, db_default="test"
+    )
+    # A requested test can later be withdrawn. Its original identity and labels stay here.
+    source_requested_test_id = models.PositiveBigIntegerField(null=True, blank=True)
+    source_quote_line = models.ForeignKey(
+        "QuoteLine",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="invoice_draft_lines",
+    )
+    sample = models.ForeignKey(
+        Sample, null=True, blank=True, on_delete=models.PROTECT, related_name="invoice_draft_lines"
+    )
+    definition = models.ForeignKey(
+        TestDefinition,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="invoice_draft_lines",
+    )
+    lab_id = models.CharField(max_length=32, blank=True)
+    client_sample_id = models.CharField(max_length=120, blank=True)
+    sample_disposition = models.CharField(
+        max_length=20, choices=Sample.Disposition.choices, blank=True
+    )
+    test_description = models.CharField(max_length=400, blank=True)
+    method_code = models.CharField(max_length=60, blank=True)
+    method_version = models.CharField(max_length=40, blank=True)
+    matrix = models.CharField(max_length=20, choices=Sample.Matrix.choices, blank=True)
+    unit = models.CharField(max_length=40, blank=True)
+    description = models.CharField(max_length=400)
+    quantity = models.PositiveIntegerField(default=1)
+    unit_price = models.DecimalField(**MONEY)
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        ordering = ["draft_id", "position", "pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["draft", "source_requested_test_id"], name="invoice_source_test_unique"
+            ),
+            models.UniqueConstraint(fields=["draft", "position"], name="invoice_line_position"),
+            models.CheckConstraint(
+                condition=models.Q(quantity__gte=1, quantity__lte=2147483647),
+                name="invoice_line_values",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        kind="test",
+                        source_requested_test_id__isnull=False,
+                        sample__isnull=False,
+                        definition__isnull=False,
+                        unit_price__gte=0,
+                    )
+                    | (
+                        models.Q(
+                            source_requested_test_id__isnull=True,
+                            sample__isnull=True,
+                            definition__isnull=True,
+                            lab_id="",
+                            client_sample_id="",
+                            sample_disposition="",
+                            test_description="",
+                            method_code="",
+                            method_version="",
+                            matrix="",
+                            unit="",
+                        )
+                        & (
+                            models.Q(kind="fee", unit_price__gte=0)
+                            | models.Q(kind="adjustment", unit_price__lte=0)
+                        )
+                    )
+                ),
+                name="invoice_line_kind_source",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(amount=models.F("quantity") * models.F("unit_price")),
+                name="invoice_line_amount",
+            ),
+        ]
+
+
 class Quote(models.Model):
     class Status(models.TextChoices):
         DRAFT = "draft", "Draft"

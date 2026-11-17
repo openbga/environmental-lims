@@ -1,10 +1,10 @@
-# Smart Roots LIMS: free, open-source LIMS for environmental laboratories
+# OpenBGA Environmental LIMS: free, open-source LIMS for environmental laboratories
 
-[![checks](https://github.com/openbga/smart-roots-lims/actions/workflows/checks.yml/badge.svg)](https://github.com/openbga/smart-roots-lims/actions/workflows/checks.yml)
+[![checks](https://github.com/openbga/environmental-lims/actions/workflows/checks.yml/badge.svg)](https://github.com/openbga/environmental-lims/actions/workflows/checks.yml)
 
-Smart Roots LIMS is an environmental laboratory LIMS for one commercial US water, wastewater and soil
+OpenBGA Environmental LIMS is an environmental laboratory LIMS for one commercial US water, wastewater and soil
 lab per deployment, and an open-source project of BGASoft Inc. Built with Django, PostgreSQL and
-Bootstrap/HTMX. AGPL-3.0-only. Source: <https://github.com/openbga/smart-roots-lims>.
+Bootstrap/HTMX. AGPL-3.0-only. Source: <https://github.com/openbga/environmental-lims>.
 
 Use synthetic data while release validation is in progress. This software supports laboratory
 records; it does not certify compliance or accreditation.
@@ -12,15 +12,25 @@ records; it does not certify compliance or accreditation.
 ## What it covers
 
 - **Setup:** laboratory, staff roles, clients and projects, methods, analytes, tests, holding-time
-  rules, QC requirements, limits and qualifiers.
+  rules, QC requirements, limits and qualifiers. These load one record at a time or from
+  spreadsheets saved as CSV, with starter files for common methods that name their public sources.
 - **Receipt and custody:** chains of custody with several samples, containers, receipt
   inspection, holds and dispositions, custody events and reasoned corrections.
-- **Analytical work:** preparation and analytical batches, manual entry and mapped CSV/TSV
-  imports, QC evaluation, independent review, control charts and MDL studies.
-- **Reporting:** explicit release authorization, versioned immutable PDF reports, amendments and
-  a client portal where each client sees only its own work.
+- **Analytical work:** preparation and analytical batches, generic instrument run-list CSV exports,
+  recorded instrument calibration curves and explicit result/verification links, manual entry
+  and mapped CSV/TSV or XLSX worksheet imports, results calculated from bench readings that are kept
+  with the result and rounded by the laboratory's own rule (dilutions, solids by weight, preparation factors and dry-weight
+  correction for soil, alkalinity and EDTA hardness titrations, BOD bottle worksheets), QC evaluation, independent review, control charts and MDL studies.
+- **Reporting:** explicit release authorization, versioned immutable PDF reports that print the
+  laboratory's address, logo and certificate numbers, amendments and a client portal where each
+  client sees only its own work.
 - **Operations:** price lists and versioned quotes, client-submitted COCs, delivery scheduling,
-  labels and subcontracted results.
+  labels, subcontracted results and staff account-hold notices at receipt and report release.
+  Internal draft invoices take received tests and an explicitly selected price list or matching
+  accepted quote, preserve billing details and source identities, and keep reasoned edits and
+  cancellations. Accepted quotes also carry their fees and discounts into the draft once, with
+  their source retained. Staff can add fees and discounts with a reason and a distinct manual
+  origin. Issuance, tax, payments and accounting export remain planned.
 - **Laboratory records:** materials, lots and stock movements, equipment, training,
   nonconformance, and physical sample retention and disposal.
 
@@ -29,7 +39,7 @@ reports are never overwritten. The NYSDEC EDD export is exploratory and requires
 validation; it is not an accepted regulatory submission.
 
 [Workflow rules and limits](docs/workflows.md) describes each of these in more detail. The
-[product presentation](https://openbga.github.io/smart-roots-lims/) is also served at `/about/` on each
+[product presentation](https://openbga.github.io/environmental-lims/) is also served at `/about/` on each
 deployment.
 
 ![Sample list with search, filters and receipt dispositions](docs/images/samples.png)
@@ -40,7 +50,7 @@ Screens show the synthetic demo data.
 
 ## Hosted demo
 
-Open the [Smart Roots LIMS demo](https://smart-roots-lims.onrender.com/) on Render and sign in with
+Open the [OpenBGA Environmental LIMS demo](https://smart-roots-lims.onrender.com/) on Render and sign in with
 one of the demo accounts listed on its sign-in page. The [demo presentation](https://smart-roots-lims.onrender.com/about/)
 is available without signing in. The demo is public and is erased and seeded again every day, so
 enter synthetic data only.
@@ -52,8 +62,8 @@ PostgreSQL database in development mode, reachable only from your machine. It is
 not for real laboratory data.
 
 ```sh
-git clone --branch main https://github.com/openbga/smart-roots-lims.git
-cd smart-roots-lims
+git clone --branch main https://github.com/openbga/environmental-lims.git
+cd environmental-lims
 docker compose --profile app up --build -d
 # Choose a private password (at least 12 characters) for the synthetic demo accounts.
 read -s DEMO_PASSWORD; export DEMO_PASSWORD
@@ -132,6 +142,12 @@ passwords, existing roles and revoked permissions. `--update-lab` explicitly ren
 for new input and new reports; changing it does not reinterpret stored timestamps or issued reports.
 Keep demo seeding separate from a real laboratory database.
 
+After installing, and after each upgrade, run
+`python manage.py run_acceptance --operator "Your Name" --output /path/to/new-directory` and keep
+the evidence package it writes. It checks the first journey on synthetic records in a separate
+scratch database, never the laboratory's own; see
+[Operations](docs/operations.md#acceptance-run-after-installation-and-upgrade).
+
 Sign in at `/accounts/login/`. The owner manages users and group membership at `/admin/`.
 Signed-in users may optionally enrol an authenticator app from the account menu's
 "Two-factor authentication" page (`/accounts/2fa/`).
@@ -162,13 +178,25 @@ Before the first receipt:
 3. Have a project manager create the client and project, then receive the COC and its samples.
    Assign independent review and explicit release authority to the appropriate staff first.
 
+Steps 1 to 3 can also be loaded from spreadsheets under **Setup → Spreadsheet import**: one CSV
+file per record type, previewed row by row and saved all or nothing through the same checks as
+manual entry. The page offers starter files for common EPA, Standard Methods and SW-846 entries,
+read from 40 CFR 136.3, EPA method documents and SW-846 on the date each file states. They are
+starting points, not laboratory policy: check every row against your methods, permits and
+current rules, and edit the file before importing it.
+
+Before the first report, an administrator records the laboratory's address, contact details,
+logo and certificates under **Setup → Laboratory profile**. New reports print them; a
+certificate is printed only when it is marked for printing and the report is issued within its
+recorded validity. The application does not check results against a certificate's scope.
+
 Account administration requires a superuser and is separate from laboratory roles. To add a role
 to an existing owner from the service shell, use `setup_lab --admin-username owner --role admin`
 (or another role); this adds membership without removing other roles or restoring permissions.
 
 ## Deploy to Render
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/openbga/smart-roots-lims/tree/main)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/openbga/environmental-lims/tree/main)
 
 The Blueprint packages a Docker web service and PostgreSQL 17. **It creates paid resources:**
 review and accept the current charges in your Render account before deploying. For a private
@@ -201,9 +229,9 @@ See [Render's deploy button documentation](https://render.com/docs/deploy-to-ren
 | --- | --- |
 | [Workflow rules and limits](docs/workflows.md) | What each workflow does and the limits to know before relying on it |
 | [Product scope](docs/product.md) | What the product must do, the domain rules behind it and their sources |
-| [Roadmap](https://openbga.github.io/smart-roots-lims/roadmap/) | What is built, what comes next and what is being explored, without dates |
+| [Roadmap](https://openbga.github.io/environmental-lims/roadmap/) | What is built, what comes next and what is being explored, without dates |
 | [Architecture](docs/architecture.md) | Stack, integrity and authorization design, deployment shape |
-| [Operations](docs/operations.md) | Backup, restore, recovery and logs for a self-hosted deployment; running a public demonstration |
+| [Operations](docs/operations.md) | Backup, restore, recovery, acceptance runs and logs for a self-hosted deployment; running a public demonstration |
 | [UI standards](docs/ui-standards.md) | Layout, navigation, table and form conventions |
 | [Third-party notices](THIRD_PARTY_NOTICES.md) | Licences of bundled and required components |
 
@@ -218,7 +246,7 @@ coding agents.
 
 ## Project and support
 
-Smart Roots LIMS is an open-source project of [BGASoft](https://bgasoft.com), a laboratory software company, and part of [OpenBGA](https://github.com/openbga).
+OpenBGA Environmental LIMS is part of [OpenBGA](https://github.com/openbga) and an open-source project of [BGASoft](https://bgasoft.com), a laboratory software company.
 
 **Community use.** The software is free under the AGPL-3.0-only licence and is provided as is. The project does not include a support commitment: issues and pull requests are welcome and are answered on a best-effort basis.
 
@@ -228,12 +256,12 @@ Smart Roots LIMS is an open-source project of [BGASoft](https://bgasoft.com), a 
 
 Copyright (C) 2026 BGASoft Inc. and OpenBGA contributors.
 
-Smart Roots LIMS is licensed under the GNU Affero General Public License version 3 only
+OpenBGA Environmental LIMS is licensed under the GNU Affero General Public License version 3 only
 (AGPL-3.0-only); see [LICENSE](LICENSE) and [NOTICE](NOTICE). If you run a modified version for
 users over a network, AGPL section 13 requires offering them its source: set `SOURCE_CODE_URL` to
 your published source so the "Source code" link in the application footer points to it.
 
-OpenBGA, Smart Roots LIMS and their logos are trademarks of BGASoft Inc. The licence
+OpenBGA, OpenBGA Environmental LIMS and their logos are trademarks of BGASoft Inc. The licence
 does not grant permission to use them (AGPL-3.0 section 7(e)), except as needed to describe the
 origin of the software.
 

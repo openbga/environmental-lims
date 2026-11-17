@@ -12,7 +12,7 @@ Templates use:
   {% portal_nav_item "portal-home" %}  one client-portal item (same include, portal markup)
   {% section_tabs "catalog" %}         a declared tab set (includes/section_tabs.html)
 
-Which items a user sees stays in the shell templates (role checks); views enforce access anyway.
+Staff menu visibility follows work capabilities below; views still enforce record access.
 """
 
 from dataclasses import dataclass
@@ -20,6 +20,10 @@ from dataclasses import dataclass
 from django import template
 from django.core.exceptions import ImproperlyConfigured
 from django.urls import NoReverseMatch, reverse
+
+from accounts.roles import RECEIPT_ROLES, ROLES, can_authorize_release, effective_roles
+from commercial.permissions import PRICING_ROLES, QUOTE_ROLES
+from laboratory.permissions import EQUIPMENT_ROLES, INVENTORY_ROLES
 
 register = template.Library()
 
@@ -61,6 +65,19 @@ STAFF_NAV = (
         "commercial:price-list-list",
         "tag",
         ("commercial:price-list-create", "commercial:price-list-edit"),
+    ),
+    NavItem(
+        "invoice-drafts",
+        "Draft invoices",
+        "commercial:invoice-list",
+        "receipt",
+        (
+            "commercial:invoice-create",
+            "commercial:invoice-detail",
+            "commercial:invoice-edit",
+            "commercial:invoice-add-line",
+            "commercial:invoice-cancel",
+        ),
     ),
     NavItem(
         "client-submissions",
@@ -154,6 +171,8 @@ STAFF_NAV = (
         (
             "analytical:batch-create",
             "analytical:batch-detail",
+            "analytical:calibration-create",
+            "analytical:calibration-detail",
             "analytical:batch-add-tests",
             "analytical:batch-entry",
             "analytical:batch-import",
@@ -162,6 +181,7 @@ STAFF_NAV = (
             "analytical:qc-action",
             "analytical:qc-measure",
             "analytical:result-detail",
+            "analytical:result-bottles",
         ),
     ),
     NavItem(
@@ -320,7 +340,26 @@ STAFF_NAV = (
         "file-earmark-arrow-up",
         ("analytical:import-profile-create", "analytical:import-profile-edit"),
     ),
+    NavItem(
+        "spreadsheet-import",
+        "Spreadsheet import",
+        "dataimport:index",
+        "inbox",
+        ("dataimport:upload",),
+    ),
     NavItem("record-retention", "Record retention", "record-retention", "lock"),
+    NavItem(
+        "lab-profile",
+        "Laboratory profile",
+        "lab-profile",
+        "info-circle",
+        (
+            "lab-profile-edit",
+            "lab-logo-edit",
+            "lab-certificate-create",
+            "lab-certificate-edit",
+        ),
+    ),
     NavItem(
         "announcements",
         "Announcements",
@@ -358,6 +397,101 @@ PORTAL_NAV = (
     NavItem("portal-samples", "Samples", "portal:sample-list"),
     NavItem("portal-reports", "Reports", "portal:report-list", "", ("portal:report-detail",)),
 )
+
+# Work destinations, not a second authorization policy. Staff may still follow related-record
+# links to readable pages outside their menu. Admin's operational roles and combined roles are
+# expanded by effective_roles; release authority is checked separately on each request.
+STAFF_SECTIONS = (
+    ("home", "", ("dashboard",)),
+    ("sales", "Sales", ("quotes", "price-lists", "invoice-drafts", "client-submissions")),
+    ("intake", "Intake", ("clients", "projects", "orders", "samples", "storage")),
+    (
+        "bench",
+        "Bench",
+        ("schedule", "worklist", "prep", "batches", "subcontracts", "mdl", "charts"),
+    ),
+    ("release", "Release", ("review", "reports")),
+    (
+        "lab",
+        "Laboratory",
+        ("lab-overview", "inventory", "equipment", "training", "nonconformances"),
+    ),
+    (
+        "setup",
+        "Setup",
+        (
+            "catalog",
+            "qc-config",
+            "import-mappings",
+            "spreadsheet-import",
+            "lab-profile",
+            "record-retention",
+            "announcements",
+            "accounts-roles",
+        ),
+    ),
+)
+STAFF_MENU_ROLES = {
+    "dashboard": ROLES,
+    "quotes": QUOTE_ROLES,
+    "price-lists": PRICING_ROLES,
+    "invoice-drafts": PRICING_ROLES,
+    "client-submissions": RECEIPT_ROLES,
+    "clients": ("project_manager",),
+    "projects": ("project_manager",),
+    "orders": RECEIPT_ROLES,
+    "samples": (*RECEIPT_ROLES, "reviewer"),  # reviewers assess preservation
+    "storage": RECEIPT_ROLES,
+    "schedule": RECEIPT_ROLES,
+    "worklist": ("analyst",),
+    "prep": ("analyst", "reviewer"),  # reviewers also disposition preparation QC
+    "batches": ("analyst", "reviewer"),
+    "subcontracts": (*RECEIPT_ROLES, "analyst", "reviewer"),
+    "mdl": ("analyst", "reviewer"),
+    "charts": ("analyst", "reviewer"),
+    "review": ("reviewer",),
+    "reports": ("project_manager", "approver"),
+    "lab-overview": (*INVENTORY_ROLES, *EQUIPMENT_ROLES),
+    "inventory": INVENTORY_ROLES,
+    "equipment": EQUIPMENT_ROLES,
+    "training": ROLES,  # everyone can read their own training
+    "nonconformances": ROLES,  # everyone can open, comment and work on assigned records
+    "catalog": ("admin",),
+    "qc-config": ("admin",),
+    "import-mappings": ("analyst",),
+    # Clients and projects for project managers; catalog and QC configuration for admin.
+    "spreadsheet-import": ("project_manager", "admin"),
+    "lab-profile": ("admin",),  # other staff read it from the report pages' certificate notice
+    "record-retention": ("admin",),
+    "announcements": ("admin",),
+    "accounts-roles": (),  # deployment-owner access is separate from lab roles
+}
+
+
+@register.simple_tag(takes_context=True)
+def staff_nav_sections(context):
+    """Return nonempty menu sections for this account's current work capabilities."""
+    user = context["request"].user
+    roles = context.get("user_roles")
+    if roles is None:
+        roles = effective_roles(user)
+    visible = {key for key, allowed in STAFF_MENU_ROLES.items() if roles.intersection(allowed)}
+    if roles.intersection(ROLES) and "reports" not in visible and can_authorize_release(user):
+        visible.add("reports")
+    if (
+        user.is_authenticated
+        and user.is_active
+        and user.client_id is None
+        and user.is_staff
+        and user.is_superuser
+    ):
+        visible.add("accounts-roles")
+    return [
+        {"key": key, "label": label, "items": items}
+        for key, label, keys in STAFF_SECTIONS
+        if (items := [item for item in keys if item in visible])
+    ]
+
 
 # Pages reached from the user menu: they render inside the user's shell and mark no item.
 ACCOUNT_ROUTES = frozenset(

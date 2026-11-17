@@ -4,7 +4,7 @@ import re
 
 import pytest
 from conftest import Lab
-from helpers import make_user, sign_in, sign_out, submit_fresh_batch
+from helpers import make_user, pick, sign_in, sign_out, submit_fresh_batch
 from playwright.sync_api import Page, expect
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -60,14 +60,14 @@ def test_nobody_reviews_their_own_results_and_another_reviewer_can(page: Page, d
     # Returning needs a reason; the selection and action survive the refusal.
     checkbox = page.get_by_role("checkbox", name=re.compile(rf"Select {sample.lab_id} Lead"))
     checkbox.check()
-    page.get_by_label(re.compile("^Action")).select_option(label="Return")
+    pick(page.get_by_label(re.compile("^Action")), label="Return")
     page.get_by_role("textbox", name=re.compile("^Note or reason")).fill("")
     page.get_by_role("button", name=re.compile("^Apply decision")).click()
     expect(page.get_by_text("A reason is required to return results.")).to_be_visible()
     assert ResultRevision.objects.get(pk=revision.pk).status == "submitted"
     checkbox = page.get_by_role("checkbox", name=re.compile(rf"Select {sample.lab_id} Lead"))
     checkbox.check()
-    page.get_by_label(re.compile("^Action")).select_option(label="Approve")
+    pick(page.get_by_label(re.compile("^Action")), label="Approve")
     page.get_by_role("button", name=re.compile("^Apply decision")).click()
     expect(page.get_by_text("Approved 1 result.")).to_be_visible()
     expect(page.get_by_text("Nothing awaiting review in this batch")).to_be_visible()
@@ -83,10 +83,12 @@ def test_release_needs_explicit_permission_and_clients_only_see_their_own_report
 
     report = Report.objects.get()
 
-    # A reviewer without the release permission can preview but not release.
+    # A reviewer without release permission can follow a report URL, but has no Reports menu.
     sign_in_as("reviewer")
-    page.get_by_role("link", name="Reports").first.click()
-    page.get_by_role("link", name=report.number, exact=True).click()
+    expect(
+        page.get_by_role("navigation", name="Primary").get_by_role("link", name="Reports")
+    ).to_have_count(0)
+    page.goto(f"/reports/{report.pk}/")
     page.get_by_role("link", name="Preview and release").click()
     expect(page.get_by_text("Release needs the report release permission")).to_be_visible()
     expect(page.get_by_role("button", name=re.compile("^Release version"))).to_have_count(0)

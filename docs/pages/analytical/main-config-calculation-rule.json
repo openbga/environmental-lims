@@ -1,0 +1,281 @@
+{
+  "id": "analytical-main-config-calculation-rule",
+  "routes": [
+    "analytical:config-new",
+    "analytical:config-edit"
+  ],
+  "match": {
+    "kind": "calculation-rule"
+  },
+  "title": "Calculation rule",
+  "purpose": "Add or edit the calculation and the laboratory's rounding for the manual results of one exact test, so analysts enter readings and the application works the result.",
+  "summary": "Make manual results of one test calculated from readings, and set how the calculated value is rounded. Only administrators can save; other staff read these rules on QC configuration.",
+  "tasks": [
+    {
+      "title": "Add a calculation rule for a test",
+      "steps": [
+        "Choose the [[Test]] and the [[Calculation]]. Choose the rounding in [[Round to]] and [[Digits]], and the rule for [[When the dropped digits are exactly 5]].",
+        "Record the method or SOP in [[Basis]].",
+        "Select [[Add calculation rule]]. From then on, analysts enter readings for that test."
+      ]
+    },
+    {
+      "title": "Round larger values differently",
+      "steps": [
+        "Enter the size in [[Second rounding from]], in the unit of the test.",
+        "Choose [[Round larger values to]] and [[Digits for larger values]], then save. Calculated values at or above that size use them."
+      ]
+    },
+    {
+      "title": "Change a rule",
+      "steps": [
+        "Open it from QC configuration and change the values.",
+        "Explain why in [[Reason for change]] and select [[Save changes]]."
+      ]
+    },
+    {
+      "title": "Go back to typed results for a test",
+      "steps": [
+        "Clear [[Active]], give a reason and select [[Save changes]]. The rule and the worksheets already recorded stay."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "There is no default rounding. Your rule rounds a calculated value once, at the end, and the reporting limit a preparation calculation works out. Typed and imported results are never rounded.",
+    "Changing or deactivating a rule never touches worksheets already recorded. Each keeps the rounding it was worked with.",
+    "A rule applies to manual entry only. File imports still supply final values and get no worksheet.",
+    "A calculation can only be chosen for a test whose unit it gives, and a dry-weight calculation only for a soil test. Units are not converted.",
+    "If you add or deactivate a rule, or choose another calculation, a page an analyst already had open is refused on save. A new rounding simply applies from the next save."
+  ],
+  "sections": [
+    {
+      "title": "Create, edit and access",
+      "paragraphs": [
+        "Only administrators can open and save this form; other staff read these rules on the QC configuration page, where the rows are not links for them. Add creates a new configuration record; Edit prepopulates the existing record and requires a Reason for change. These are laboratory policy values: nothing here supplies a default rounding, and synthetic seed data is not a validated set."
+      ]
+    },
+    {
+      "title": "Fields",
+      "items": [
+        {
+          "label": "Test",
+          "description": "Required. One exact test: method version, analyte and matrix, listed by method, analyte and matrix. Manual results of that test are then worked from readings and a typed final result is refused. Only one rule can exist for a test, active or not; edit the existing one."
+        },
+        {
+          "label": "Calculation",
+          "description": "Required. Reading times dilution factor, Solids by weight (balance in grams or milligrams), Preparation by volume, Prepared solid as weighed, Prepared solid corrected to dry weight (each of the last two in three unit pairings), Percent solids by weight Percent moisture by weight, Alkalinity by titration to pH 4.5, Low alkalinity by two-endpoint titration Total hardness by EDTA titration or BOD5 bottle worksheet. New entries use the current version; each result keeps the version it was worked with. A calculation that gives one unit is refused for a test whose unit differs, and a dry-weight calculation is refused for a test whose matrix is not soil. Units are not converted; only the spelling of micro may differ (µ, μ or u). Reading times dilution factor and Preparation by volume work for a test in any unit, but Preparation by volume takes a volume of sample and is refused for a soil test. A rule that names a calculation this release no longer has is shown as not in this release and must be changed."
+        },
+        {
+          "label": "Round to",
+          "description": "Required. Significant figures or Decimal places. This is the laboratory's own choice. It rounds the calculated value and also a reporting limit the calculation works out (the preparation calculations)."
+        },
+        {
+          "label": "Digits",
+          "description": "Required whole number. 1 to 15 for significant figures; 0 to 10 for decimal places (0 rounds to whole numbers). Results are stored to 10 decimal places: a rounding that would need more for a value, for example many significant figures of a value below 1, is refused when that value is entered."
+        },
+        {
+          "label": "Second rounding from",
+          "description": "Optional size in the unit of the test (up to 10 decimal places), greater than zero. A calculated value whose size before rounding is at or above it uses the second rounding below; smaller values use Round to and Digits. Because the choice is made before rounding, a value just under this size can round up to it and still show the digits of the smaller range. Blank means one rounding for every value. Giving it requires the two fields below, and they cannot be given without it."
+        },
+        {
+          "label": "Round larger values to",
+          "description": "Significant figures or Decimal places for values at or above Second rounding from."
+        },
+        {
+          "label": "Digits for larger values",
+          "description": "Digits for those larger values, with the same limits as Digits."
+        },
+        {
+          "label": "When the dropped digits are exactly 5",
+          "description": "Required. Half to even (a final 5 rounds to the nearest even digit) or Half up (a final 5 always rounds away from zero). The value is carried at full precision and rounded once, at the end."
+        },
+        {
+          "label": "Basis",
+          "description": "Required, not blank. The method or SOP the calculation and rounding come from. It is copied onto each worksheet as the basis of the rule."
+        },
+        {
+          "label": "Active",
+          "description": "Initially checked on Add. Only an active rule changes how the test is entered. Clearing it makes the test take typed results again; the rule and earlier worksheets stay."
+        }
+      ]
+    },
+    {
+      "title": "The calculations",
+      "items": [
+        {
+          "label": "Reading times dilution factor",
+          "description": "The analyst enters the Instrument reading (a number, or ND) and the Reporting limit before dilution, offered from the test's catalog limit. Result = reading × dilution factor; reporting limit applied = limit before dilution × dilution factor. A reading of ND gives ND at that limit. Works for a test in any unit."
+        },
+        {
+          "label": "Solids by weight, balance in grams",
+          "description": "Readings: Dried residue with its filter or dish (g), Filter or dish alone (g) and Sample volume (mL). Result in mg/L = (dried residue with its filter or dish − filter or dish alone) × 1,000,000 ÷ sample volume in mL."
+        },
+        {
+          "label": "Solids by weight, balance in milligrams",
+          "description": "The same readings with the weights in mg. Result in mg/L = (dried residue with its filter or dish − filter or dish alone) × 1,000 ÷ sample volume in mL."
+        },
+        {
+          "label": "Preparation by volume",
+          "description": "Readings: Instrument reading (a number, or ND), Reporting limit in the solution, Sample volume prepared (mL) and Final volume (mL). Result = instrument reading × final volume ÷ sample volume prepared × dilution factor. Works for a test in any unit that is not a soil test."
+        },
+        {
+          "label": "Prepared solid as weighed",
+          "description": "Three pairings of the unit read in the solution to the unit of the result: mg/L to mg/kg, ug/L to ug/kg, ug/L to mg/kg. Readings: Instrument reading (or ND), Reporting limit in the solution, Final volume (mL) and Sample weight (g). Result = instrument reading × final volume in mL ÷ sample weight in g × dilution factor, divided by 1,000 again for ug/L to mg/kg. No percent solids correction: the result is on the basis of the portion as weighed, and the analyst declares wet or dry weight."
+        },
+        {
+          "label": "Prepared solid corrected to dry weight",
+          "description": "The same three pairings and readings, with Sample weight as received (g). The result is the same arithmetic divided by percent solids ÷ 100. Soil tests only. The analyst must declare Dry weight, which the entry offers. Percent solids and its source reference are required: the percent solids comes from the entry's Percent solids field, is not typed a second time as a reading and is kept on the worksheet as a reading."
+        },
+        {
+          "label": "Percent solids by weight, Percent moisture by weight",
+          "description": "Three weights in g: Dish alone, Dish with the sample as received and Dish with the dried sample. Percent solids = (dish with the dried sample − dish alone) ÷ (dish with the sample as received − dish alone) × 100. Percent moisture = (dish with the sample as received − dish with the dried sample) ÷ (dish with the sample as received − dish alone) × 100. Results in %, so the test's unit must be %. Weights in which the dried sample is lighter than the dish, or heavier than the sample as received, are refused at entry. On a soil entry the analyst must declare Wet weight, which the entry offers. The reporting limit is typed, and no dilution factor is applied."
+        },
+        {
+          "label": "What the solids, percent solids and percent moisture calculations do not do",
+          "description": "They apply no dilution factor (it must be 1). Solids by weight also applies no blank correction. The reporting limit applied is still typed by the analyst. The source named on each worksheet gives the reference the formula comes from."
+        },
+        {
+          "label": "What the preparation calculations work out",
+          "description": "Preparation by volume and the prepared solid calculations work out the reporting limit applied: the reporting limit in the solution times the same factors as the result, then rounded by this rule, the same rule as the result. A reading of ND gives ND at that limit. The worksheet keeps the limit before rounding, and Worked again now checks the limit too. A rounding that takes the limit to zero is refused when the result is entered. The percent solids for a dry-weight correction is typed with its source and is not taken from the sample's percent solids result. Volumes and weights are typed with each result and are not recorded once on a prepared aliquot."
+        },
+        {
+          "label": "Alkalinity by titration to pH 4.5",
+          "description": "Initial and final burette readings (mL), Sample volume (mL), Standardized acid normality (N), and Endpoint pH. Result = (final minus initial) × normality × 50,000 ÷ sample volume, in mg/L as CaCO3. The recorded endpoint pH must be 4.5."
+        },
+        {
+          "label": "Low alkalinity by two-endpoint titration",
+          "description": "Initial, First endpoint and Final burette readings (mL), Sample volume (mL), Standardized acid normality (N), First endpoint pH and Final endpoint pH. Result = (2B minus C) × normality × 50,000 ÷ sample volume, in mg/L as CaCO3. B and C are cumulative volumes from the initial reading. The first pH must be 4.3–4.7 and the final pH exactly 0.3 lower. The calculation is chosen per test, never inferred from concentration."
+        },
+        {
+          "label": "Total hardness by EDTA titration",
+          "description": "Initial and Final burette readings (mL), Sample volume (mL), and Standardized EDTA normality (N, equivalents per liter). Result = (final minus initial) × normality × 50,000 ÷ sample volume, in mg/L as CaCO3. Do not enter molarity or mg CaCO3 per mL as normality. No blank correction or dilution is applied."
+        }
+      ]
+    },
+    {
+      "title": "Rules and effects",
+      "paragraphs": [
+        "With an active rule, manual entry takes readings instead of a final result; BOD5 uses its dedicated bottle worksheet, while other calculations use the batch entry grid and result page, and a typed final result is refused. The value is worked at full precision and rounded once by this rule. On a soil test, a calculation that means one weight basis (Dry weight, or Wet weight for percent solids and percent moisture) is refused with any other basis. A calculated value below the reporting limit applied needs a qualifier, or the analyst ticks Report as ND (allowed only below the limit).",
+        "File imports are unchanged: they supply final values kept with their source, get no worksheet and are not recalculated. QC sample measurements are still typed. Typed and imported values are never rounded.",
+        "Each calculated revision keeps a worksheet with the readings, the unrounded value, the unrounded reporting limit where the calculation works it out, the rounding applied and this rule's basis. A later change to the rule does not touch earlier worksheets, and a correction adds a new revision with its own worksheet.",
+        "The rule is read again when the analyst saves. If a rule was added or deactivated, or its calculation replaced, after the analyst opened the entry grid or the result page, saving is refused with the reason and the analyst reloads: readings typed for one calculation are never worked with another. A change to the rounding alone is not a refusal; it applies from the next save. If the test's unit later stops matching the calculation, a dry-weight calculation stands on a test that is not soil, or this release no longer has the calculation, entry is refused and says an administrator must correct the rule."
+      ]
+    },
+    {
+      "title": "Creation action",
+      "items": [
+        {
+          "label": "Add calculation rule",
+          "description": "Validate and create the rule, then return to QC configuration."
+        }
+      ]
+    },
+    {
+      "title": "Save, cancel and history",
+      "paragraphs": [
+        "Validation errors appear beside their fields and preserve entered values. A stale form is refused rather than overwriting another person's edit; input stays visible, but reload and compare current values before saving again."
+      ],
+      "items": [
+        {
+          "label": "Reason for change",
+          "description": "Optional on creation; required nonblank for every existing-row save. Recorded with actor, time and before and after values."
+        },
+        {
+          "label": "Save changes",
+          "description": "For an edit, validate the fields, recheck that the record still matches the version opened, and save with its audit event. Success returns to QC configuration."
+        },
+        {
+          "label": "Cancel",
+          "description": "Return to QC configuration without saving typed changes."
+        },
+        {
+          "label": "History",
+          "description": "Existing rules show their latest 20 audit events, displayed oldest to newest, with action, actor, time and reason. No history section appears before any events exist."
+        }
+      ]
+    },
+    {
+      "title": "Titration readings and limits",
+      "paragraphs": [
+        "Alkalinity by titration to pH 4.5, Low alkalinity by two-endpoint titration and Total hardness by EDTA titration produce mg/L as CaCO3. The test must use that exact unit and cannot be soil. The laboratory chooses the calculation per test; a result never switches the procedure automatically.",
+        "Use one uninterrupted burette run. Readings cannot be negative or go backward; a refill is not inferred. The low-alkalinity final burette reading must exceed the first endpoint reading. The single-endpoint equations permit equal initial and final readings.",
+        "These worksheets apply no dilution factor (saved as 1), preparation factor or blank correction. Enter the reporting limit that applies to the result; it is not scaled. Readings must be numbers, not ND. A calculated value below the limit needs a qualifier or Report as ND, with the readings and calculated value retained. A negative low-alkalinity value is not changed to zero.",
+        "The sources are historical EPA method equations, not a statement of current regulatory approval. The pH 3.9 mineral-acid procedure and the separate low-hardness blank procedure are not included. The laboratory checks titrant standardization, endpoint suitability and method acceptance. Low alkalinity describes below 20 mg/L and a 100–200 mL portion in its source; the application does not determine that suitability or enforce those bounds."
+      ],
+      "items": [
+        {
+          "label": "Initial burette reading",
+          "description": "Required mL reading before adding titrant. It is subtracted from each endpoint reading, so the burette need not start at zero."
+        },
+        {
+          "label": "Final burette reading",
+          "description": "Required mL reading at the final endpoint, on the same burette run. For alkalinity to pH 4.5 and hardness, titrant volume is final minus initial. For low alkalinity it gives C, the total volume from the initial reading, not the additional volume after the first endpoint."
+        },
+        {
+          "label": "First endpoint burette reading",
+          "description": "Low alkalinity only. Required mL reading at the first endpoint. B is this reading minus the initial reading; the equation uses 2B minus C, not B minus C."
+        },
+        {
+          "label": "Sample volume",
+          "description": "Required positive mL of original sample aliquot titrated. For either alkalinity worksheet use an unaltered sample, with no added dilution water. For hardness exclude reagents and water added in the titration vessel from the original aliquot volume. No separate preparation dilution correction is applied."
+        },
+        {
+          "label": "Standardized acid normality",
+          "description": "Alkalinity only. Required positive actual standardized acid strength in N (equivalents per liter). No nominal strength is assumed."
+        },
+        {
+          "label": "Standardized EDTA normality",
+          "description": "Hardness only. Required positive actual standardized EDTA strength in N (equivalents per liter), not molarity or mg CaCO3 per mL. No nominal strength is assumed."
+        },
+        {
+          "label": "Endpoint pH",
+          "description": "Alkalinity to pH 4.5 only. Required measured endpoint pH, exactly 4.5 for this equation; 4.50 is equivalent. Another endpoint is refused with the entered readings kept. No acceptance tolerance is inferred."
+        },
+        {
+          "label": "First endpoint pH",
+          "description": "Low alkalinity only. Required measured first endpoint pH, from 4.3 through 4.7 inclusive."
+        },
+        {
+          "label": "Final endpoint pH",
+          "description": "Low alkalinity only. Required measured pH after further acid addition, exactly 0.3 below the first endpoint pH. A different pair is refused with the readings kept; no tolerance or interpolation is applied."
+        }
+      ]
+    },
+    {
+      "title": "BOD5 bottle worksheet",
+      "paragraphs": [
+        "Each bottle value in mg/L is (initial DO − final DO − entered seed correction) × filled bottle volume ÷ sample volume. The arithmetic mean gives each included bottle equal weight, even when volumes differ. The common prior dilution factor multiplies that mean once, and only that final result is rounded by the test rule. Excluded bottles never contribute to the mean.",
+        "Available only for a nonsoil test in mg/L. The laboratory supplies the calculation rule’s Basis and rounding. Record BOD5 bottles opens a separate 1–12 row worksheet, retaining complete included and excluded observations with reasons and per-bottle seed correction evidence. Existing result submission, independent review and release gates remain.",
+        "This is BOD5 arithmetic only. It does not estimate seed demand from controls, subtract dilution-water blank demand, assess incubation or method eligibility, apply automatic bottle QC thresholds, or establish regulatory approval. CBOD5 is outside its scope. The analyst assesses the laboratory method and QC before selection; Include is not an automatic acceptance verdict.",
+        "The reporting limit stays analyst entered and is not scaled. Zero seed correction is explicit for unseeded bottles. Included corrected depletion must be nonnegative, but no depletion/residual DO acceptance threshold or bottle count beyond the 1–12 entry bound is inferred."
+      ]
+    }
+  ],
+  "sources": [
+    "analytical/views.py",
+    "analytical/forms.py",
+    "analytical/models.py",
+    "analytical/services.py",
+    "analytical/calculations.py",
+    "analytical/worksheets.py",
+    "accounts/roles.py",
+    "analytical/templates/analytical/form.html",
+    "core/concurrency.py",
+    "analytical/tests/test_calculations.py",
+    "analytical/tests/test_calculation_pages.py",
+    "analytical/tests/test_prepared_calculations.py",
+    "analytical/tests/test_prepared_pages.py",
+    "analytical/tests/test_titration_calculations.py",
+    "analytical/tests/test_titration_pages.py",
+    "analytical/urls.py",
+    "analytical/bod.py",
+    "analytical/bod_forms.py",
+    "analytical/bod_views.py",
+    "analytical/parsing.py",
+    "analytical/preparation.py",
+    "analytical/templates/analytical/result_bottles.html",
+    "analytical/templates/analytical/result_detail.html",
+    "analytical/templates/analytical/batch_entry.html",
+    "analytical/tests/test_bod.py"
+  ]
+}

@@ -6,6 +6,36 @@
   ],
   "title": "Preview and release a report",
   "purpose": "Inspect the proposed first issue or next amendment, resolve blockers and explicitly authorize immutable release.",
+  "summary": "Review the proposed first issue or next amendment, resolve anything blocking it, and authorize release of exactly this content. Release needs the explicit release permission.",
+  "tasks": [
+    {
+      "title": "Release a report",
+      "steps": [
+        "Review the results and select [[Open PDF preview]] to read the PDF.",
+        "For an amendment, explain why it replaces the previous issue in [[Amendment reason]].",
+        "Check [[I authorize release of exactly the content previewed above.]] and select the Release version button."
+      ]
+    },
+    {
+      "title": "Resolve what blocks release",
+      "steps": [
+        "Follow the Fix in link beside each blocking issue, correct the work, then reload this page."
+      ]
+    },
+    {
+      "title": "Run the optional NYSDEC data check first",
+      "steps": [
+        "Select [[run the NYSDEC data check]] under the release section. Its findings don't block the PDF release."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Release stores the PDF and its snapshot for good. Earlier versions stay available unchanged.",
+    "If records changed since you opened the preview, nothing is released. Review the refreshed preview and confirm again.",
+    "Results show exactly as entered, without report rounding. ND means not detected at the applied limit, not zero.",
+    "Release does not send email.",
+    "An account hold is a staff notice only. Check with the project manager; it does not block receipt or report release."
+  ],
   "sections": [
     {
       "title": "Access and navigation",
@@ -31,12 +61,16 @@
       "title": "Before authorization",
       "items": [
         {
+          "label": "Certificates left off",
+          "description": "Shown when a certificate in Setup → Laboratory profile is marked Print on reports but the date a version issued today would carry (laboratory local date) is outside its recorded validity. Each one is named with the date its validity ended on or starts on. Such a certificate is not printed on the version and the notice does not block release. If the dates are wrong, an administrator corrects them in Setup → Laboratory profile; reload this page afterwards. Certificates not marked for printing are never listed here."
+        },
+        {
           "label": "Blocking issues",
           "description": "Only blocked samples/tests and report-level reasons appear. Fix in links lead to source workflows; resolve and reload."
         },
         {
           "label": "Changes from version N",
-          "description": "Amendment comparison includes additions/removals, result and preparation/preservation evidence, QC, narrative and identity changes. Identical content cannot be amended."
+          "description": "Amendment comparison includes additions/removals, result and preparation/preservation evidence, QC, narrative, client/project identity and laboratory identity (name, address, contact details, logo, certificates and certificate statement) changes. Identical content cannot be amended. In versions released from this update on, a changed result or a changed single-line identity value (laboratory name, time zone, phone, email or website; report title; client name, contact or email; project name or program) shows the earlier value struck through, then the new value. Earlier versions show their changes as they were recorded."
         },
         {
           "label": "Ready to release",
@@ -113,7 +147,7 @@
       ]
     },
     {
-      "title": "Evidence below each result",
+      "title": "Receipt and preparation notes",
       "items": [
         {
           "label": "Receipt preservation screening",
@@ -123,11 +157,18 @@
           "label": "Preparation",
           "description": "Independent batch, aliquot label, method/version, start/completion, batch recorder and equipment when linked. Missing completion/equipment is explicit; preparation QC is in the PDF batch summary. A legacy analytical-batch preparation timestamp does not imply independent preparation identity."
         }
+      ],
+      "paragraphs": [
+        "Collapsed once under each sample's results table, one line per result, so the results read without repeated text. Open it to read each result's screening and preparation record."
       ]
     },
     {
       "title": "PDF preview contents",
       "items": [
+        {
+          "label": "Letterhead",
+          "description": "On the first page above the title: the laboratory logo (scaled to at most about 16 mm high and 45 mm wide, keeping its shape), name, address lines, phone, email and website, each only when recorded in the laboratory profile. Without a logo, address or contact details the first page starts with the title as before. Every page header shows the laboratory name."
+        },
         {
           "label": "Report / Version / Client / Project / Released / Released by / Samples / Times",
           "description": "Identity/title, client/contact, project/program, count and laboratory timezone. Preview has no release actor/time. Issued content freezes zone and UTC offsets; later timezone changes do not reinterpret old records."
@@ -161,6 +202,10 @@
           "description": "Internal method code/version/title/source and qualifier meanings; ND, RL and DF definitions. External information keeps source attribution."
         },
         {
+          "label": "Laboratory certificates",
+          "description": "Printed after the methods legend only when the version holds certificates: Issuing authority, Program or scope (— when not recorded), Certificate or laboratory ID and Validity (From/Until the recorded dates, or Not recorded), followed by the laboratory’s certificate statement or the default statement that certificates are listed as recorded and results were not checked against any certificate’s scope. The list is what the laboratory recorded; it is not a statement that a result is certified or accredited."
+        },
+        {
           "label": "Amended report / Authorization",
           "description": "Issued amendments identify prior issue, reason and changes. Final authorization names actor/time; preview states it is not issued."
         }
@@ -172,6 +217,7 @@
         "A report contains 1 to 100 samples from one project and at most 1,000 internal and external results combined. All requested tests of the selected samples must be reportable; individual tests cannot be selected out of a sample here. Hold and Reject receipt dispositions block release. To reduce a report that exceeds the result or rendered-file limit, split its samples across smaller report scopes.",
         "Internal work needs a current approved revision, independent technical review and no newer unapproved correction. Release rechecks current QC measurements, limits, requirements and dispositions, stored holding-time evaluation, preparation consistency and current receipt preservation evidence. Earlier approval alone does not guarantee release. Every test is checked again for an amendment, including unchanged results.",
         "The releasing person needs explicit release permission and cannot have entered or submitted any internal result in this report, or entered an external result in it. A technical reviewer can also release when explicitly authorized. Actor-specific independence checks run in the preview for a releasing user and on submission; another staff member may see different readiness. Account status, client assignment and release permission are checked again after PDF rendering; a deactivated or client-linked account cannot complete release. The final check locks the account and the permission grants it relies on until release commits. A concurrent removal of direct permission, group permission or group membership, or account deactivation, either completes first and prevents release or waits until release finishes.",
+        "The PDF prints the laboratory identity recorded in Setup → Laboratory profile when the content is assembled: name, address, phone, email, website, logo, and the certificates marked Print on reports whose recorded validity (both ends inclusive; a date not recorded is no bound) covers the issue date, followed by the certificate statement. Only recorded details are printed. The issued version freezes them: later profile changes, a new logo or a removed certificate never change an issued PDF. A profile change after the preview changes the content fingerprint, so release asks you to review the refreshed preview. An amendment lists laboratory address, phone, email, website, logo, certificate list and certificate statement changes, and a change of laboratory identity alone is a valid reason for an amendment.",
         "The fingerprint must still match the preview. Relevant laboratory identity, ownership, sample, requested-test, result, batch, method-policy and source records are locked and rechecked after PDF rendering. Changed records or a concurrent release require reviewing the refreshed preview and confirming again. No partial release is stored. The retry page reloads the current issued version, including amendment requirements when another release completed first.",
         "PDF bytes, frozen snapshot, version links, hashes, actor, release time and audit event commit together. Rendering failure or a PDF above 10 MiB leaves nothing released. Correct the reported issue and retry from the preview. Release does not send email."
       ]
@@ -180,6 +226,19 @@
       "title": "Failure recovery",
       "paragraphs": [
         "Nothing was released accompanies stale content, concurrent release or failed rendering. Review refreshed content and reconfirm. Validation errors identify fields/blockers; rendering problems can be retried after resolution. Prior issued PDFs remain available through detail. The embedded PDF preview shows its own message if the content changed or rendering failed; reload the preview after resolving the cause."
+      ]
+    },
+    {
+      "title": "Calibration evidence and release",
+      "paragraphs": [
+        "When a result explicitly links calibration evidence, the recorded curve and verification snapshot are retained in the new report version. The report PDF layout is unchanged. A corrected selected verification holds release until a fresh result revision records current evidence and passes independent review. A person who recorded that selected curve or verification cannot release its result, even with release permission. Unlinked results retain the existing gates; no universal calibration requirement is inferred. Issued reports are not rewritten."
+      ]
+    },
+    {
+      "title": "Account hold notice",
+      "paragraphs": [
+        "An active client account hold shows a notice and its internal note above the page content. Check with the project manager before continuing. Project managers and administrators set or clear it on the client record with a reason; old and new values remain in the client history.",
+        "The notice is informational. It does not block receipt or report release, alter sample disposition or replace existing analytical checks and release permission. The page reads the current hold when loaded. Hold notes are not included in the client portal, report snapshots, PDFs or deliverables; earlier issued reports remain unchanged."
       ]
     }
   ],
@@ -208,6 +267,18 @@
     "reporting/tests/test_portal.py",
     "reporting/tests/test_release_permissions.py",
     "core/security_headers.py",
-    "e2e/test_content_security_policy.py"
+    "e2e/test_content_security_policy.py",
+    "core/lab_profile.py",
+    "reporting/templates/reporting/certificate_notice.html",
+    "reporting/tests/test_lab_identity.py",
+    "reporting/templates/reporting/_change.html",
+    "analytical/calibration.py",
+    "analytical/tests/test_calibration.py",
+    "receipt/models.py",
+    "receipt/services.py",
+    "receipt/forms.py",
+    "receipt/views.py",
+    "templates/receipt/_account_hold.html",
+    "receipt/tests/test_account_hold.py"
   ]
 }

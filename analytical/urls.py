@@ -1,6 +1,15 @@
 from django.urls import path
 
-from . import import_views, mdl_views, preparation_views, preservation_views, views
+from . import (
+    bod_views,
+    calibration_views,
+    import_views,
+    mdl_views,
+    preparation_views,
+    preservation_views,
+    run_list_views,
+    views,
+)
 
 app_name = "analytical"
 urlpatterns = [
@@ -27,6 +36,13 @@ urlpatterns = [
     path("batches/", views.batch_list, name="batch-list"),
     path("batches/new/", views.batch_create, name="batch-create"),
     path("batches/<int:pk>/", views.batch_detail, name="batch-detail"),
+    path(
+        "batches/<int:pk>/calibrations/new/",
+        calibration_views.calibration_create,
+        name="calibration-create",
+    ),
+    path("calibrations/<int:pk>/", calibration_views.calibration_detail, name="calibration-detail"),
+    path("batches/<int:pk>/run-list.csv", run_list_views.batch_run_list, name="batch-run-list"),
     path("batches/<int:pk>/tests/", views.batch_add_tests, name="batch-add-tests"),
     path(
         "batches/<int:pk>/tests/<int:test_pk>/remove/",
@@ -50,6 +66,7 @@ urlpatterns = [
     path("import-profiles/<int:pk>/edit/", import_views.profile_edit, name="import-profile-edit"),
     path("batches/<int:pk>/submit/", views.batch_submit, name="batch-submit"),
     path("qc/<int:pk>/measure/", views.qc_measure, name="qc-measure"),
+    path("results/<int:pk>/bottles/", bod_views.result_bottles, name="result-bottles"),
     path("results/<int:pk>/", views.result_detail, name="result-detail"),
     path("review/", views.review_list, name="review-list"),
     path("review/batches/<int:pk>/", views.review_batch, name="review-batch"),

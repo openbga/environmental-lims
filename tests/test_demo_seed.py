@@ -2,13 +2,15 @@ import pytest
 from django.contrib.auth.models import AnonymousUser, Group
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.utils import timezone
 
 from accounts.models import User
 from accounts.roles import can_authorize_release
-from analytical.models import PreparationRequirement
+from analytical.models import CalculationRule, PreparationRequirement
 from catalog.models import Method, TestDefinition
+from core import lab_profile
 from core.announcements import announcements_for, withdraw_announcement
-from core.models import Announcement, AuditEvent
+from core.models import Announcement, AuditEvent, Lab, LabCertificate
 from receipt.models import Sample
 
 SHARED = "synthetic-test-password-only"
@@ -40,6 +42,11 @@ def test_demo_seed_uses_synthetic_catalog_and_preserves_existing_data(
         "DEMO-BOD-AQ",
         "DEMO-TSS-AQ",
         "DEMO-METALS-SOIL",
+        "DEMO-SOLIDS-SOIL",
+        "DEMO-NITRATE-SOIL",
+        "DEMO-ALKALINITY-AQ",
+        "DEMO-LOW-ALK-AQ",
+        "DEMO-HARDNESS-AQ",
         "DEMO-DIGEST-SOIL",
     }
     soil_tests = TestDefinition.objects.filter(method_id=methods["DEMO-METALS-SOIL"], matrix="soil")
@@ -48,7 +55,12 @@ def test_demo_seed_uses_synthetic_catalog_and_preserves_existing_data(
             method_id=methods["DEMO-DIGEST-SOIL"], is_active=True
         ).values_list("definition_id", flat=True)
     ) == set(soil_tests.values_list("pk", flat=True))
-    assert TestDefinition.objects.count() == 19
+    assert set(
+        CalculationRule.objects.filter(definition__method__code="DEMO-BOD-AQ").values_list(
+            "calculation", "rounding_digits"
+        )
+    ) == {("bod_bottles", 1)}
+    assert TestDefinition.objects.count() == 24
     assert not Method.objects.filter(code="DEMO-CHEM").exists()
     user = User.objects.get(username="demo_approver")
     password_hash = user.password
@@ -71,7 +83,7 @@ def test_demo_seed_uses_synthetic_catalog_and_preserves_existing_data(
     assert not user.groups.get(name="approver").permissions.exists()
     assert definition.unit == "lab-edited-unit"
     assert Sample.objects.count() == 1
-    assert TestDefinition.objects.count() == 19
+    assert TestDefinition.objects.count() == 24
     assert (
         dict(
             Method.objects.filter(code__startswith="DEMO-", version="demo-1").values_list(
@@ -143,3 +155,25 @@ def test_seed_never_publishes_a_password_that_opens_the_admin_account(monkeypatc
     monkeypatch.setenv("DEMO_ADMIN_PASSWORD", "too-short")
     with pytest.raises(CommandError, match="DEMO_ADMIN_PASSWORD"):
         call_command("seed_demo", verbosity=0)
+
+
+@pytest.mark.django_db
+def test_seed_gives_the_demo_laboratory_a_report_identity_once(monkeypatch):
+    monkeypatch.setenv("DEMO_PASSWORD", SHARED)
+    monkeypatch.delenv("DEMO_ADMIN_PASSWORD", raising=False)
+    call_command("seed_demo", verbosity=0)
+    lab = Lab.objects.get()
+    today = timezone.localdate()
+    identity = lab_profile.report_identity(lab, on=today)
+    assert identity["address"][0] == "200 Example Way" and identity["logo"]["width"] == 240
+    assert identity["email"].endswith("@example.invalid")
+    assert [row["number"] for row in identity["certificates"]] == ["EX-00000", "EX-ACC-0000"]
+    assert not lab_profile.withheld_certificates(today)
+
+    # An administrator's later changes survive the next seed.
+    admin = User.objects.get(username="demo_admin")
+    lab_profile.remove_logo(actor=admin)
+    lab_profile.remove_certificate(actor=admin, pk=LabCertificate.objects.first().pk)
+    call_command("seed_demo", verbosity=0)
+    lab.refresh_from_db()
+    assert lab.logo_id is None and LabCertificate.objects.count() == 1

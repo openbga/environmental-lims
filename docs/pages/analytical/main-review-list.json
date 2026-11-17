@@ -5,6 +5,27 @@
   ],
   "title": "Technical review",
   "purpose": "Find batches containing submitted results and see which work is independent of your own entry/submission.",
+  "summary": "Find the batches with results submitted for review, and see how many of them you may review yourself.",
+  "tasks": [
+    {
+      "title": "Review a batch",
+      "steps": [
+        "Find a batch with work in You may review. The oldest submission is listed first.",
+        "Select the batch number to open its review page."
+      ]
+    },
+    {
+      "title": "Narrow the queue",
+      "steps": [
+        "Choose a [[Method]] or [[Matrix]], then select [[Apply]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "You cannot review results you entered or submitted. The yours count shows them.",
+    "You may review counts independence only. It does not mean QC, holding time or preservation are ready.",
+    "A batch stays in the queue while its results wait, even if all of them are yours. Another reviewer must decide them."
+  ],
   "sections": [
     {
       "title": "Access",
@@ -88,7 +109,7 @@
         },
         {
           "label": "Columns",
-          "description": "Show or hide optional columns and change their order using movement controls or header dragging. Changes apply immediately and are saved for this table in this browser. Locked columns stay available."
+          "description": "Show or hide optional columns and change their order using movement controls or header dragging. Changes apply immediately and are saved for this table in your account, on any workstation. Locked columns stay available."
         },
         {
           "label": "Reset columns",
@@ -104,6 +125,34 @@
       "paragraphs": [
         "Nothing is awaiting review means no submitted revisions are pending. Analysts must first save entries, inspect them and submit. A filtered empty result offers Clear all. A batch can remain in the queue even if all its work is yours; another qualified reviewer must decide it."
       ]
+    },
+    {
+      "title": "Recorded calibration evidence",
+      "paragraphs": [
+        "The application records curves and verification provenance; it does not fit curves, determine method acceptance, verify independent standard sources or check sequence and bracketing. A calibration link is not required for every test."
+      ],
+      "items": [
+        {
+          "label": "Calibration",
+          "description": "Optional immutable instrument-reported curve for the result’s current batch, test and unit. In the single-result Enter result or Correct result form, choose it explicitly for every revision. Blank means Not linked and never carries an earlier link forward. The curve’s recorded time must precede or coincide with analysis."
+        },
+        {
+          "label": "Calibration verification",
+          "description": "Optional current calibration-verification QC observation for the same batch, test and unit, used only with a selected curve. The observation must be at or after calibration; a closing check may follow sample analysis. Its label, exact observed text, true value, unit, time and identity are frozen with the revision."
+        },
+        {
+          "label": "Correction and independence",
+          "description": "If a selected QC observation is superseded, submission, approval and release are held until a new result revision records current evidence. People who recorded the selected curve or check cannot independently review or release that result. Existing QC, holding-time and preservation gates still apply."
+        },
+        {
+          "label": "Where links are entered",
+          "description": "Only the single-result form offers evidence choices. Grid entry, CSV/TSV/XLSX import and BOD5 bottle entry do not infer or carry calibration links. A later correction using those paths also leaves the new revision unlinked."
+        },
+        {
+          "label": "Stale form",
+          "description": "If a result changed after the single-result form was opened, saving is refused and the input is kept. Reload to inspect the current revision before entering a correction."
+        }
+      ]
     }
   ],
   "sources": [
@@ -115,6 +164,11 @@
     "accounts/roles.py",
     "analytical/templates/analytical/review_list.html",
     "analytical/tests/test_lists.py",
-    "analytical/tests/test_views.py"
+    "analytical/tests/test_views.py",
+    "analytical/calibration.py",
+    "analytical/calibration_forms.py",
+    "analytical/calibration_views.py",
+    "analytical/tests/test_calibration.py",
+    "analytical/tests/test_calibration_views.py"
   ]
 }

@@ -5,6 +5,49 @@
   ],
   "title": "Chain of custody",
   "purpose": "Review one order’s client, project, turnaround, purchase order, shipment details, delivery commitment and received samples; continue receipt, edit its details or record the reason an expected shipment will not arrive.",
+  "summary": "One chain of custody: its client, project, turnaround, shipment details, delivery target and every sample received on it. Continue receipt from here.",
+  "tasks": [
+    {
+      "title": "Receive the samples",
+      "steps": [
+        "Select [[Receive first sample]] or [[Receive next sample]] for each physical sample in the shipment."
+      ]
+    },
+    {
+      "title": "Print labels",
+      "steps": [
+        "Select [[Labels]], choose Each container or Each sample, and set [[Copies of each]].",
+        "Select [[Download PDF]] and print at actual size."
+      ]
+    },
+    {
+      "title": "Fix the details",
+      "steps": [
+        "Select [[Edit details]] for the turnaround, purchase order, shipment or instructions.",
+        "Use [[Change delivery target]] or [[Correct reference]] in the More menu for those two. Each asks for a reason."
+      ]
+    },
+    {
+      "title": "Record a shipment that will not arrive",
+      "steps": [
+        "Select [[Cancel chain of custody]] and give the [[Reason]]. This works only while no sample has been received."
+      ]
+    },
+    {
+      "title": "Prepare internal charges",
+      "steps": [
+        "In [[Draft invoices]], select [[New draft invoice]] and choose an active price list or matching accepted quote version.",
+        "If a draft already exists, select its ID number to review or edit it."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The delivery target is the date agreed with the client. It is not a holding-time deadline.",
+    "Purchase order missing and Account hold are staff reminders only. Neither blocks receipt; check an account hold with the project manager.",
+    "Once a sample is on an issued report, the reference can no longer be corrected.",
+    "A chain of custody opened from a client submission is cancelled or reinstated on that submission.",
+    "Printing labels changes nothing on the sample or its custody."
+  ],
   "sections": [
     {
       "title": "Order summary",
@@ -20,7 +63,7 @@
         },
         {
           "label": "Delivery target",
-          "description": "Agreed local date/time or not set; distinct from holding-time deadlines."
+          "description": "Agreed local date/time or not set; distinct from holding-time deadlines. Once the target has passed it carries a red “Overdue N d” pill (just “Overdue” on the day itself); within the seven days before it, an amber “Due in N d” or “Due today” pill. Otherwise the date stands alone. A cancelled chain of custody shows no pill."
         },
         {
           "label": "Created / by",
@@ -33,6 +76,10 @@
         {
           "label": "Purchase order missing",
           "description": "A warning shown while the order is not cancelled, has no purchase order and the client is marked Purchase order required. Staff who can receive are told to add it with Edit details. It is a reminder and does not block receipt."
+        },
+        {
+          "label": "Samples received",
+          "description": "How many samples have been received against this chain of custody so far."
         }
       ]
     },
@@ -86,11 +133,11 @@
         },
         {
           "label": "Change delivery target",
-          "description": "Opens the reasoned rescheduling form while not cancelled."
+          "description": "Opens the reasoned rescheduling form while not cancelled. In the header’s More menu."
         },
         {
           "label": "Correct reference",
-          "description": "Opens a reasoned correction for all samples under this order. An issued report containing a sample blocks reference correction."
+          "description": "Opens a reasoned correction for all samples under this order. An issued report containing a sample blocks reference correction. In the header’s More menu."
         },
         {
           "label": "Cancel chain of custody",
@@ -179,6 +226,26 @@
           "description": "Chronological list, shown only after a first change, of each Edit details save with its actor, time and reason. The previous and new values are kept in the audit record, not listed here."
         }
       ]
+    },
+    {
+      "title": "Account hold notice",
+      "paragraphs": [
+        "An active client account hold shows a notice and its internal note above the page content. Check with the project manager before continuing. Project managers and administrators set or clear it on the client record with a reason; old and new values remain in the client history.",
+        "The notice is informational. It does not block receipt or report release, alter sample disposition or replace existing analytical checks and release permission. The page reads the current hold when loaded. Hold notes are not included in the client portal, report snapshots, PDFs or deliverables; earlier issued reports remain unchanged."
+      ]
+    },
+    {
+      "title": "Draft invoices",
+      "items": [
+        {
+          "label": "Draft invoices",
+          "description": "Project managers and administrators see the internal billing panel and can open the draft directory. Other staff do not see it."
+        },
+        {
+          "label": "New draft invoice / ID number",
+          "description": "After physical receipt, create a draft from the order’s current requested tests and an explicit active price list or accepted quote version. A quote must match all received test definitions and quantities, with no extra, missing or duplicate test lines. Quoted fees and discounts copy once; the combined draft may have at most 200 lines and its total cannot be negative. Every test needs a price. An existing active draft is linked instead; cancel it before making a replacement. Empty or cancelled orders cannot start a draft. The source record and custody remain unchanged."
+        }
+      ]
     }
   ],
   "sources": [
@@ -195,6 +262,11 @@
     "receipt/tests/test_receipt_edits.py",
     "receipt/tests/test_labels.py",
     "templates/receipt/order_edit.html",
-    "receipt/tests/test_master_data.py"
+    "receipt/tests/test_master_data.py",
+    "templates/receipt/_account_hold.html",
+    "receipt/tests/test_account_hold.py",
+    "commercial/invoice_views.py",
+    "commercial/invoices.py",
+    "commercial/models.py"
   ]
 }

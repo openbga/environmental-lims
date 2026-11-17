@@ -19,7 +19,7 @@ pytestmark = pytest.mark.django_db
 
 def test_seed_is_labelled_synthetic_idempotent_and_keeps_lab_edits(db):
     first = seed_synthetic_dataset()
-    assert first["methods"] == len(METHODS) + 1 and first["tests"] == 19
+    assert first["methods"] == len(METHODS) + 1 and first["tests"] == 24
     assert all(m.source == SOURCE and m.code.startswith("DEMO-") for m in Method.objects.all())
     assert all("SYNTHETIC" in b for b in QCLimit.objects.values_list("basis", flat=True))
     limit = QCLimit.objects.get(

@@ -13,14 +13,16 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.db.models import Q
 
-from catalog.models import Method, TestDefinition
+from catalog.models import Analyte, Method, TestDefinition
+from core.lookups import RemoteSelect
 from laboratory.models import Equipment
 from receipt.models import Client, Sample
 
+from . import calculations, importing, worksheets
 from . import import_profiles as ip
-from . import importing
 from .models import (
     Batch,
+    CalculationRule,
     HoldingTimeRule,
     ImportProfile,
     MDLObservation,
@@ -62,8 +64,11 @@ def local_datetime(label, required=True, help_text="Lab local time.", small=Fals
     )
 
 
-def raw_text(label, required=False, max_length=60, small=False, help_text="", **widget_attrs):
-    """Text field that keeps exactly what was typed (no stripping)."""
+def raw_text(
+    label, required=False, max_length=60, small=False, help_text="", unit=None, **widget_attrs
+):
+    """Text field that keeps exactly what was typed (no stripping). A unit renders as the number
+    widget's addon (templates/django/forms/widgets/number.html); the value stays the typed text."""
     attrs = (
         {"class": SMALL, "autocomplete": "off", "spellcheck": "false", **widget_attrs}
         if small
@@ -75,7 +80,7 @@ def raw_text(label, required=False, max_length=60, small=False, help_text="", **
         strip=False,
         max_length=max_length,
         help_text=help_text,
-        widget=forms.TextInput(attrs=attrs),
+        widget=forms.NumberInput(attrs={**attrs, "unit": unit}) if unit else forms.TextInput(attrs),
     )
 
 
@@ -158,7 +163,10 @@ class WorklistFilterForm(GridFilterForm):
         choices=[("", "Any"), ("expired", "Expired"), ("at_risk", "At risk or expired")],
     )
     client = forms.ModelChoiceField(
-        queryset=Client.objects.order_by("name"), required=False, empty_label="Any client"
+        queryset=Client.objects.order_by("name"),
+        required=False,
+        empty_label="Any client",
+        widget=RemoteSelect("clients"),
     )
     batch = forms.CharField(
         label="In batch",
@@ -245,7 +253,10 @@ class AddTestsFilterForm(GridFilterForm):
         choices=[("", "All"), ("new", "Not yet analysed"), ("reanalysis", "Reanalysis")],
     )
     client = forms.ModelChoiceField(
-        queryset=Client.objects.order_by("name"), required=False, empty_label="Any client"
+        queryset=Client.objects.order_by("name"),
+        required=False,
+        empty_label="Any client",
+        widget=RemoteSelect("clients"),
     )
 
 
@@ -290,6 +301,7 @@ class BatchForm(forms.Form):
     )
     equipment = forms.ModelChoiceField(
         queryset=Equipment.objects.exclude(status="retired").order_by("asset_id"),
+        widget=RemoteSelect("active-equipment"),
         required=False,
         label="Instrument or equipment",
         empty_label="Not recorded",
@@ -374,7 +386,9 @@ class BasisForm(forms.Form):
         help_text="Required for soil. Values and reporting limits are not converted.",
     )
     percent_solids = raw_text(
-        "Percent solids (%)", help_text="Optional supplied measurement; blank means not recorded."
+        "Percent solids",
+        unit="%",
+        help_text="Optional supplied measurement; blank means not recorded.",
     )
     solids_reference = forms.CharField(
         label="Solids source reference",
@@ -384,7 +398,156 @@ class BasisForm(forms.Form):
     )
 
 
-class ResultRowForm(BasisForm):
+class ReadingsMixin:
+    """Entry of a calculated result: one text field per reading of the test's calculation.
+
+    The view calls use_calculation before the form validates. The fields are named after the
+    readings (worksheets.reading_field), which is where the service reports their errors."""
+
+    calculation = None
+    reading_names = ()
+
+    def use_calculation(self, calculation, definition, *, small=False):
+        self.calculation = calculation
+        self.reading_names = []
+        for reading in calculation.inputs:
+            if reading.entry_field:
+                # The entry form already has this field (percent solids): say what it is for.
+                if reading.entry_field in self.fields:
+                    self.fields[reading.entry_field].help_text = (
+                        "Required by this calculation." if small else reading.help
+                    )
+                continue
+            name = worksheets.reading_field(reading.key)
+            self.fields[name] = raw_text(
+                reading.label,
+                small=small,
+                unit=calculation.unit_of(reading, definition.unit),
+                # The dense grid shows labels and units only; the page help explains each reading.
+                help_text="" if small else reading.help,
+            )
+            if reading.prefill_limit and definition.reporting_limit is not None:
+                self.fields[name].initial = trim(definition.reporting_limit)
+            self.reading_names.append(name)
+        self.fields["report_nd"] = forms.BooleanField(
+            label="Report as ND",
+            required=False,
+            help_text=""
+            if small
+            else "Only for a calculated value below the reporting limit applied. The readings "
+            "and the calculated value stay on record.",
+        )
+        # Posted back so the service can refuse readings typed for another calculation.
+        self.fields["calculation_token"] = forms.CharField(
+            required=False, widget=forms.HiddenInput, initial=worksheets.token(calculation)
+        )
+        # A typed final result is refused for a calculated test, and the page does not offer one.
+        self.fields["supplied_text"].required = False
+        if calculation.sets_limit:
+            self.fields["reporting_limit_applied"].required = False
+        if not calculation.uses_dilution:
+            self.fields["dilution_factor"].widget = forms.HiddenInput()
+            self.fields["dilution_factor"].initial = "1"
+        if calculation.soil_basis and "result_basis" in self.fields:
+            # The calculation means one weight basis only: offer it; the service still checks.
+            self.fields["result_basis"].initial = calculation.soil_basis
+            self.fields["result_basis"].help_text = calculation.soil_basis_reason
+        if self.needs_solids and "solids_reference" in self.fields:
+            self.fields["solids_reference"].help_text = (
+                "Required: where it comes from."
+                if small
+                else "Required: where this percent solids comes from, for example the sample's "
+                "percent solids result and its batch."
+            )
+
+    @property
+    def reading_fields(self):
+        return [self[name] for name in self.reading_names]
+
+    @property
+    def needs_solids(self):
+        """Whether the calculation takes the entry's percent solids (and so its source)."""
+        return bool(self.calculation) and "percent_solids" in self.calculation.entry_fields
+
+    # Set by the view. The limit the page offered for the row (never a sign of an entry), and
+    # whether the row is still a current candidate: only then is its calculation known.
+    prefilled_limit = ""
+    current = True
+
+    def _offered(self, name, text):
+        """Whether a posted limit reading is only what the page filled in itself. For a row that
+        is no longer current the catalog limit is not looked up: its limit reading never counts."""
+        return not self.current or (bool(self.prefilled_limit) and text == self.prefilled_limit)
+
+    def _shown(self):
+        """The calculation the page showed for this row when it was drawn, or None. It may no
+        longer be the test's calculation, and the row may no longer be current."""
+        return worksheets.shown(self.data.get(self.add_prefix("calculation_token"), ""))
+
+    def offered_basis(self):
+        """The weight basis the page chose for the row itself when it was drawn. Posted back
+        unchanged, it is not a sign of an entry."""
+        before = self._shown()
+        return before.soil_basis if before else ""
+
+    def unexpected_readings(self):
+        """Whether readings were typed that this form has no field for: the rule was removed or
+        replaced after the page was drawn, or the row is no longer current."""
+        prefix = self.add_prefix(worksheets.READING_PREFIX)
+        expected = {self.add_prefix(name) for name in self.reading_names}
+        before = self._shown()
+        offered = {
+            self.add_prefix(worksheets.reading_field(reading.key))
+            for reading in (before.inputs if before else ())
+            if reading.prefill_limit
+        }
+        for key, value in self.data.items():
+            text = str(value).strip()
+            if not key.startswith(prefix) or key in expected or not text:
+                continue
+            if key in offered and self._offered(key, text):
+                continue
+            return True
+        return False
+
+    def clean(self):
+        """Readings typed for a calculation the test no longer has are refused, not dropped.
+        (A row that is no longer current is reported as that by the view instead.)"""
+        data = super().clean()
+        if self.current and self.unexpected_readings():
+            raise ValidationError(
+                "The calculation set for this test changed after this page was opened, so the "
+                "readings typed here no longer fit it. Check what the row asks for now and "
+                "enter it again."
+            )
+        return data
+
+    def readings(self):
+        """{reading key: typed text} for the service, or None for a test without a calculation."""
+        if self.calculation is None:
+            return None
+        return {
+            reading.key: self.cleaned_data.get(worksheets.reading_field(reading.key), "")
+            for reading in self.calculation.inputs
+            if not reading.entry_field  # the service takes those from the entry itself
+        }
+
+    def readings_typed(self):
+        """Whether the analyst typed any reading. A limit the page filled in does not count;
+        one the analyst changed does."""
+        if self.calculation is None:
+            return False
+        for reading in self.calculation.inputs:
+            if reading.entry_field:
+                continue  # an entry field of its own: is_blank looks at it
+            name = worksheets.reading_field(reading.key)
+            text = (self.cleaned_data.get(name) or "").strip()
+            if text and not (reading.prefill_limit and self._offered(name, text)):
+                return True
+        return False
+
+
+class ResultRowForm(ReadingsMixin, BasisForm):
     """One row of the batch entry grid. Blank rows are skipped by the view."""
 
     result_id = forms.IntegerField(widget=forms.HiddenInput)
@@ -412,13 +575,45 @@ class ResultRowForm(BasisForm):
         text = self.cleaned_data.get("qualifiers", "").replace(",", " ").replace(";", " ")
         return text.split()
 
+    def _limit_typed(self):
+        """A limit the analyst gave. The one the page filled in is not a sign of an entry, and
+        a calculation that sets the limit shows no limit field at all."""
+        if self.calculation is not None and self.calculation.sets_limit:
+            return False
+        if not self.current:
+            return False  # the limit the page offered is not looked up for such a row
+        limit = (self.cleaned_data.get("reporting_limit_applied") or "").strip()
+        return bool(limit) and limit != self.prefilled_limit
+
     def is_blank(self):
-        """A row with no result, limit or time typed is skipped, not an error."""
+        """A row the analyst did not touch is skipped, not an error. Anything typed or chosen in
+        it (a result or reading, a limit of their own, a dilution, qualifiers, a reason, a time,
+        an aliquot, soil details) makes it an entry, which then has to be complete: a half-typed
+        row is never dropped silently."""
         data = self.cleaned_data
-        return not (
-            (data.get("supplied_text") or "").strip()
-            or (data.get("reporting_limit_applied") or "").strip()
-            or data.get("analysis_started_at")
+
+        def typed(name):
+            return str(data.get(name) or "").strip()
+
+        if data.get("analysis_started_at") or data.get("prepared_aliquot_id"):
+            return False
+        if data.get("report_nd") or self.readings_typed() or self._limit_typed():
+            return False
+        if self.unexpected_readings():
+            return False  # typed for a row the page no longer offers: reported, never dropped
+        if typed("dilution_factor") not in ("", "1"):  # 1 is what the page offers
+            return False
+        if typed("result_basis") not in ("", self.offered_basis()):
+            return False
+        return not any(
+            typed(name)
+            for name in (
+                "supplied_text",
+                "qualifiers",
+                "reason",
+                "percent_solids",
+                "solids_reference",
+            )
         )
 
 
@@ -434,7 +629,26 @@ class GridDefaultsForm(forms.Form):
     )
 
 
-class CorrectionForm(BasisForm):
+class CorrectionForm(ReadingsMixin, BasisForm):
+    expected_revision = forms.IntegerField(min_value=0, widget=forms.HiddenInput)
+    calibration_id = forms.TypedChoiceField(
+        label="Calibration",
+        required=False,
+        coerce=int,
+        empty_value=None,
+        choices=[("", "Not linked")],
+        help_text="Optional recorded curve for this run and test. "
+        "Select explicitly for every revision.",
+    )
+    calibration_verification_id = forms.TypedChoiceField(
+        label="Calibration verification",
+        required=False,
+        coerce=int,
+        empty_value=None,
+        choices=[("", "Not linked")],
+        help_text="Optional current verification observation for this run and test; "
+        "requires a calibration.",
+    )
     prepared_aliquot_id = forms.IntegerField(
         required=False,
         label="Prepared aliquot",
@@ -461,6 +675,20 @@ class CorrectionForm(BasisForm):
 
     def qualifier_codes(self):
         return self.cleaned_data.get("qualifiers", "").replace(",", " ").replace(";", " ").split()
+
+    def use_calculation(self, calculation, definition, *, small=False):
+        """Show the readings where the typed result would be, and drop what is calculated."""
+        super().use_calculation(calculation, definition, small=small)
+        del self.fields["supplied_text"]
+        if calculation.sets_limit:
+            del self.fields["reporting_limit_applied"]
+        if self.needs_solids and "percent_solids" in self.fields:
+            self.fields["percent_solids"].required = True
+            self.fields["solids_reference"].required = True
+        moved = (*self.reading_names, "report_nd")
+        order = [name for name in self.fields if name not in moved]
+        at = order.index("prepared_aliquot_id") + 1
+        self.order_fields([*order[:at], *self.reading_names, "report_nd", *order[at:]])
 
 
 # -------------------------------------------------------------------------- QC entry
@@ -646,7 +874,8 @@ class ImportProfileForm(forms.Form):
         "Percent solids column", "Optional exact percentage; blank is not 100%."
     )
     percent_solids_fixed = raw_text(
-        "Fixed percent solids (%)",
+        "Fixed percent solids",
+        unit="%",
         help_text="Only when the same measured value actually applies to "
         "every imported observation.",
     )
@@ -835,7 +1064,15 @@ class MappedImportUploadForm(forms.Form):
         empty_label="Choose a profile",
         help_text="How the columns of this file map to results.",
     )
-    file = forms.FileField(label="Results file (UTF-8 text)")
+    file = forms.FileField(label="Results file (CSV, TSV or XLSX)")
+    worksheet = forms.CharField(
+        label="Worksheet name",
+        required=False,
+        max_length=31,
+        strip=False,
+        help_text="For XLSX, enter the exact visible worksheet name. Leave blank for CSV/TSV. "
+        "The mapping's delimiter is used only for text files.",
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -848,6 +1085,9 @@ class MappedImportCommitForm(forms.Form):
     profile_id = forms.IntegerField(widget=forms.HiddenInput)
     mapping_hash = forms.CharField(widget=forms.HiddenInput, max_length=64)
     state_token = forms.CharField(widget=forms.HiddenInput, max_length=64)
+    worksheet = forms.CharField(
+        widget=forms.HiddenInput, required=False, max_length=31, strip=False
+    )
 
 
 # ------------------------------------------------------------------------------ review
@@ -894,6 +1134,7 @@ def posted_ids(request, name):
 def hours_field(label, required, help_text):
     return forms.DecimalField(
         label=label,
+        widget=forms.NumberInput(attrs={"unit": "hours"}),
         required=required,
         min_value=Decimal("0.01"),
         decimal_places=2,
@@ -912,29 +1153,41 @@ class ReasonMixin(forms.Form):
 
 class HoldingRuleForm(forms.ModelForm):
     duration_hours = hours_field(
-        "Maximum time (hours)",
+        "Maximum time",
         True,
         "From the start event to the end event. 0.25 = 15 minutes; 48 = 2 days; 672 = 28 days.",
     )
     warning_hours = hours_field(
-        "Warn when remaining (hours)", False, "Flag as at risk when this much time or less remains."
+        "Warn when remaining", False, "Flag as at risk when this much time or less remains."
     )
     reason = ReasonMixin.base_fields["reason"]
 
     class Meta:
         model = HoldingTimeRule
-        fields = ["method", "matrix", "name", "start_event", "end_event", "basis", "is_active"]
+        fields = [
+            "method",
+            "matrix",
+            "analyte",
+            "name",
+            "start_event",
+            "end_event",
+            "basis",
+            "is_active",
+        ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance.pk:
             self.fields["duration_hours"].initial = _hours(self.instance.duration)
             self.fields["warning_hours"].initial = _hours(self.instance.warning_window)
+        self.fields["analyte"].queryset = Analyte.objects.order_by("name")
+        self.fields["analyte"].empty_label = "All analytes of the method"
         name_empty_choices(self)
         self.order_fields(
             [
                 "method",
                 "matrix",
+                "analyte",
                 "name",
                 "start_event",
                 "end_event",
@@ -1088,7 +1341,70 @@ class PreservationRuleForm(forms.ModelForm):
         }
 
 
+class CalculationRuleForm(forms.ModelForm):
+    calculation = forms.ChoiceField(
+        label="Calculation",
+        help_text="New entries use the current version of the calculation. Each result keeps "
+        "the version it was worked with.",
+    )
+    reason = ReasonMixin.base_fields["reason"]
+
+    class Meta:
+        model = CalculationRule
+        fields = [
+            "definition",
+            "calculation",
+            "rounding_mode",
+            "rounding_digits",
+            "threshold",
+            "upper_rounding_mode",
+            "upper_rounding_digits",
+            "rounding_method",
+            "basis",
+            "is_active",
+        ]
+        labels = {
+            "definition": "Test",
+            "rounding_mode": "Round to",
+            "rounding_digits": "Digits",
+            "threshold": "Second rounding from",
+            "upper_rounding_mode": "Round larger values to",
+            "upper_rounding_digits": "Digits for larger values",
+            "rounding_method": "When the dropped digits are exactly 5",
+            "is_active": "Active",
+        }
+        help_texts = {
+            "definition": "Manual results of this exact method version, analyte and matrix are "
+            "then worked from readings; a typed result is refused. File imports still supply "
+            "final values.",
+            "rounding_mode": "The rounding of the calculated value. A reporting limit the "
+            "calculation works out (the preparation calculations) is rounded by the same rule.",
+            "rounding_method": "The laboratory's own rule. The value is carried at full "
+            "precision and rounded once, at the end.",
+            "is_active": "An inactive rule is ignored: the test takes typed results again. "
+            "Results already worked keep their worksheet.",
+        }
+        widgets = {"basis": forms.Textarea(attrs={"rows": 3})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["definition"].queryset = TestDefinition.objects.select_related(
+            "method", "analyte"
+        ).order_by("method__code", "analyte__name", "matrix")
+        self.fields["definition"].empty_label = "Choose a test"
+        options = calculations.choices()
+        stored = self.instance.calculation if self.instance.pk else ""
+        if stored and stored not in dict(options):
+            # A rule naming a calculation this release lacks stays visible and must be changed.
+            options = [(stored, f"{stored} (not in this release)"), *options]
+        self.fields["calculation"].choices = [("", "Choose a calculation"), *options]
+        if self.instance.pk and self.instance.threshold is not None:
+            self.initial["threshold"] = trim(self.instance.threshold)
+        name_empty_choices(self)
+
+
 CONFIG_KINDS = {
+    "calculation-rule": (CalculationRule, CalculationRuleForm, "Calculation rule"),
     "preparation-requirement": (
         PreparationRequirement,
         PreparationRequirementForm,
@@ -1283,3 +1599,16 @@ class ChartBaselineForm(forms.Form):
         help_text="Descriptive limits are the mean of these points plus or minus 2 and 3 standard "
         "deviations.",
     )
+
+
+class AddToBatchForm(forms.Form):
+    """The worklist bulk action: the open batch the selected tests join (the view checks it)."""
+
+    batch = forms.ChoiceField(label="Add selected tests to batch", required=False)
+
+    def __init__(self, batches, **kwargs):
+        super().__init__(auto_id="add-%s", **kwargs)
+        self.fields["batch"].choices = [
+            ("", "Choose an open batch"),
+            *((b.pk, f"{b.number} · {b.method} · {b.get_matrix_display()}") for b in batches),
+        ]

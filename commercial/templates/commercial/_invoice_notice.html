@@ -1,0 +1,3 @@
+{% load ui %}
+{% comment %}Shared internal-only warning on invoice draft create, edit and record pages. No context required.{% endcomment %}
+{% notice tone="warning" label="Internal draft only" %}This is a billing worksheet, not an issued invoice. Current sample tests may change after the snapshot; this draft does not synchronize automatically. Inclusion of a sample or its disposition does not determine whether its work is chargeable.{% endnotice %}

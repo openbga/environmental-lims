@@ -34,6 +34,8 @@ CLIENT_FIELDS = (
     "billing_address",
     "payment_terms",
     "po_required",
+    "account_hold",
+    "account_hold_note",
     "report_preferences",
     "notes",
 )
@@ -66,17 +68,25 @@ def _staff_manager(user):
         )
 
 
-def create_client(*, actor, **data):
+def create_client(*, actor, reason="", **data):
+    """`reason` is optional for a new client; the setup import names its source file there."""
     require_role(actor, "project_manager")
     with transaction.atomic():
         obj = Client(**data)
         obj.full_clean()
         obj.save()
-        record_event(actor=actor, action="client.created", obj=obj, after=snapshot(obj))
+        record_event(
+            actor=actor,
+            action="client.created",
+            obj=obj,
+            after=snapshot(obj),
+            reason=(reason or "").strip(),
+        )
         return obj
 
 
-def create_project(*, actor, **data):
+def create_project(*, actor, reason="", **data):
+    """`reason` is optional for a new project; the setup import names its source file there."""
     require_role(actor, "project_manager")
     with transaction.atomic():
         _active_project_client(data["client"])
@@ -84,7 +94,13 @@ def create_project(*, actor, **data):
         obj = Project(**data)
         obj.full_clean()
         obj.save()
-        record_event(actor=actor, action="project.created", obj=obj, after=snapshot(obj))
+        record_event(
+            actor=actor,
+            action="project.created",
+            obj=obj,
+            after=snapshot(obj),
+            reason=(reason or "").strip(),
+        )
         return obj
 
 

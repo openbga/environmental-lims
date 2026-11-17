@@ -5,6 +5,37 @@
   ],
   "title": "Receive sample on a chain of custody",
   "purpose": "Record actual receipt of another physical sample under the displayed chain of custody. Project and reference carry over from the order; each sample gets its own accession, observations and custody.",
+  "summary": "Record the actual receipt of one physical sample on this chain of custody. The project and reference carry over; the sample gets its own ID, observations and custody.",
+  "tasks": [
+    {
+      "title": "Receive a sample",
+      "steps": [
+        "Read any instructions above the form.",
+        "Enter the sample, collection and receipt inspection fields, and choose the [[Tests]].",
+        "Add one row per physical container with its [[Condition at receipt]], then select [[Receive sample]]."
+      ]
+    },
+    {
+      "title": "Receive several similar samples",
+      "steps": [
+        "Select [[Receive and add another]]. The next form reuses the matrix, collector, relinquished by, tests and container types.",
+        "Enter everything observed on the new sample yourself; observations are never copied."
+      ]
+    },
+    {
+      "title": "Record a problem found at receipt",
+      "steps": [
+        "Describe it in [[Discrepancy]], choose the [[Disposition]] and explain it in [[Disposition note]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Receipt time, temperature, seal, condition and preservation check are never copied from another sample.",
+    "Tests that are no longer active or do not match the matrix are not copied. The page says how many were skipped.",
+    "Record the cooler temperature exactly as read. It is never rounded.",
+    "If the order changed after you opened the form, receipt is refused. Reload and review before receiving again.",
+    "An account hold is a staff notice only. Check with the project manager; it does not block receipt or report release."
+  ],
   "sections": [
     {
       "title": "Order and defaults",
@@ -95,8 +126,8 @@
           "description": "Required name of the delivering custodian, up to 160 characters, as signed on the chain of custody."
         },
         {
-          "label": "Cooler temperature (°C)",
-          "description": "Required exact finite decimal reading, up to three decimal places in a seven-digit field; it is never rounded. Original entered reading text is also retained. Receipt applies no universal pass/fail temperature threshold; test-specific screening appears later."
+          "label": "Cooler temperature",
+          "description": "Required exact finite decimal reading, up to three decimal places in a seven-digit field; it is never rounded. Original entered reading text is also retained. Receipt applies no universal pass/fail temperature threshold; test-specific screening appears later. Entered in °C (the field's unit)."
         },
         {
           "label": "Thermometer",
@@ -199,6 +230,13 @@
           "description": "Returns to the order without receipt."
         }
       ]
+    },
+    {
+      "title": "Account hold notice",
+      "paragraphs": [
+        "An active client account hold shows a notice and its internal note above the page content. Check with the project manager before continuing. Project managers and administrators set or clear it on the client record with a reason; old and new values remain in the client history.",
+        "The notice is informational. It does not block receipt or report release, alter sample disposition or replace existing analytical checks and release permission. The page reads the current hold when loaded. Hold notes are not included in the client portal, report snapshots, PDFs or deliverables; earlier issued reports remain unchanged."
+      ]
     }
   ],
   "sources": [
@@ -219,6 +257,8 @@
     "core/widgets.py",
     "templates/django/forms/widgets/list_or_other.html",
     "templates/django/forms/widgets/suggest_input.html",
-    "receipt/tests/test_master_data.py"
+    "receipt/tests/test_master_data.py",
+    "templates/receipt/_account_hold.html",
+    "receipt/tests/test_account_hold.py"
   ]
 }

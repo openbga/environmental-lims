@@ -5,6 +5,34 @@
   ],
   "title": "Projects",
   "purpose": "Find client projects with their number, program, site, manager and standard turnaround. Each chain of custody belongs to one project and inherits its client relationship.",
+  "summary": "Client projects with their number, program, site, manager and standard turnaround. Every chain of custody belongs to one project.",
+  "tasks": [
+    {
+      "title": "Find a project",
+      "steps": [
+        "Type a name, number, client, permit or site in [[Search]], or pick a [[Client]].",
+        "Select [[Apply]]. Project managers and admins select the name to edit it."
+      ]
+    },
+    {
+      "title": "Create a project",
+      "steps": [
+        "Select [[New project]] and choose its client. The client must be active."
+      ]
+    },
+    {
+      "title": "List one manager's projects",
+      "steps": [
+        "Open [[More filters]], choose the [[Project manager]] and select [[Apply]]."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Turnaround is the agreed standard. It does not set a delivery target or a holding limit.",
+    "Program is a grouping label. It is not a compliance or accreditation determination.",
+    "New intake needs both an active project and an active client.",
+    "There is no separate project page. The name opens the edit form for those who can edit."
+  ],
   "sections": [
     {
       "title": "Search and actions",
@@ -37,6 +65,10 @@
         {
           "label": "Project row link",
           "description": "Project managers and administrators open the edit form. Other staff see the name as text; there is no separate project detail page."
+        },
+        {
+          "label": "Spreadsheet import",
+          "description": "Project managers can also create or change many projects at once from a CSV file under Setup → Spreadsheet import. The file identifies each project by its client's account code and the project name."
         }
       ]
     },
@@ -131,7 +163,7 @@
         },
         {
           "label": "Reset columns",
-          "description": "Restores this table’s default order and visibility in this browser."
+          "description": "Restores this table’s default order and visibility for your account."
         },
         {
           "label": "Done / Close",
@@ -153,6 +185,7 @@
     "tests/test_receipt_grids.py",
     "templates/includes/grid_columns_dialog.html",
     "static/js/grid.js",
-    "receipt/tests/test_master_data.py"
+    "receipt/tests/test_master_data.py",
+    "dataimport/importing.py"
   ]
 }

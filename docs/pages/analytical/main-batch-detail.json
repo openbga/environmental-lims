@@ -5,6 +5,50 @@
   ],
   "title": "Analytical batch",
   "purpose": "Manage one analytical batch’s membership, current results, QC and supporting equipment and preparation information.",
+  "summary": "Work one analytical batch: its tests and current results, QC samples and findings, preparation time and equipment. Submit entered results for review from here.",
+  "tasks": [
+    {
+      "title": "Enter or import results",
+      "steps": [
+        "Select [[Enter results]] to type them in the grid.",
+        "Or open [[Import results]] and choose a standard CSV file or a saved mapping."
+      ]
+    },
+    {
+      "title": "Submit entered results for review",
+      "steps": [
+        "Check the results, or check the box in the column heading to select every entered result on this page.",
+        "Select [[Submit selected for review]]. You cannot then review those results yourself."
+      ]
+    },
+    {
+      "title": "Record QC",
+      "steps": [
+        "Select [[Add QC sample]] to add a blank, LCS, spike or duplicate.",
+        "Select [[Record measurements]] beside a QC sample to enter its values."
+      ]
+    },
+    {
+      "title": "Resolve a QC finding",
+      "steps": [
+        "In the QC holds approval notice, select [[Record disposition]] for the finding."
+      ]
+    },
+    {
+      "title": "Prepare an instrument run list",
+      "steps": [
+        "Select [[Export run list]] to download all batch tests and recorded QC samples.",
+        "Map the CSV columns for your instrument and check sample states, QC and injection order before use."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Closing a batch only freezes which samples and QC samples are in it. Entry, QC and review continue.",
+    "An exceeded holding time needs a holding-time qualifier before the result can be submitted.",
+    "Failing, missing or unevaluated QC holds approval until it is resolved or independently accepted.",
+    "Returned results must be entered again with a reason before they can be submitted.",
+    "The laboratory records panel shows today's records for information. It does not allow or block any work."
+  ],
   "sections": [
     {
       "title": "Access",
@@ -17,7 +61,11 @@
       "items": [
         {
           "label": "Batch",
-          "description": "The number, Open/Closed state, exact method/version, matrix and approved/current-test count identify the batch. Approved count requires the latest approved revision to belong to this batch."
+          "description": "The number, Open/Closed state, exact method/version and matrix identify the batch. The progress fact counts tests whose current result is entered (not yet submitted), returned by review, and approved, out of all tests in the batch. Approved count requires the latest approved revision to belong to this batch."
+        },
+        {
+          "label": "Returned notice",
+          "description": "Shown while results in this batch are returned by review. It names up to ten returned results with links to each result and, for analysts, links to Enter results; every returned result must be entered again with a reason before it can be resubmitted."
         },
         {
           "label": "Equipment",
@@ -49,12 +97,12 @@
           "description": "Analysts can close a nonempty open batch. The confirmation dialog explains that closure cannot be undone: sample and QC membership can no longer be added or removed. Entry, QC measurement and review continue. Closing does not approve results."
         },
         {
-          "label": "Import results",
-          "description": "Open the standard CSV validation and preview flow."
+          "label": "Export run list",
+          "description": "Analysts and administrators download a UTF-8 CSV for instrument setup. Every assigned test and direct batch QC sample is included, regardless of filters, pagination or checkboxes. Open and closed analytical batches are allowed. Empty batches produce column headings only. The download changes no records or audit history and is not stored as an issued snapshot."
         },
         {
-          "label": "Import with a mapping",
-          "description": "Open profile-mapped CSV/TSV import."
+          "label": "Import results",
+          "description": "A menu with the two import paths: Standard CSV file opens the standard CSV validation and preview flow; With a saved mapping opens profile-mapped CSV/TSV import."
         },
         {
           "label": "Enter results",
@@ -63,6 +111,57 @@
         {
           "label": "Add tests",
           "description": "Analysts can add eligible requested tests while membership is open."
+        }
+      ]
+    },
+    {
+      "title": "Run-list CSV",
+      "paragraphs": [
+        "This is a generic current inventory for mapping into an instrument workflow. It does not establish eligibility, select aliquots, add missing QC or calibration standards, prescribe injection order or transmit to an instrument. It is not a result-import template. Review the sample disposition, disposal and result states before using it.",
+        "Sample-test rows are ordered by lab sample ID, analyte and requested-test identifier, followed by QC rows ordered by type, label and identifier. A sample with several tests repeats. Only QC samples directly attached to this analytical batch appear; preparation-batch QC is not added. QC test, limit and preparation cells are blank because the export does not infer QC analytes.",
+        "The whole file is refused above 2,000 data rows or when text contains tabs, line breaks or a leading control character, or starts with =, +, -, @ or a full-width equivalent after whitespace. The message identifies the row and column to correct; nothing is silently rewritten or partially downloaded. Commas and quotes are preserved using CSV quoting. Use the source record’s correction action where available. For labels with no correction action, retain the original record and prepare replacement work with a safe label; do not edit historical evidence.",
+        "Columns describe current records at download time, not conditions at a historical run. Import identifiers as text in spreadsheet software to retain leading zeros. The limit is exported as an exact decimal without rounding."
+      ],
+      "items": [
+        {
+          "label": "batch_id, batch_status",
+          "description": "The B-number and current open or closed membership state, repeated on every row. Closed does not mean approved."
+        },
+        {
+          "label": "method_code, method_version, matrix, equipment_id",
+          "description": "The batch method and version, analytical matrix and linked equipment asset identifier; equipment is blank if none is recorded."
+        },
+        {
+          "label": "row_type",
+          "description": "sample_test means one requested test currently assigned to the batch; qc_sample means one directly attached QC sample."
+        },
+        {
+          "label": "sample_id, client_sample_id",
+          "description": "Laboratory sample identifier and the client’s identifier for a sample-test row. These are blank on QC rows; a parent is named separately."
+        },
+        {
+          "label": "sample_disposition, sample_disposed",
+          "description": "The sample’s current proceed, qualify, hold or reject disposition and yes/no physical disposal state. These are blank on QC rows and are not an analytical acceptance decision."
+        },
+        {
+          "label": "requested_test_id, analyte",
+          "description": "Stable internal identifier for the requested sample test and its current analyte name. A sample repeats for each assigned test."
+        },
+        {
+          "label": "unit, configured_reporting_limit",
+          "description": "Current catalog test unit and exact configured reporting limit, blank when no limit is configured. This is not a result’s applied limit, has no dilution or preparation factor applied and is blank for QC rows."
+        },
+        {
+          "label": "result_status",
+          "description": "Current logical result state: awaiting, draft, submitted, returned or approved. If work has moved batches, an approved state can describe a prior batch’s revision; it does not establish that this run is approved."
+        },
+        {
+          "label": "recorded_prepared_aliquot_id, recorded_preparation_batch, recorded_aliquot_label",
+          "description": "The explicit aliquot identifier, preparation batch number and label from the latest result revision only when it belongs to this analytical batch. Blank before entry, when none was selected, or when the latest revision belongs to a different batch. These are recorded provenance, not the aliquot selected for a future run."
+        },
+        {
+          "label": "qc_sample_id, qc_label, qc_type, parent_sample_id",
+          "description": "The QC record’s stable internal identifier, entered label, stored QC type and explicitly linked parent lab sample ID. Parent is blank when none was linked. These columns are blank for sample-test rows."
         }
       ]
     },
@@ -133,7 +232,7 @@
         },
         {
           "label": "Result",
-          "description": "Latest numeric observation as supplied, or ND with the applied reporting-limit threshold; soil weight basis is also shown. A non-detect is not represented as zero."
+          "description": "Latest numeric observation as supplied, or ND with the applied reporting-limit threshold; soil weight basis is also shown. A non-detect is not represented as zero. A result worked from readings is marked calculated; its worksheet is on the result page."
         },
         {
           "label": "Unit",
@@ -202,7 +301,7 @@
         },
         {
           "label": "Preparation time needed",
-          "description": "Names active holding rules requiring preparation when none is recorded. Entering now cannot yield a submittable evaluation; set preparation and re-enter."
+          "description": "Names the active holding rules that start or end at preparation and apply to a test in the batch (the method-wide ones while the batch is empty) when no preparation time is recorded. Entering now cannot yield a submittable evaluation; set preparation and re-enter."
         },
         {
           "label": "Required for this method",
@@ -267,7 +366,7 @@
         },
         {
           "label": "Columns",
-          "description": "Show or hide optional columns and change their order using movement controls or header dragging. Changes apply immediately and are saved for this table in this browser. Locked columns stay available."
+          "description": "Show or hide optional columns and change their order using movement controls or header dragging. Changes apply immediately and are saved for this table in your account, on any workstation. Locked columns stay available."
         },
         {
           "label": "Reset columns",
@@ -307,6 +406,58 @@
       "paragraphs": [
         "All membership, preparation, equipment, entry, submission and QC changes are attributed in audit history. A result page preserves every revision. A bulk submit may partly succeed, but grid entry and file import use all-or-nothing validation. Reload when the server says membership or dependencies changed, and check current state before retrying. If this URL identifies a preparation batch, it redirects to that batch’s preparation page."
       ]
+    },
+    {
+      "title": "Calibration evidence",
+      "paragraphs": [
+        "No calibration evidence recorded means no curve has been stored, not that the batch has passed or failed a method requirement. The grid, imports and BOD5 bottle worksheet do not link calibration; select it explicitly on the single-result form."
+      ],
+      "items": [
+        {
+          "label": "Record calibration",
+          "description": "Analysts and administrators open a form to record an instrument-reported curve for one test. Also available after batch closure; preparation batches use their own page."
+        },
+        {
+          "label": "Calibration reference",
+          "description": "Opens the immutable record, standard points and result revisions that use it."
+        },
+        {
+          "label": "Analyte / Calibration time / Concentration unit",
+          "description": "Frozen identity, actual calibration event displayed with local zone and the unit of the standard concentrations."
+        },
+        {
+          "label": "Calibration pages",
+          "description": "Calibration records are ordered newest calibration time first. Their page links are independent of the sample/results table; both use the selected rows-per-page size. Sample filters do not hide calibration evidence."
+        }
+      ]
+    },
+    {
+      "title": "Recorded calibration evidence",
+      "paragraphs": [
+        "The application records curves and verification provenance; it does not fit curves, determine method acceptance, verify independent standard sources or check sequence and bracketing. A calibration link is not required for every test."
+      ],
+      "items": [
+        {
+          "label": "Calibration",
+          "description": "Optional immutable instrument-reported curve for the result’s current batch, test and unit. In the single-result Enter result or Correct result form, choose it explicitly for every revision. Blank means Not linked and never carries an earlier link forward. The curve’s recorded time must precede or coincide with analysis."
+        },
+        {
+          "label": "Calibration verification",
+          "description": "Optional current calibration-verification QC observation for the same batch, test and unit, used only with a selected curve. The observation must be at or after calibration; a closing check may follow sample analysis. Its label, exact observed text, true value, unit, time and identity are frozen with the revision."
+        },
+        {
+          "label": "Correction and independence",
+          "description": "If a selected QC observation is superseded, submission, approval and release are held until a new result revision records current evidence. People who recorded the selected curve or check cannot independently review or release that result. Existing QC, holding-time and preservation gates still apply."
+        },
+        {
+          "label": "Where links are entered",
+          "description": "Only the single-result form offers evidence choices. Grid entry, CSV/TSV/XLSX import and BOD5 bottle entry do not infer or carry calibration links. A later correction using those paths also leaves the new revision unlinked."
+        },
+        {
+          "label": "Stale form",
+          "description": "If a result changed after the single-result form was opened, saving is refused and the input is kept. Reload to inspect the current revision before entering a correction."
+        }
+      ]
     }
   ],
   "sources": [
@@ -326,6 +477,16 @@
     "analytical/tests/test_batch_equipment.py",
     "laboratory/templates/laboratory/batch_context.html",
     "laboratory/selectors.py",
-    "laboratory/permissions.py"
+    "laboratory/permissions.py",
+    "analytical/templates/analytical/_revision_value.html",
+    "analytical/run_lists.py",
+    "analytical/run_list_views.py",
+    "analytical/tests/test_run_lists.py",
+    "e2e/test_run_lists.py",
+    "analytical/calibration.py",
+    "analytical/calibration_forms.py",
+    "analytical/calibration_views.py",
+    "analytical/tests/test_calibration.py",
+    "analytical/tests/test_calibration_views.py"
   ]
 }

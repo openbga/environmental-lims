@@ -6,7 +6,7 @@ and which column holds what. The profile never infers an analyte, unit, non-dete
 acceptance from a header. A file is converted into the same canonical rows the strict CSV
 import validates, and the existing validation and entry services do the rest.
 
-Two layouts are supported, both comma or tab delimited UTF-8 text:
+Two layouts are supported, from comma/tab delimited UTF-8 or a bounded XLSX worksheet:
 
 * long: one result per row, with columns for sample, analyte and result.
 * wide: one sample per row, with one column for each analyte the operator maps.
@@ -309,10 +309,16 @@ def normalize_date(text, date_format):
 
 def extract(profile, text, *, max_rows):
     """Convert delimited text to canonical rows according to the profile. Reads no database."""
-    mapping, out = profile.mapping, Extracted()
     reader = csv.reader(
         io.StringIO(text, newline=""), delimiter=DELIMITERS[profile.delimiter], strict=True
     )
+    return extract_records(profile, reader, max_rows=max_rows)
+
+
+def extract_records(profile, reader, *, max_rows, worksheet=False, numeric_cells=frozenset()):
+    """Share mapping rules across delimited records and bounded worksheet cells."""
+    mapping, out = profile.mapping, Extracted()
+    reader = iter(reader)
     header = None
     try:
         for number, record in enumerate(reader, start=1):
@@ -320,6 +326,11 @@ def extract(profile, text, *, max_rows):
                 out.preamble += 1
                 continue
             header, header_number = [cell.strip() for cell in record], number
+            if worksheet:
+                while header and not header[-1]:
+                    header.pop()
+                if any((number, column) in numeric_cells for column in range(len(header))):
+                    out.file_errors.append("Worksheet column headers must be stored as text.")
             break
         if header is None:
             out.file_errors.append(
@@ -352,11 +363,47 @@ def extract(profile, text, *, max_rows):
             if len(out.rows) + len(out.blanks) >= max_rows:
                 out.file_errors.append(f"More than {max_rows} rows; split the file.")
                 break
+            if worksheet:
+                # Formatting can extend a worksheet beyond its table. Missing cells are blank;
+                # populated cells beyond the header still fail the ordinary width check.
+                if not any(cell.strip() for cell in record[len(header) :]):
+                    record = record[: len(header)]
+                record = record + [""] * max(0, len(header) - len(record))
+            first = len(out.rows)
             _convert(profile, line, record, header, position, out)
+            if worksheet:
+                numeric_allowed = {
+                    mapping.get("result"),
+                    mapping.get("prepared_aliquot_id"),
+                    *[c["column"] for c in mapping.get("analyte_columns", [])],
+                    *[
+                        text
+                        for role in ("reporting_limit", "dilution_factor", "percent_solids")
+                        if (spec := _source(mapping.get(role)))[0] == "column"
+                        for text in [spec[1]]
+                    ],
+                }
+                nontext = [
+                    name
+                    for name, _ in wanted
+                    if name not in numeric_allowed and (line, position[name][0]) in numeric_cells
+                ]
+                for row in out.rows[first:]:
+                    if nontext:
+                        row.errors.append(
+                            "Store these worksheet cells as text, including analysis timestamps: "
+                            + ", ".join(nontext)
+                            + ". Number formatting is not imported."
+                        )
+            if len(out.rows) + len(out.blanks) > max_rows:
+                out.file_errors.append(
+                    f"More than {max_rows} results or blank cells; split the file."
+                )
+                break
     except csv.Error as exc:
         out.file_errors.append(
             f"Malformed {profile.get_delimiter_display().lower()}-delimited text near row "
-            f"{reader.line_num}: {exc}"
+            f"{getattr(reader, 'line_num', '?')}: {exc}"
         )
     return out
 

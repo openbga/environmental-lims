@@ -5,11 +5,35 @@
   ],
   "title": "Laboratory retention statement",
   "purpose": "Record or clear the laboratory’s own electronic record-retention statement with a reason.",
+  "summary": "Record, change or clear the laboratory's electronic record-retention statement, with a reason.",
+  "tasks": [
+    {
+      "title": "Change the retention statement",
+      "steps": [
+        "Edit [[Record retention statement]]. Leave it blank to clear it.",
+        "Explain the change in [[Reason]].",
+        "Select [[Save]]."
+      ]
+    },
+    {
+      "title": "Check earlier changes",
+      "steps": [
+        "Select [[History]]. The full reason and before/after text are in the audit history."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The statement does not delete records or dispose of samples automatically.",
+    "If someone else saved first, the save is refused. Reload and review their statement.",
+    "The statement must actually change, and the reason is required.",
+    "Address, logo and certificates printed on reports are changed in Setup → Laboratory profile."
+  ],
   "sections": [
     {
       "title": "Access and fields",
       "paragraphs": [
-        "Requires an active staff superuser with the laboratory admin role."
+        "Requires an active staff superuser with the laboratory admin role.",
+        "This maintenance form changes only the retention statement. The address, contact details, logo, certificates and certificate statement printed on reports are changed on the Laboratory profile page under Setup."
       ],
       "items": [
         {
@@ -74,6 +98,7 @@
     "config/settings.py",
     "uv.lock",
     "core/models.py",
-    "core/retention.py"
+    "core/retention.py",
+    "core/lab_profile_views.py"
   ]
 }

@@ -1,6 +1,7 @@
 import uuid
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
@@ -54,6 +55,19 @@ class Client(models.Model):
         db_default=False,
         help_text="Information for intake: a chain of custody for this client should carry a PO.",
     )
+    account_hold = models.BooleanField(
+        default=False,
+        db_default=False,
+        help_text="Staff notice at receipt and report release. It does not block either action.",
+    )
+    account_hold_note = models.CharField(
+        max_length=500,
+        blank=True,
+        default="",
+        db_default="",
+        help_text="Internal staff note required for an active hold. Retained when cleared; "
+        "never included in client reports or the portal.",
+    )
     report_preferences = models.TextField(blank=True)
     notes = models.TextField(
         blank=True, db_default="", help_text="Internal notes. Not shown to the client."
@@ -64,16 +78,27 @@ class Client(models.Model):
     class Meta:
         ordering = ["name", "pk"]
         constraints = [
+            models.CheckConstraint(
+                condition=models.Q(account_hold=False) | ~models.Q(account_hold_note=""),
+                name="client_account_hold_noted",
+                violation_error_message="Give a staff note for the account hold.",
+            ),
             models.UniqueConstraint(
                 fields=["account_number"],
                 condition=~models.Q(account_number=""),
                 name="client_account_number",
                 violation_error_message="Another client already uses this account code.",
-            )
+            ),
         ]
 
     def __str__(self):
         return self.name
+
+    def clean(self):
+        super().clean()
+        self.account_hold_note = self.account_hold_note.strip()
+        if self.account_hold and not self.account_hold_note:
+            raise ValidationError({"account_hold_note": "Give a staff note for the account hold."})
 
     @property
     def address_lines(self):
@@ -393,6 +418,15 @@ class Sample(models.Model):
             (cls.Matrix(matrix).label, [(value, labels[value]) for value in values])
             for matrix, values in cls.SOURCES_BY_MATRIX.items()
         ]
+
+
+# The icon of each matrix in its tag ({% matrix_tag %}, includes/matrix_tag.html): Bootstrap Icons
+# symbols of static/img/icons.svg. The one mapping from a matrix to its icon.
+MATRIX_ICONS = {
+    Sample.Matrix.WATER: "droplet-fill",
+    Sample.Matrix.WASTEWATER: "water",
+    Sample.Matrix.SOIL: "layers-half",
+}
 
 
 class Container(models.Model):
