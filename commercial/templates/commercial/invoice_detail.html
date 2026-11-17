@@ -12,6 +12,7 @@
   {% fact label="Client name" value=draft.client_name %}{% fact label="Account code" value=draft.account_code %}
   {% fact label="Invoice-to contact" value=draft.billing_contact_name %}{% fact label="Invoice email" value=draft.billing_email %}
   {% fact label="Billing address" value=draft.billing_address|linebreaksbr wide=True %}
+  {% fact label="Due date" %}{% if draft.due_date %}<time datetime="{{ draft.due_date|date:'Y-m-d' }}">{{ draft.due_date|date:"Y-m-d" }}</time>{% else %}Not recorded{% endif %}{% endfact %}
   {% fact label="Payment terms" value=draft.get_payment_terms_display %}{% fact label="Purchase order" value=draft.po_number %}
   {% fact label="Chain of custody" %}<a href="{% url 'receipt:order-detail' draft.order_id %}">{{ draft.order_reference }}</a>{% endfact %}
   {% fact label="Project" value=draft.project_name %}

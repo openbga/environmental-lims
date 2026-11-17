@@ -40,7 +40,8 @@
     "Source labels and amounts are snapshots. Current receipt records and prices can differ.",
     "The total is a draft amount in USD, not a balance due.",
     "Cancelled drafts retain their amounts and history but cannot be edited or cancelled again.",
-    "No part of this draft is visible in the client portal."
+    "No part of this draft is visible in the client portal.",
+    "The due date is entered by staff, never calculated from payment terms. It does not establish a balance due."
   ],
   "sections": [
     {
@@ -67,6 +68,10 @@
         {
           "label": "Payment terms",
           "description": "Optional: Due on receipt, Net 15 days, Net 30 days, Net 45 days, Net 60 days or Prepaid. Initially the client terms. Information only; no due date or payment is calculated."
+        },
+        {
+          "label": "Due date",
+          "description": "Optional payment date entered by staff, shown as YYYY-MM-DD or Not recorded. New drafts start blank. Set, change or clear it in Edit with a reason; past calendar dates are allowed. Payment terms never calculate or replace it. A date on this internal draft does not mean an invoice was issued or a balance is overdue. Cancelled drafts retain their date."
         },
         {
           "label": "Purchase order",
@@ -148,6 +153,8 @@
     "commercial/tests/test_invoice_quote_lookup.py",
     "e2e/test_invoice_quote.py",
     "commercial/tests/test_invoice_manual.py",
-    "e2e/test_invoice_manual.py"
+    "e2e/test_invoice_manual.py",
+    "commercial/tests/test_invoice_due_dates.py",
+    "e2e/test_invoice_due_dates.py"
   ]
 }

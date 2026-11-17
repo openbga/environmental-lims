@@ -75,6 +75,12 @@
           "description": "Breadcrumb links return to the directory or draft record without saving."
         }
       ]
+    },
+    {
+      "title": "Retained due date",
+      "paragraphs": [
+        "Cancellation retains any staff-entered due date and its change history. A cancelled draft cannot be edited. The date is internal billing preparation and does not establish a balance due."
+      ]
     }
   ],
   "sources": [
@@ -92,6 +98,8 @@
     "commercial/tests/test_invoices.py",
     "e2e/test_invoice_drafts.py",
     "commercial/tests/test_invoice_quote_lookup.py",
-    "e2e/test_invoice_quote.py"
+    "e2e/test_invoice_quote.py",
+    "commercial/tests/test_invoice_due_dates.py",
+    "e2e/test_invoice_due_dates.py"
   ]
 }

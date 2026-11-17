@@ -187,7 +187,7 @@ prices with a reason. Inclusion does not establish that a test is chargeable, co
 analytically accepted. One active draft per order and a 200-line limit are product bounds.
 Creation, edits and cancellation retain attributed history and reject stale submissions;
 cancelled drafts remain available internally. Drafts cannot be issued, paid or viewed by
-clients. Tax, due dates, payments, issued invoices and
+clients. Tax, automatic due-date calculation, payments, issued invoices and
 accounting export remain roadmap work.
 
 Accepted-quote pricing, added 2026-11-16, is an explicit alternative to a price list. The quote
@@ -220,6 +220,16 @@ rechecks the locked draft revision and records its actor, reason and before/afte
 Every line stays in the draft with its kind and origin fixed; staff correct an unwanted amount
 to zero with a reason or cancel the draft. Cancelled drafts cannot receive more lines. These are
 product choices for retained internal billing preparation, not tax or accounting requirements.
+
+Draft due dates, added 2026-11-17, are optional calendar dates entered by project managers or
+administrators while editing a draft. Existing and new drafts start without one. Setting,
+changing or clearing a date requires a reason and preserves the before/after values with the
+actor and revision; stale and cancelled drafts refuse changes. Payment terms never derive or
+replace this date. Past dates are permitted so staff can retain an agreed date without inventing
+a chronology rule for an unissued worksheet. The directory supports inclusive date-range
+filters and date sorting. A date is preparation for billing, not evidence of an issued invoice,
+an outstanding balance, payment or delinquency. These are product choices; due-date calculation,
+business calendars, tax, issuance and accounting remain separate roadmap work.
 
 These are deliberately bounded product choices for whole-order draft preparation, not a
 contract interpretation or billing qualification. Quote quantities are matched per order;

@@ -122,6 +122,12 @@
           "description": "Breadcrumb links return to the directory or draft record without saving."
         }
       ]
+    },
+    {
+      "title": "Preparing a due date",
+      "paragraphs": [
+        "New drafts start without a due date, regardless of payment terms. After creation, use Edit on the draft record to enter a date with a reason. The date is internal billing preparation and does not establish a balance due."
+      ]
     }
   ],
   "sources": [
@@ -142,6 +148,8 @@
     "core/lookups.py",
     "e2e/test_invoice_quote.py",
     "commercial/tests/test_invoice_manual.py",
-    "e2e/test_invoice_manual.py"
+    "e2e/test_invoice_manual.py",
+    "commercial/tests/test_invoice_due_dates.py",
+    "e2e/test_invoice_due_dates.py"
   ]
 }

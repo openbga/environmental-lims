@@ -3,6 +3,7 @@
 import json
 import uuid
 from collections import Counter
+from datetime import date
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -23,6 +24,7 @@ MAX_QUANTITY = 2_147_483_647
 MAX_PRICE = Decimal("9999999999.99")
 MAX_AMOUNT = Decimal("999999999999.99")
 CENTS = Decimal("0.01")
+_DUE_DATE_UNSET = object()
 BILLING_FIELDS = (
     "client_name",
     "account_code",
@@ -413,7 +415,9 @@ def add_invoice_draft_line(
 
 
 @transaction.atomic
-def save_invoice_draft(*, actor, draft_id, expected_revision, billing, lines, reason):
+def save_invoice_draft(
+    *, actor, draft_id, expected_revision, billing, lines, reason, due_date=_DUE_DATE_UNSET
+):
     require_role(actor, *PRICING_ROLES)
     draft = InvoiceDraft.objects.select_for_update().get(pk=draft_id)
     _editable(draft, expected_revision)
@@ -436,6 +440,10 @@ def save_invoice_draft(*, actor, draft_id, expected_revision, billing, lines, re
         if not isinstance(value, str):
             raise ValidationError("Billing values must be text.")
         setattr(draft, name, value.strip())
+    if due_date is not _DUE_DATE_UNSET:
+        if due_date is not None and type(due_date) is not date:
+            raise ValidationError({"due_date": "Enter a calendar date or leave it blank."})
+        draft.due_date = due_date
     for data in lines:
         line = by_id[data["id"]]
         description = data.get("description", "").strip()

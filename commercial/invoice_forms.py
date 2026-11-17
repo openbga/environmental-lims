@@ -10,7 +10,7 @@ from core.lookups import RemoteSelect
 from receipt.forms import StyledForm
 from receipt.models import Client
 
-from .forms import FilterForm, GroupedForm
+from .forms import DATE, FilterForm, GroupedForm
 from .invoices import (
     BILLING_FIELDS,
     MAX_LINES,
@@ -28,6 +28,16 @@ class InvoiceFilter(FilterForm):
     status = forms.ChoiceField(
         required=False, choices=[("", "All statuses"), *InvoiceDraft.Status.choices]
     )
+
+    due_from = forms.DateField(required=False, label="Due from", widget=DATE)
+    due_through = forms.DateField(required=False, label="Due through", widget=DATE)
+
+    def clean(self):
+        data = super().clean()
+        start, end = data.get("due_from"), data.get("due_through")
+        if start and end and start > end:
+            self.add_error("due_through", "Due through must be on or after Due from.")
+        return data
 
 
 class InvoiceQuoteSelect(RemoteSelect):
@@ -127,18 +137,28 @@ class InvoiceEditForm(GroupedForm, StyledForm, forms.Form):
         choices=[("", "Not recorded"), *Client.PaymentTerms.choices],
         help_text="Recorded terms only; no due date or payment is calculated.",
     )
+    due_date = forms.DateField(
+        required=False,
+        label="Due date",
+        widget=DATE,
+        help_text=(
+            "Manually entered for internal draft preparation only. "
+            "Not calculated from payment terms. Leave blank when not recorded."
+        ),
+    )
     po_number = forms.CharField(max_length=60, required=False, label="Purchase order")
     reason = forms.CharField(
         max_length=2000, label="Reason for change", widget=forms.Textarea(attrs={"rows": 2})
     )
     groups = (
-        ("Billing snapshot", list(BILLING_FIELDS)),
+        ("Billing snapshot", [*BILLING_FIELDS, "due_date"]),
         ("Change record", ["reason"]),
     )
 
     def __init__(self, *args, draft, **kwargs):
         super().__init__(*args, **kwargs)
         self.initial.update({name: getattr(draft, name) for name in BILLING_FIELDS})
+        self.initial["due_date"] = draft.due_date
         self.initial["expected_revision"] = draft.revision
 
 
