@@ -102,6 +102,12 @@
           "description": "Breadcrumb links return to the directory or draft record without adding a line."
         }
       ]
+    },
+    {
+      "title": "Due dates",
+      "paragraphs": [
+        "Adding a line preserves the draft’s optional staff-entered due date. To set, change or clear that date, use Edit on the draft record and give a reason. Payment terms do not calculate it."
+      ]
     }
   ],
   "sources": [
@@ -116,6 +122,8 @@
     "core/form_surfaces.py",
     "commercial/tests/test_invoice_manual.py",
     "commercial/tests/test_invoice_manual_schema.py",
-    "e2e/test_invoice_manual.py"
+    "e2e/test_invoice_manual.py",
+    "commercial/tests/test_invoice_due_dates.py",
+    "e2e/test_invoice_due_dates.py"
   ]
 }

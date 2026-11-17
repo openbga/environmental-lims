@@ -78,6 +78,7 @@ class InvoiceDraft(models.Model):
     billing_email = models.EmailField(blank=True)
     billing_address = models.TextField(blank=True)
     payment_terms = models.CharField(max_length=16, blank=True, choices=Client.PaymentTerms.choices)
+    due_date = models.DateField(null=True, blank=True)
     po_number = models.CharField(max_length=60, blank=True)
     total = models.DecimalField(max_digits=14, decimal_places=2)
     created_at = models.DateTimeField(auto_now_add=True)

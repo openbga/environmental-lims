@@ -5,13 +5,14 @@
 {% panel title="Draft invoices" heading_id="invoices-heading" table=True hidden_title=True %}
   {% grid_toolbar label="Filter draft invoices" placeholder="Draft, client, chain of custody, project or PO" grid="commercial.invoices" invalid=filter_form.errors chips=active_filters sort=sort %}
   {% list_results items=page_obj noun="draft invoices" filtered=filtered invalid=filter_form.errors clear_url=request.path error_body="Correct the highlighted filter above." no_results_title="No draft invoices match these filters" no_results_body="Check the reference or client, or clear the filters." empty_title="No draft invoices yet" empty_body="Open a physically received chain of custody and select New draft invoice." %}
-  <div class="vr-table-wrap"><table class="table table-hover vr-table" data-vr-grid="commercial.invoices" data-vr-grid-version="1" aria-labelledby="invoices-heading">
+  <div class="vr-table-wrap"><table class="table table-hover vr-table" data-vr-grid="commercial.invoices" data-vr-grid-version="2" aria-labelledby="invoices-heading">
     <thead><tr>
       {% sort_header label="Draft" asc="number" desc="-number" first="desc" col="number" locked=True %}
       {% sort_header label="Client" asc="client" desc="-client" col="client" %}
       {% sort_header label="Chain of custody" asc="order" desc="-order" col="order" %}
       {% sort_header label="Status" asc="status" desc="-status" col="status" %}
       {% sort_header label="Total (USD)" asc="total" desc="-total" col="total" class="text-end" %}
+      {% sort_header label="Due date" asc="due_date" desc="-due_date" col="due_date" %}
       {% sort_header label="Created" asc="created" desc="-created" col="created" priority="low" %}
       <th scope="col" data-vr-col="project" data-vr-col-hidden>Project</th>
       <th scope="col" data-vr-col="po" data-vr-col-hidden>Purchase order</th>
@@ -19,6 +20,7 @@
       <th scope="row"><a class="vr-row-link vr-id" href="{% url 'commercial:invoice-detail' draft.pk %}">{{ draft.number }}</a></th>
       <td>{{ draft.client_name }}</td><td>{{ draft.order_reference }}</td><td>{{ draft.get_status_display }}</td>
       <td class="text-end vr-nowrap">{{ draft.total|usd }}</td>
+      <td class="vr-nowrap">{% if draft.due_date %}<time datetime="{{ draft.due_date|date:'Y-m-d' }}">{{ draft.due_date|date:"Y-m-d" }}</time>{% else %}Not recorded{% endif %}</td>
       <td class="vr-nowrap"><time datetime="{{ draft.created_at|date:'c' }}">{{ draft.created_at|date:"Y-m-d H:i" }}</time></td>
       <td>{{ draft.project_name }}</td><td>{{ draft.po_number|default:"—" }}</td>
     </tr>{% endfor %}</tbody>

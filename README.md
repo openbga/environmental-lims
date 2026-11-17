@@ -30,7 +30,8 @@ records; it does not certify compliance or accreditation.
   accepted quote, preserve billing details and source identities, and keep reasoned edits and
   cancellations. Accepted quotes also carry their fees and discounts into the draft once, with
   their source retained. Staff can add fees and discounts with a reason and a distinct manual
-  origin. Issuance, tax, payments and accounting export remain planned.
+  origin. Staff can record a due date with a reason and find drafts by date; payment terms
+  never calculate it. Issuance, tax, payments and accounting export remain planned.
 - **Laboratory records:** materials, lots and stock movements, equipment, training,
   nonconformance, and physical sample retention and disposal.
 

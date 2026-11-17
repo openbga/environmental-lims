@@ -166,6 +166,13 @@ lines, add manual lines or label their manual origin. Use compatible code for th
 refuses once a manual line exists, including on cancelled drafts; never invent a quote source
 to force reversal. Normal backup/restore covers these lines and their audit history.
 
+Draft due dates add a nullable column in `commercial.0009`. Existing drafts stay undated.
+Keep the column on code rollback: previous code can create and edit drafts but neither shows
+nor changes their dates. Reversal refuses while any draft, including a cancelled one, has a
+date. Do not clear dates to force reversal; use compatible code to inspect or change them with
+a reason. Normal backup/restore includes the dates and their audit history. Deployment does
+not infer dates, seed invoices or reset data.
+
 BOD bottle worksheets add the nullable `bottle_data` column in `analytical.0012`. Keep that column during a code rollback: reversing the migration refuses once any bottle snapshot exists. Older code cannot show or reproduce those bottle observations and cannot accept entries for a BOD calculation rule; deactivate that rule before using older code for new entries, and return to a compatible release to inspect retained worksheets. A normal deploy does not reseed; the synthetic BOD example appears at the demonstration’s next scheduled reset.
 
 Run calibration evidence adds `analytical.0013`: an immutable calibration table and nullable

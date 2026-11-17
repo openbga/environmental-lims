@@ -26,7 +26,13 @@ from .selectors import history
 @staff_role_required(*PRICING_ROLES)
 def invoice_list(request):
     def refine(qs, data):
-        return qs.filter(status=data["status"]) if data.get("status") else qs
+        if data.get("status"):
+            qs = qs.filter(status=data["status"])
+        if data.get("due_from"):
+            qs = qs.filter(due_date__gte=data["due_from"])
+        if data.get("due_through"):
+            qs = qs.filter(due_date__lte=data["due_through"])
+        return qs
 
     return grid_response(
         request,
@@ -38,6 +44,7 @@ def invoice_list(request):
             "status": "status",
             "total": "total",
             "created": "created_at",
+            "due_date": "due_date",
         },
         default_sort="-number",
         form_class=InvoiceFilter,
@@ -166,6 +173,7 @@ def invoice_edit(request, pk):
                 billing={name: form.cleaned_data[name] for name in invoices.BILLING_FIELDS},
                 lines=[row.cleaned_data for row in formset],
                 reason=form.cleaned_data["reason"],
+                due_date=form.cleaned_data["due_date"],
             )
         except ValidationError as exc:
             apply_errors(form, exc)

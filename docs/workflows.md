@@ -59,7 +59,10 @@ orders, and quote terms do not replace the billing snapshot. Staff can also add 
 with a reason; it is marked Manually added, with no sample, requested test or quote link.
 Additions use the same amount and line bounds, reject stale or cancelled drafts and retain
 attributed before/after history. Every line remains present: correct an unwanted amount to zero
-with a reason. Drafts stay internal; issued invoices and accounting exports remain planned.
+with a reason. Staff may also set, change or clear an optional due date with a reason and find
+drafts within an inclusive date range. Dates are entered explicitly, never calculated from
+payment terms, and do not establish an outstanding balance. Drafts stay internal; issued
+invoices and accounting exports remain planned.
 
 ## Spreadsheet import of setup records
 
