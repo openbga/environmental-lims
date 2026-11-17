@@ -80,6 +80,15 @@ def test_roadmap_page_is_linked_served_and_self_consistent(client):
     assert anchors and anchors <= set(re.findall(r'\bid="([^"]+)"', html))
 
 
+def test_presentation_served_by_deployments_loads_no_analytics():
+    """Only the GitHub Pages copy counts visits; .github/workflows/pages.yml adds the tracker
+    there. A deployment serves these files at /about/ and must not load it."""
+    pages = list(PRESENTATION.rglob("*.html"))
+    assert pages
+    for page in pages:
+        assert "plausible" not in page.read_text().lower(), page
+
+
 @pytest.mark.parametrize("path", ["/about", "/about/index.html"])
 def test_presentation_redirects_to_its_directory_url(client, path):
     response = client.get(path)
