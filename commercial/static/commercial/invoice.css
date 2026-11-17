@@ -1,0 +1,77 @@
+/* Private print stylesheet, read by invoice_pdf.py. No remote assets. */
+@page {
+  size: Letter;
+  margin: 0.65in;
+  @top-left { content: element(synthetic-notice); }
+  @bottom-left {
+    content: string(invoice-number);
+    font: 9pt sans-serif;
+    color: #465761;
+  }
+  @bottom-right {
+    content: "Page " counter(page) " of " counter(pages);
+    font: 9pt sans-serif;
+    color: #465761;
+  }
+}
+
+:root {
+  --ink: #182b32;
+  --muted: #465761;
+  --rule: #bbc7cc;
+  --shade: #eef3f5;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  font: 10pt/1.4 sans-serif;
+  overflow-wrap: anywhere;
+}
+
+.synthetic-notice {
+  position: running(synthetic-notice);
+  color: #7a4410;
+  font-weight: bold;
+}
+
+p { margin: 0; }
+
+header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18pt;
+  border-bottom: 1pt solid var(--rule);
+  padding-bottom: 16pt;
+}
+
+.issuer { width: 58%; }
+.issuer-name { font-size: 14pt; font-weight: bold; margin-bottom: 4pt; }
+.invoice-id { width: 38%; text-align: right; }
+h1 { font-size: 29pt; line-height: 1; margin: 0 0 5pt; }
+.invoice-number { string-set: invoice-number content(); font-weight: bold; margin-bottom: 4pt; }
+
+.billing, .references { margin-top: 13pt; }
+h2 { font-size: 10pt; color: var(--muted); margin: 0 0 3pt; break-after: avoid; }
+.address { white-space: pre-line; }
+.references { margin-bottom: 14pt; }
+.references strong { margin-right: 3pt; }
+
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+col.quantity { width: 78pt; }
+col.unit-price { width: 108pt; }
+col.amount { width: 122pt; }
+thead { background: var(--shade); }
+th, td { padding: 6pt; text-align: left; vertical-align: top; }
+th[scope="row"] { font-weight: normal; }
+tbody td, tbody th { border-bottom: 0.5pt solid var(--rule); }
+tbody tr { break-inside: avoid; }
+.number { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.line-detail { color: var(--muted); font-size: 8pt; margin-top: 2pt; }
+.total > th, .total > td {
+  border-top: 1pt solid var(--ink);
+  border-bottom: 0;
+  background: var(--shade);
+  text-align: right;
+  font-weight: bold;
+}

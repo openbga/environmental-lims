@@ -43,13 +43,13 @@
     "Tax never recalculates when charges change. Review each assessment separately. A missing tax line makes no tax determination.",
     "Multiple tax assessments may be separate lines. Zero retains an explicit assessment; there are no rates, exemptions or automatic taxability decisions.",
     "Every saved line remains. Use Edit to correct an unwanted amount to zero with a reason. All lines share the 200-line limit and a nonnegative total.",
-    "A changed or cancelled draft is refused. Reload and review current values before trying again."
+    "A draft must still be active and have the same revision. Reload and check the current status if another person makes changes."
   ],
   "sections": [
     {
       "title": "Access and purpose",
       "paragraphs": [
-        "Only project managers and administrators may open this form or add a line, including through a direct link. Clients and other staff are refused. The draft must be active; cancelled drafts remain readable but cannot receive lines. This form works for drafts created from either a price list or an accepted quote. It does not issue an invoice, bill a client, calculate tax or payments, or change receipt, analytical work or reports."
+        "Only project managers and administrators may open this form or add a line, including through a direct link. Clients and other staff are refused. Only an active draft can receive lines. Issued, voided and cancelled records remain readable with their saved charges. This form works for drafts created from either a price list or an accepted quote. It does not issue an invoice, bill a client, calculate tax or payments, or change receipt, analytical work or reports."
       ]
     },
     {
@@ -82,7 +82,7 @@
       "items": [
         {
           "label": "Add fee, discount or tax",
-          "description": "Append one line after the existing lines, recompute the exact USD total, and save it with an attributed history event. Each line amount must fit 999,999,999,999.99 USD in magnitude; the final total must be between zero and that limit. All lines together are limited to 200. The form rejects a stale revision, cancelled draft, invalid tax quantity, invalid sign or negative total. Success returns to the draft record."
+          "description": "Append one line after the existing lines, recompute the exact USD total, and save it with an attributed history event. Each line amount must fit 999,999,999,999.99 USD in magnitude; the final total must be between zero and that limit. All lines together are limited to 200. The form rejects a stale revision, inactive draft, invalid tax quantity, invalid sign or negative total. Success returns to the draft record."
         },
         {
           "label": "Manually added",
@@ -90,7 +90,7 @@
         },
         {
           "label": "Errors and concurrent changes",
-          "description": "Errors appear above the form or beside a field, with entered values preserved and focus on the error. Nothing is partially saved when validation or audit recording fails. If someone adds, edits or cancels while the form is open, reload and review the draft before submitting again."
+          "description": "Errors appear above the form or beside a field, with entered values preserved and focus on the error. Nothing is partially saved when validation or audit recording fails. If someone adds, edits, issues or cancels while the form is open, reload and review the draft before submitting again."
         }
       ]
     },

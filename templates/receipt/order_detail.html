@@ -47,9 +47,12 @@ their errors return as messages on this page.
 {% notice tone="warning" label="Purchase order missing" %}{{ order.project.client }} requires a purchase order on each chain of custody.{% if can_receive %} Add it with Edit details.{% endif %}{% endnotice %}
 {% endif %}
 {% if can_invoice %}
-{% panel title="Draft invoices" heading_id="invoice-heading" class="mb-3" %}
-<p>Internal USD billing worksheets snapshot the current received tests and an explicitly chosen active price list.</p>
-<div class="d-flex flex-wrap gap-2">{% if active_invoice_draft %}<a class="btn btn-outline-secondary" href="{% url 'commercial:invoice-detail' active_invoice_draft.pk %}">{{ active_invoice_draft.number }}</a>{% elif order.is_cancelled %}<span class="vr-muted">This chain of custody is cancelled; a draft cannot be created.</span>{% elif samples %}<a class="btn btn-outline-secondary" href="{% url 'commercial:invoice-create' order.pk %}">New draft invoice</a>{% else %}<span class="vr-muted">Receive samples before creating a draft invoice.</span>{% endif %}<a class="btn btn-outline-secondary" href="{% url 'commercial:invoice-list' %}">Draft invoices</a></div>
+{% panel title="Invoices" heading_id="invoice-heading" class="mb-3" %}
+{% if active_invoice.status == "issued" %}<p>An issued invoice already covers this chain of custody.</p>{% elif active_invoice %}<p>Review the prepared charges and billing details on the draft.</p>{% else %}<p>Start a USD billing draft from the received tests using an active price list or a matching accepted quote.</p>{% endif %}
+<div class="d-flex flex-wrap align-items-center gap-2">
+{% if active_invoice %}<a class="btn btn-outline-secondary" href="{% url 'commercial:invoice-detail' active_invoice.pk %}">{% firstof active_invoice.issued_invoice.number active_invoice.number %}</a>{% elif order.is_cancelled %}<span class="vr-muted">This chain of custody is cancelled; a draft cannot be created.</span>{% elif samples %}<a class="btn btn-outline-secondary" href="{% url 'commercial:invoice-create' order.pk %}">New draft invoice</a>{% else %}<span class="vr-muted">Receive samples before creating a draft invoice.</span>{% endif %}
+<a class="btn btn-outline-secondary" href="{% url 'commercial:invoice-list' %}">Draft invoices</a>
+</div>
 {% endpanel %}
 {% endif %}
 {% panel title="Order details" heading_id="order-details-heading" class="mb-3" %}

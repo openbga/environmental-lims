@@ -1,10 +1,17 @@
-"""PM/admin-only pages for internal draft invoices."""
+"""PM/admin-only invoice preparation, issuance and file delivery."""
+
+import hashlib
+import logging
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_datetime
+from django.utils.http import content_disposition_header
+from django.views.decorators.http import require_http_methods, require_safe
 
+from core.models import Lab
 from receipt.models import Order
 
 from . import invoices
@@ -15,12 +22,23 @@ from .invoice_forms import (
     InvoiceCreateForm,
     InvoiceEditForm,
     InvoiceFilter,
+    InvoiceIssueForm,
     InvoiceLineFormSet,
+    InvoiceVoidForm,
 )
+from .invoice_pdf import InvoiceRenderError
 from .lists import grid_response
-from .models import InvoiceDraft
+from .models import InvoiceDraft, IssuedInvoice
 from .permissions import PRICING_ROLES, staff_role_required
 from .selectors import history
+
+log = logging.getLogger(__name__)
+
+
+def _with_issue_metadata(queryset):
+    return queryset.select_related("issued_invoice").defer(
+        "issued_invoice__pdf", "issued_invoice__snapshot", "issued_invoice__sha256"
+    )
 
 
 @staff_role_required(*PRICING_ROLES)
@@ -36,7 +54,7 @@ def invoice_list(request):
 
     return grid_response(
         request,
-        queryset=InvoiceDraft.objects.all(),
+        queryset=_with_issue_metadata(InvoiceDraft.objects.all()),
         columns={
             "number": "pk",
             "client": "client_name",
@@ -50,6 +68,7 @@ def invoice_list(request):
         form_class=InvoiceFilter,
         search_fields=(
             "number",
+            "issued_invoice__number",
             "client_name",
             "account_code",
             "order_reference",
@@ -67,9 +86,18 @@ def invoice_create(request, order_pk):
     order = get_object_or_404(Order.objects.select_related("project__client"), pk=order_pk)
     tests = invoices.source_tests(order)
     form = InvoiceCreateForm(request.POST or None, order=order, tests=tests)
-    active_draft = order.invoice_drafts.filter(status=InvoiceDraft.Status.DRAFT).first()
+    active_invoice = (
+        order.invoice_drafts.filter(
+            status__in=[InvoiceDraft.Status.DRAFT, InvoiceDraft.Status.ISSUED]
+        )
+        .select_related("issued_invoice")
+        .only("number", "status", "issued_invoice__number")
+        .first()
+    )
     blocked = ""
-    if active_draft:
+    if active_invoice and active_invoice.status == InvoiceDraft.Status.ISSUED:
+        blocked = "This order already has an issued invoice."
+    elif active_invoice:
         blocked = "This order already has an active draft invoice."
     elif order.is_cancelled:
         blocked = "This chain of custody is cancelled."
@@ -106,30 +134,49 @@ def invoice_create(request, order_pk):
             "tests": tests,
             "form": form,
             "blocked": blocked,
-            "active_draft": active_draft,
+            "active_invoice": active_invoice,
         },
     )
 
 
 def _draft(pk):
     return get_object_or_404(
-        InvoiceDraft.objects.select_related(
-            "order", "created_by", "cancelled_by", "quote_version__quote"
+        _with_issue_metadata(
+            InvoiceDraft.objects.select_related(
+                "order",
+                "created_by",
+                "cancelled_by",
+                "quote_version__quote",
+                "issued_invoice__issued_by",
+            )
         ),
         pk=pk,
     )
+
+
+def _issue_blocked(draft):
+    if draft.order.is_cancelled:
+        return "This chain of custody is cancelled."
+    if not Lab.objects.filter(pk=1).exists():
+        return "Set up the laboratory profile before issuing an invoice."
+    return ""
 
 
 @staff_role_required(*PRICING_ROLES)
 def invoice_detail(request, pk):
     draft = _draft(pk)
     lines = list(draft.lines.select_related("source_quote_line"))
+    issued = getattr(draft, "issued_invoice", None)
     return render(
         request,
         "commercial/invoice_detail.html",
         {
-            "page_title": draft.number,
+            "page_title": issued.number if issued else draft.number,
             "draft": draft,
+            "issued": issued,
+            "issue_blocked": _issue_blocked(draft)
+            if draft.status == InvoiceDraft.Status.DRAFT
+            else "",
             "quote_accepted_at": (
                 parse_datetime(draft.quote_snapshot.get("accepted_at") or "")
                 if draft.quote_snapshot
@@ -146,7 +193,7 @@ def invoice_detail(request, pk):
 def invoice_edit(request, pk):
     draft = _draft(pk)
     if draft.status != InvoiceDraft.Status.DRAFT:
-        messages.error(request, "A cancelled draft cannot be changed.")
+        messages.error(request, "Only an active draft invoice can be changed.")
         return redirect("commercial:invoice-detail", pk=pk)
     lines = list(draft.lines.select_related("source_quote_line"))
     form = InvoiceEditForm(request.POST or None, draft=draft)
@@ -195,8 +242,10 @@ def invoice_edit(request, pk):
 @staff_role_required(*PRICING_ROLES)
 def invoice_add_line(request, pk):
     draft = _draft(pk)
-    if request.method == "GET" and draft.status != InvoiceDraft.Status.DRAFT:
-        messages.error(request, "A cancelled draft cannot be changed.")
+    if draft.status in (InvoiceDraft.Status.ISSUED, InvoiceDraft.Status.VOIDED) or (
+        request.method == "GET" and draft.status == InvoiceDraft.Status.CANCELLED
+    ):
+        messages.error(request, "Only an active draft invoice can be changed.")
         return redirect("commercial:invoice-detail", pk=pk)
     form = InvoiceAddLineForm(request.POST or None, initial={"expected_revision": draft.revision})
     if request.method == "POST" and form.is_valid():
@@ -222,6 +271,9 @@ def invoice_cancel(request, pk):
     if request.method == "GET" and draft.status == InvoiceDraft.Status.CANCELLED:
         messages.info(request, "This draft is already cancelled.")
         return redirect("commercial:invoice-detail", pk=pk)
+    if draft.status in (InvoiceDraft.Status.ISSUED, InvoiceDraft.Status.VOIDED):
+        messages.error(request, "Only an active draft invoice can be cancelled.")
+        return redirect("commercial:invoice-detail", pk=pk)
     form = InvoiceCancelForm(request.POST or None, initial={"expected_revision": draft.revision})
     if request.method == "POST" and form.is_valid():
         try:
@@ -240,3 +292,101 @@ def invoice_cancel(request, pk):
             "form": form,
         },
     )
+
+
+@staff_role_required(*PRICING_ROLES)
+@require_http_methods(["GET", "POST"])
+def invoice_issue(request, pk):
+    draft = _draft(pk)
+    if draft.status != InvoiceDraft.Status.DRAFT:
+        messages.error(request, "Only an active draft invoice can be issued.")
+        return redirect("commercial:invoice-detail", pk=pk)
+    blocked = _issue_blocked(draft)
+    form = InvoiceIssueForm(
+        request.POST if request.method == "POST" else None,
+        initial={"expected_revision": draft.revision},
+    )
+    review_again = False
+    if request.method == "POST" and form.is_valid():
+        revision = form.cleaned_data["expected_revision"]
+        try:
+            draft = invoices.issue_invoice(
+                actor=request.user, draft_id=pk, expected_revision=revision
+            )
+        except ValidationError as exc:
+            apply_errors(form, exc)
+            draft.refresh_from_db()
+            if draft.status != InvoiceDraft.Status.DRAFT:
+                messages.error(request, "This draft has changed. Review its current status.")
+                return redirect("commercial:invoice-detail", pk=pk)
+            blocked = _issue_blocked(draft)
+            review_again = revision != draft.revision
+        except InvoiceRenderError as exc:
+            form.add_error(None, str(exc))
+        else:
+            messages.success(request, f"Invoice {draft.issued_invoice.number} issued.")
+            return redirect("commercial:invoice-detail", pk=pk)
+    elif request.method == "POST":
+        review_again = True
+    return render(
+        request,
+        "commercial/invoice_issue.html",
+        {
+            "page_title": "Issue invoice",
+            "draft": draft,
+            "lines": list(draft.lines.all()),
+            "blocked": blocked,
+            "form": form,
+            "review_again": review_again,
+        },
+    )
+
+
+@staff_role_required(*PRICING_ROLES)
+@require_http_methods(["GET", "POST"])
+def invoice_void(request, pk):
+    draft = _draft(pk)
+    if draft.status != InvoiceDraft.Status.ISSUED:
+        messages.error(request, "Only an issued invoice can be voided.")
+        return redirect("commercial:invoice-detail", pk=pk)
+    form = InvoiceVoidForm(
+        request.POST if request.method == "POST" else None,
+        initial={"expected_revision": draft.revision},
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            invoices.void_invoice(actor=request.user, draft_id=pk, **form.cleaned_data)
+        except ValidationError as exc:
+            apply_errors(form, exc)
+        else:
+            messages.success(request, "Invoice voided. Its original PDF and history are retained.")
+            return redirect("commercial:invoice-detail", pk=pk)
+    return render(
+        request,
+        "commercial/invoice_void.html",
+        {"page_title": "Void invoice", "draft": draft, "form": form},
+    )
+
+
+@staff_role_required(*PRICING_ROLES)
+@require_safe
+def invoice_pdf(request, pk):
+    invoice = get_object_or_404(
+        IssuedInvoice.objects.only("number", "pdf", "sha256"),
+        draft_id=pk,
+        draft__status__in=[InvoiceDraft.Status.ISSUED, InvoiceDraft.Status.VOIDED],
+    )
+    data = bytes(invoice.pdf)
+    if hashlib.sha256(data).hexdigest() != invoice.sha256:
+        log.error("Stored PDF hash mismatch for invoice %s", invoice.pk)
+        response = HttpResponse(
+            "This invoice file failed its integrity check.",
+            status=500,
+            content_type="text/plain",
+        )
+    else:
+        response = HttpResponse(data, content_type="application/pdf")
+        response["Content-Disposition"] = content_disposition_header(True, f"{invoice.number}.pdf")
+    response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response

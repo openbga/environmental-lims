@@ -10,6 +10,14 @@ The same list is shown in the application under What's new.
 
 ### High impact
 
+- **Added:** Issue a numbered invoice and download its PDF (2026-11-17, Draft invoices)
+
+  Project managers and administrators can issue a reviewed draft and download the original invoice for delivery. To correct an issued invoice, void it with a reason and prepare a new draft from the order. The original PDF and history remain available.
+
+  Technical notes:
+
+  > Migration `commercial.0011` stores issued invoice snapshots and PDF bytes in PostgreSQL. Keep this schema on rollback after the first issuance. See the invoice backup and restore checks in the operations guide.
+
 - **Added:** Record tax amounts on draft invoices (2026-11-17, Draft invoices)
 
   Project managers and administrators can add a Tax line with an externally determined amount and its basis in the description. The amount is included in the draft total and retained through reasoned edits and cancellation. Review recorded tax when charges change; the application does not calculate or recalculate it.

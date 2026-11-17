@@ -1,0 +1,99 @@
+{
+  "id": "commercial-invoice-issue",
+  "routes": ["commercial:invoice-issue"],
+  "title": "Issue invoice",
+  "purpose": "Confirm saved billing details and USD charges, then issue an invoice and store its original PDF.",
+  "summary": "Review the saved billing details and USD charges before you issue an invoice. Issuing locks the draft and stores the numbered PDF for you to deliver.",
+  "tasks": [
+    {
+      "title": "Issue the invoice",
+      "steps": [
+        "Check the recipient, due date and purchase order in [[Billing details]].",
+        "Read the charge descriptions and check the [[Invoice total (USD)]].",
+        "Select [[Issue invoice]], then select [[Download invoice PDF]] on the issued record."
+      ]
+    },
+    {
+      "title": "Correct the draft before issuing",
+      "steps": [
+        "Select [[Back to draft]].",
+        "Select [[Edit]], update the billing details or charges and save with a reason.",
+        "Select [[Review and issue]] and check the current values."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Test, fee and discount descriptions appear on the PDF. Tax assessments print as Tax. The assessment basis or source stays on the staff record.",
+    "The saved due date copies to the PDF. Staff enter it independently of payment terms.",
+    "If another person edits the draft before you issue it, reload the preview and review the new values.",
+    "After issuing, download the PDF and deliver it yourself."
+  ],
+  "sections": [
+    {
+      "title": "Access and actions",
+      "items": [
+        {
+          "label": "Draft / Draft ID / Client / Total",
+          "description": "The header identifies the draft, saved client and exact USD total. Only project managers and administrators can open the confirmation or issue an invoice."
+        },
+        {
+          "label": "Issue invoice",
+          "description": "Assigns the invoice number, copies the saved billing and pricing details and current laboratory identity, generates and stores the original PDF and checksum, and locks the draft. The status and attributed history change together. Success opens the issued invoice. The PDF is available for staff to deliver manually."
+        },
+        {
+          "label": "Cannot issue invoice / Review again / Reload preview",
+          "description": "Issue invoice is disabled for a cancelled chain of custody or missing laboratory profile. The server also checks that the draft is current and active, has 1 to 200 lines and its saved total matches them. A stale revision requires reloading and reviewing the saved values. After a render failure, retry from this page. A refusal leaves the draft and audit history unchanged."
+        },
+        {
+          "label": "Back to draft / Draft invoices",
+          "description": "Go back to the source draft or use the breadcrumb to return to the directory. These actions leave the draft unchanged."
+        }
+      ]
+    },
+    {
+      "title": "Billing details",
+      "items": [
+        {
+          "label": "Client name / Account code",
+          "description": "Saved recipient and optional billing account identifier."
+        },
+        {
+          "label": "Invoice-to contact / Invoice email / Billing address",
+          "description": "Saved optional billing contact details and address. Staff handle delivery."
+        },
+        {
+          "label": "Due date / Payment terms",
+          "description": "Any agreed date entered by staff, shown as YYYY-MM-DD or Not recorded, and saved payment terms. Each is copied independently; payment terms never calculate the date."
+        },
+        {
+          "label": "Purchase order / Chain of custody / Project",
+          "description": "Saved purchase-order reference, chain-of-custody reference and project name."
+        }
+      ]
+    },
+    {
+      "title": "Invoice lines",
+      "items": [
+        {
+          "label": "Kind / Description",
+          "description": "Each line is a test, fee, discount or tax assessment. Review descriptions before issuing. The PDF displays staff-entered test, fee and discount descriptions and uses Tax as the description for every tax line. Test lines also show the lab sample ID and any client sample ID."
+        },
+        {
+          "label": "Quantity / Unit price (USD) / Amount (USD) / Invoice total (USD)",
+          "description": "Whole-number quantity, signed unit price in USD, its exact extension and the sum of all lines. A tax assessment uses quantity one. Staff review the recorded tax whenever charges change."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "commercial/urls.py",
+    "commercial/invoice_views.py",
+    "commercial/invoice_forms.py",
+    "commercial/invoices.py",
+    "commercial/invoice_pdf.py",
+    "commercial/models.py",
+    "commercial/templates/commercial/invoice_issue.html",
+    "commercial/tests/test_invoice_issue_views.py",
+    "e2e/test_invoice_issuance.py"
+  ]
+}

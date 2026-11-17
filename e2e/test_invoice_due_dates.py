@@ -25,7 +25,7 @@ def test_due_date_dialog_keyboard_history_and_filter(page: Page, manual_draft, w
     due = field(dialog, "Due date")
     expect(due).to_have_value("")
     expect(
-        dialog.get_by_text("Manually entered for internal draft preparation only.", exact=False)
+        dialog.get_by_text("Enter the date while preparing the draft.", exact=False)
     ).to_be_visible()
     due.fill("2026-02-30")
     field(dialog, "Reason for change").fill("Synthetic agreed draft date")

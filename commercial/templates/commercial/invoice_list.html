@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% load commercial_extras ui %}
-{% block page_intro %}<p class="vr-page-intro">Internal USD drafts only. Start a draft from a physically received chain of custody.</p>{% endblock %}
+{% block page_intro %}<p class="vr-page-intro">Find billing drafts and issued invoices in USD. Start a draft from a physically received chain of custody.</p>{% endblock %}
 {% block content %}
 {% panel title="Draft invoices" heading_id="invoices-heading" table=True hidden_title=True %}
-  {% grid_toolbar label="Filter draft invoices" placeholder="Draft, client, chain of custody, project or PO" grid="commercial.invoices" invalid=filter_form.errors chips=active_filters sort=sort %}
-  {% list_results items=page_obj noun="draft invoices" filtered=filtered invalid=filter_form.errors clear_url=request.path error_body="Correct the highlighted filter above." no_results_title="No draft invoices match these filters" no_results_body="Check the reference or client, or clear the filters." empty_title="No draft invoices yet" empty_body="Open a physically received chain of custody and select New draft invoice." %}
+  {% grid_toolbar label="Filter draft invoices" placeholder="Invoice, draft, client, chain of custody, project or PO" grid="commercial.invoices" invalid=filter_form.errors chips=active_filters sort=sort %}
+  {% list_results items=page_obj noun="invoices" filtered=filtered invalid=filter_form.errors clear_url=request.path error_body="Correct the highlighted filter above." no_results_title="No invoices match these filters" no_results_body="Check the reference or client, or clear the filters." empty_title="No invoices yet" empty_body="Open a physically received chain of custody and select New draft invoice." %}
   <div class="vr-table-wrap"><table class="table table-hover vr-table" data-vr-grid="commercial.invoices" data-vr-grid-version="2" aria-labelledby="invoices-heading">
     <thead><tr>
-      {% sort_header label="Draft" asc="number" desc="-number" first="desc" col="number" locked=True %}
+      {% sort_header label="Invoice / draft" asc="number" desc="-number" first="desc" col="number" locked=True %}
       {% sort_header label="Client" asc="client" desc="-client" col="client" %}
       {% sort_header label="Chain of custody" asc="order" desc="-order" col="order" %}
       {% sort_header label="Status" asc="status" desc="-status" col="status" %}
@@ -17,7 +17,7 @@
       <th scope="col" data-vr-col="project" data-vr-col-hidden>Project</th>
       <th scope="col" data-vr-col="po" data-vr-col-hidden>Purchase order</th>
     </tr></thead><tbody>{% for draft in page_obj %}<tr>
-      <th scope="row"><a class="vr-row-link vr-id" href="{% url 'commercial:invoice-detail' draft.pk %}">{{ draft.number }}</a></th>
+      <th scope="row"><a class="vr-row-link vr-id" href="{% url 'commercial:invoice-detail' draft.pk %}">{% firstof draft.issued_invoice.number draft.number %}</a>{% if draft.issued_invoice %}<div class="small vr-muted">{{ draft.number }}</div>{% endif %}</th>
       <td>{{ draft.client_name }}</td><td>{{ draft.order_reference }}</td><td>{{ draft.get_status_display }}</td>
       <td class="text-end vr-nowrap">{{ draft.total|usd }}</td>
       <td class="vr-nowrap">{% if draft.due_date %}<time datetime="{{ draft.due_date|date:'Y-m-d' }}">{{ draft.due_date|date:"Y-m-d" }}</time>{% else %}Not recorded{% endif %}</td>

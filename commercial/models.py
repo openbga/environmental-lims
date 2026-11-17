@@ -8,6 +8,7 @@ Money is Decimal(USD) end to end; issued quote versions and submitted snapshots 
 import uuid
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 
 from catalog.models import TestDefinition
@@ -47,11 +48,13 @@ class PriceListItem(models.Model):
 
 
 class InvoiceDraft(models.Model):
-    """Internal billing worksheet; never an issued invoice or a client balance."""
+    """Billing worksheet and lifecycle of the invoice for one order."""
 
     class Status(models.TextChoices):
         DRAFT = "draft", "Draft"
         CANCELLED = "cancelled", "Cancelled"
+        ISSUED = "issued", "Issued"
+        VOIDED = "voided", "Voided"
 
     number = models.CharField(max_length=20, unique=True)
     order = models.ForeignKey(Order, on_delete=models.PROTECT, related_name="invoice_drafts")
@@ -96,8 +99,8 @@ class InvoiceDraft(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["order"],
-                condition=models.Q(status="draft"),
-                name="invoice_one_active_draft",
+                condition=models.Q(status__in=["draft", "issued"]),
+                name="invoice_one_active_per_order",
             ),
             models.CheckConstraint(
                 condition=models.Q(total__gte=0), name="invoice_total_nonnegative"
@@ -122,14 +125,16 @@ class InvoiceDraft(models.Model):
             ),
             models.CheckConstraint(
                 condition=models.Q(
-                    status="draft",
+                    status__in=["draft", "issued"],
                     cancelled_at__isnull=True,
                     cancelled_by__isnull=True,
                     cancel_reason="",
                 )
                 | (
                     models.Q(
-                        status="cancelled", cancelled_at__isnull=False, cancelled_by__isnull=False
+                        status__in=["cancelled", "voided"],
+                        cancelled_at__isnull=False,
+                        cancelled_by__isnull=False,
                     )
                     & ~models.Q(cancel_reason="")
                 ),
@@ -139,6 +144,28 @@ class InvoiceDraft(models.Model):
 
     def __str__(self):
         return self.number
+
+
+class IssuedInvoice(models.Model):
+    """Frozen bill and the original PDF served on every download, including after a void."""
+
+    draft = models.OneToOneField(
+        InvoiceDraft, on_delete=models.PROTECT, related_name="issued_invoice"
+    )
+    number = models.CharField(max_length=24, unique=True)
+    issued_at = models.DateTimeField()
+    issued_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    snapshot = models.JSONField()
+    pdf = models.BinaryField()
+    sha256 = models.CharField(max_length=64)
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("Issued invoices cannot be changed.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Issued invoices cannot be deleted.")
 
 
 class InvoiceDraftLine(models.Model):

@@ -14,6 +14,7 @@ from django.views.decorators.http import require_POST
 
 from accounts.roles import RECEIPT_ROLES, has_role, require_role, require_staff
 from analytical.preservation_services import preservation_history
+from commercial.models import InvoiceDraft
 from core.models import AuditEvent
 
 from .correction_views import correction_events, order_reference_events
@@ -419,15 +420,24 @@ def order_create(request):
 def order_detail(request, pk):
     require_staff(request.user)
     order = get_object_or_404(Order.objects.select_related("project__client", "created_by"), pk=pk)
+    can_invoice = has_role(request.user, "project_manager")
+    active_invoice = None
+    if can_invoice:
+        active_invoice = (
+            order.invoice_drafts.filter(
+                status__in=[InvoiceDraft.Status.DRAFT, InvoiceDraft.Status.ISSUED]
+            )
+            .select_related("issued_invoice")
+            .only("number", "status", "issued_invoice__number")
+            .first()
+        )
     return render(
         request,
         "receipt/order_detail.html",
         {
             "page_title": order.coc_reference,
-            "can_invoice": has_role(request.user, "project_manager"),
-            "active_invoice_draft": order.invoice_drafts.filter(status="draft").first()
-            if has_role(request.user, "project_manager")
-            else None,
+            "can_invoice": can_invoice,
+            "active_invoice": active_invoice,
             "order": order,
             "label_form": LabelOptionsForm(auto_id="vr-labels-%s"),
             "samples": order.samples.prefetch_related("containers").order_by("lab_id"),

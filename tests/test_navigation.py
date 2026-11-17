@@ -62,6 +62,7 @@ NON_PAGE_ROUTES = {
     "lab-certificate-remove",
     "receipt:order-cancel",
     "receipt:order-reinstate",
+    "commercial:invoice-pdf",
     "commercial:quote-issue",
     "commercial:quote-revise",
     "commercial:quote-withdraw",

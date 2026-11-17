@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block breadcrumbs %}{% url 'commercial:invoice-list' as list_url %}{% url 'commercial:invoice-detail' draft.pk as record_url %}{% breadcrumbs section="Draft invoices" section_url=list_url record=draft.issued_invoice.number record_url=record_url current="Void invoice" %}{% endblock %}
+{% block content %}
+{% notice tone="warning" label="Keep the original invoice" %}Voiding {{ draft.issued_invoice.number }} keeps its number, PDF and history. Start a new draft from the chain of custody if you need a replacement.{% endnotice %}
+{% url 'commercial:invoice-detail' draft.pk as cancel_url %}
+{% form_page form=form cancel_url=cancel_url submit_label="Void invoice" destructive=True %}{% endform_page %}
+{% endblock %}

@@ -1,0 +1,79 @@
+{
+  "id": "commercial-invoice-void",
+  "routes": ["commercial:invoice-void"],
+  "title": "Void invoice",
+  "purpose": "Record why an issued invoice is void and keep its number, original PDF and history.",
+  "summary": "Record why an issued invoice is void. It keeps its number and original PDF, and you can prepare a new draft from the chain of custody.",
+  "tasks": [
+    {
+      "title": "Void the issued invoice",
+      "steps": [
+        "Check the invoice number and enter [[Reason for voiding]].",
+        "Select [[Void invoice]]."
+      ]
+    },
+    {
+      "title": "Leave the invoice issued",
+      "steps": [
+        "Select [[Cancel]] or close the form."
+      ]
+    },
+    {
+      "title": "Prepare a replacement",
+      "steps": [
+        "On the voided record, open the linked [[Chain of custody]].",
+        "Select [[New draft invoice]] to review the order’s current tests and pricing sources."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The original PDF stays available to staff for reference.",
+    "A void records who took the action, when and why.",
+    "The action requires a current issued invoice. Reload the record if its status has changed."
+  ],
+  "sections": [
+    {
+      "title": "Access and actions",
+      "paragraphs": [
+        "Only project managers and administrators can view this form or submit the void. The invoice must be issued. Direct links for other invoice states return to the invoice record."
+      ],
+      "items": [
+        {
+          "label": "Keep the original invoice",
+          "description": "Identifies the invoice being voided. The number is retired with that document, and the original PDF, amounts, source draft and history remain readable."
+        },
+        {
+          "label": "Reason for voiding",
+          "description": "Required explanation, up to 2,000 characters. It is saved with the void time and responsible staff account."
+        },
+        {
+          "label": "Void invoice",
+          "description": "Rechecks the invoice's state and revision before recording a void. The attributed history event and state change are saved together. The order is then available for a fresh draft, subject to draft eligibility."
+        },
+        {
+          "label": "Field and form errors",
+          "description": "The form keeps the entered reason when validation fails. Review the invoice's current state if another staff member has voided it."
+        },
+        {
+          "label": "Cancel / Close form",
+          "description": "Leave the invoice unchanged. A dialog with unsaved changes offers Keep editing or Discard changes."
+        },
+        {
+          "label": "Draft invoices / Invoice number",
+          "description": "Breadcrumb links return to the staff directory or invoice record."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "commercial/urls.py",
+    "commercial/invoice_views.py",
+    "commercial/invoice_forms.py",
+    "commercial/invoices.py",
+    "commercial/models.py",
+    "commercial/templates/commercial/invoice_void.html",
+    "core/form_surfaces.py",
+    "commercial/tests/test_invoice_issue_views.py",
+    "e2e/test_invoice_issuance.py"
+  ]
+}
