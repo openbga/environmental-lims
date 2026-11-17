@@ -205,12 +205,14 @@ def invoice_add_line(request, pk):
         except ValidationError as exc:
             apply_errors(form, exc)
         else:
-            messages.success(request, "Fee or discount added; prior values retained in history.")
+            messages.success(
+                request, "Fee, discount or tax added; prior values retained in history."
+            )
             return redirect("commercial:invoice-detail", pk=pk)
     return render(
         request,
         "commercial/invoice_add_line.html",
-        {"page_title": "Add fee or discount", "draft": draft, "form": form},
+        {"page_title": "Add fee, discount or tax", "draft": draft, "form": form},
     )
 
 

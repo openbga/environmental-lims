@@ -42,7 +42,7 @@
     {
       "title": "Access and purpose",
       "paragraphs": [
-        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. No tax, due date, payment or accounting entry is calculated."
+        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. Tax, due dates, payments and accounting entries are not calculated automatically. Staff may record explicit tax assessments on an active draft."
       ]
     },
     {
@@ -66,7 +66,7 @@
         },
         {
           "label": "Create draft invoice",
-          "description": "Creates the billing snapshot, exact line amounts and attributed history together, then opens the draft. No tests, a cancelled order, more than 200 combined test, fee and discount lines, missing prices, negative or oversized totals or an existing active draft prevents creation. A concurrent source change requires reloading and review. Quote eligibility and full-order matching are checked again under locks before saving. Each source test gets quantity one and its quoted description/unit price. No cumulative quote usage or ledger is updated; quote terms and client reference do not replace order billing fields."
+          "description": "Creates the billing snapshot, exact line amounts and attributed history together, then opens the draft. No tests, a cancelled order, more than 200 combined test, fee, discount and tax lines, missing prices, negative or oversized totals or an existing active draft prevents creation. A concurrent source change requires reloading and review. Quote eligibility and full-order matching are checked again under locks before saving. Each source test gets quantity one and its quoted description/unit price. No cumulative quote usage or ledger is updated; quote terms and client reference do not replace order billing fields."
         }
       ]
     },
@@ -99,7 +99,7 @@
       "title": "Source and history",
       "paragraphs": [
         "The draft keeps its source chain of custody, project, sample identities, requested test identities, method/version, matrix, unit, disposition and selected price-list name/revision or accepted quote version, acceptance snapshot and source quote lines. Each current requested test on a received sample creates one line, initially quantity 1. Each fee or discount from an accepted quote creates one additional line with its original quantity and signed price, without a sample or test identity. Held, rejected and qualified samples are included with their disposition; the preparer decides whether work is chargeable. Later source corrections, withdrawn tests and price changes do not update the draft.",
-        "There can be one active draft per order and at most 200 combined test, fee and discount lines. Every line and its kind and origin are retained; lines cannot be removed or reassigned. Use Add fee or discount on the draft record to append a manual line with a reason, within the same bounds. To remove an unwanted amount, edit its price to zero with a reason. Cancel a draft and create a replacement to take a new source snapshot. A cancelled draft and its history remain readable. Invoice billing data never changes custody, results or released reports."
+        "There can be one active draft per order and at most 200 combined test, fee, discount and tax lines. Every line and its kind and origin are retained; lines cannot be removed or reassigned. Use Add fee, discount or tax on the draft record to append a manual line with a reason, within the same bounds. To remove an unwanted amount, edit its price to zero with a reason. Cancel a draft and create a replacement to take a new source snapshot. A cancelled draft and its history remain readable. Invoice billing data never changes custody, results or released reports."
       ]
     },
     {
@@ -128,6 +128,13 @@
       "paragraphs": [
         "New drafts start without a due date, regardless of payment terms. After creation, use Edit on the draft record to enter a date with a reason. The date is internal billing preparation and does not establish a balance due."
       ]
+    },
+    {
+      "title": "Explicit tax assessments",
+      "paragraphs": [
+        "Tax assessments are entered manually on an active draft through Add fee, discount or tax. Each requires a description identifying its basis or source, quantity exactly 1 and a nonnegative whole-cent USD amount. Multiple assessments may be separate lines. Tax lines have no quote, sample or requested-test source. Creation from a price list or accepted quote never creates a tax line.",
+        "There are no tax rates, taxability or exemption decisions, or automatic tax calculations. The exact draft total includes every entered assessment. Changing test, fee or discount charges never recalculates tax: review each tax assessment separately after changing charges. Zero retains an explicit assessment; a missing tax line makes no tax determination. Tax lines cannot be deleted or change kind; correct an amount to zero with a reason. Cancellation retains the lines and their history."
+      ]
     }
   ],
   "sources": [
@@ -150,6 +157,8 @@
     "commercial/tests/test_invoice_manual.py",
     "e2e/test_invoice_manual.py",
     "commercial/tests/test_invoice_due_dates.py",
-    "e2e/test_invoice_due_dates.py"
+    "e2e/test_invoice_due_dates.py",
+    "commercial/tests/test_invoice_tax.py",
+    "e2e/test_invoice_tax.py"
   ]
 }

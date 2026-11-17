@@ -80,7 +80,7 @@ def _quote_source(order, quote_version_id, tests):
     by_test, adjustments = {}, []
     for line in lines:
         if (
-            line.kind not in InvoiceDraftLine.Kind.values
+            line.kind not in QuoteLine.Kind.values
             or (line.kind == QuoteLine.Kind.TEST) != bool(line.test_id)
             or not line.description.strip()
         ):
@@ -179,14 +179,16 @@ def _state(draft):
 def _money(price, quantity, position, *, kind=InvoiceDraftLine.Kind.TEST):
     if type(quantity) is not int or not 1 <= quantity <= MAX_QUANTITY:
         raise ValidationError(f"Line {position}: quantity must be a positive whole number.")
+    if kind == InvoiceDraftLine.Kind.TAX and quantity != 1:
+        raise ValidationError(f"Line {position}: tax quantity must be exactly 1.")
     if not isinstance(price, Decimal) or not price.is_finite() or abs(price) > MAX_PRICE:
         raise ValidationError(f"Line {position}: enter a bounded price in USD.")
     if kind == InvoiceDraftLine.Kind.ADJUSTMENT:
         if price > 0:
             raise ValidationError(f"Line {position}: a discount price must be zero or negative.")
-    elif kind in (InvoiceDraftLine.Kind.TEST, InvoiceDraftLine.Kind.FEE):
+    elif kind in (InvoiceDraftLine.Kind.TEST, InvoiceDraftLine.Kind.FEE, InvoiceDraftLine.Kind.TAX):
         if price < 0:
-            raise ValidationError(f"Line {position}: a test or fee price must be nonnegative.")
+            raise ValidationError(f"Line {position}: a test, fee or tax price must be nonnegative.")
     else:
         raise ValidationError(f"Line {position}: the source line kind is invalid.")
     if price != price.quantize(CENTS):
@@ -373,7 +375,7 @@ def _reason(reason):
 def add_invoice_draft_line(
     *, actor, draft_id, expected_revision, kind, description, quantity, unit_price, reason
 ):
-    """Append a reasoned fee or discount without accepting any source identities."""
+    """Append a reasoned fee, discount or tax without accepting any source identities."""
     require_role(actor, *PRICING_ROLES)
     draft = InvoiceDraft.objects.select_for_update().get(pk=draft_id)
     _editable(draft, expected_revision)
@@ -381,8 +383,12 @@ def add_invoice_draft_line(
     existing = list(draft.lines.select_for_update())
     if len(existing) >= MAX_LINES:
         raise ValidationError(f"A draft invoice may have at most {MAX_LINES} lines.")
-    if kind not in (InvoiceDraftLine.Kind.FEE, InvoiceDraftLine.Kind.ADJUSTMENT):
-        raise ValidationError({"kind": "Choose Fee or Discount."})
+    if kind not in (
+        InvoiceDraftLine.Kind.FEE,
+        InvoiceDraftLine.Kind.ADJUSTMENT,
+        InvoiceDraftLine.Kind.TAX,
+    ):
+        raise ValidationError({"kind": "Choose Fee, Discount or Tax."})
     if not isinstance(description, str) or not description.strip():
         raise ValidationError({"description": "Enter a description."})
     position = max((line.position for line in existing), default=0) + 1
@@ -426,7 +432,7 @@ def save_invoice_draft(
     if not 1 <= len(lines) <= MAX_LINES or len(lines) != len(existing):
         raise ValidationError(
             "Keep every original source line and manually added line. "
-            "Use Add fee or discount to add a line; lines cannot be removed."
+            "Use Add fee, discount or tax to add a line; lines cannot be removed."
         )
     by_id = {line.pk: line for line in existing}
     submitted_ids = [line.get("id") for line in lines]

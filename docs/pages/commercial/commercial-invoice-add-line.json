@@ -3,16 +3,16 @@
   "routes": [
     "commercial:invoice-add-line"
   ],
-  "title": "Add fee or discount",
-  "purpose": "Append one manually entered fee or discount to an active internal draft invoice, with a reason and retained history.",
-  "summary": "Add a fee or discount to an active draft invoice. Only project managers and admins can add lines; the draft remains internal.",
+  "title": "Add fee, discount or tax",
+  "purpose": "Append one manual fee, discount or tax assessment to an active internal draft invoice, with a reason and retained history.",
+  "summary": "Add a fee, discount or tax assessment to an active draft invoice. Only project managers and admins can add lines; the draft remains internal.",
   "tasks": [
     {
       "title": "Add a charge",
       "steps": [
         "Choose Fee in [[Kind]] and enter a [[Description]].",
         "Enter [[Quantity]] and a nonnegative [[Unit price]].",
-        "Enter [[Reason for change]] and select [[Add fee or discount]]."
+        "Enter [[Reason for change]] and select [[Add fee, discount or tax]]."
       ]
     },
     {
@@ -20,7 +20,15 @@
       "steps": [
         "Choose Discount in [[Kind]] and describe the adjustment.",
         "Enter a positive whole-number [[Quantity]] and zero or a negative [[Unit price]].",
-        "Give a reason and select [[Add fee or discount]]. Review the total on the draft."
+        "Give a reason and select [[Add fee, discount or tax]]. Review the total on the draft."
+      ]
+    },
+    {
+      "title": "Record an explicit tax assessment",
+      "steps": [
+        "Choose Tax in [[Kind]] and identify its basis or source in [[Description]].",
+        "Keep [[Quantity]] at 1 and enter the nonnegative whole-cent USD assessment in [[Unit price]].",
+        "Enter [[Reason for change]] and select [[Add fee, discount or tax]]."
       ]
     },
     {
@@ -31,11 +39,11 @@
     }
   ],
   "good_to_know": [
-    "Fees use nonnegative prices; discounts use zero or negative prices. Enter USD amounts in whole cents, not percentages.",
-    "The draft total cannot be negative, and all test, fee and discount lines share a 200-line limit.",
-    "New lines are marked Manually added. They do not alter the quote or the received tests.",
-    "A saved line stays in the draft. To cancel its amount, use Edit on the draft and set its price to zero with a reason.",
-    "If the draft changes while this form is open, reload it and review the current values before trying again."
+    "Fees and tax use nonnegative whole-cent USD amounts; discounts use zero or negative amounts. Tax quantity must be 1.",
+    "Tax never recalculates when charges change. Review each assessment separately. A missing tax line makes no tax determination.",
+    "Multiple tax assessments may be separate lines. Zero retains an explicit assessment; there are no rates, exemptions or automatic taxability decisions.",
+    "Every saved line remains. Use Edit to correct an unwanted amount to zero with a reason. All lines share the 200-line limit and a nonnegative total.",
+    "A changed or cancelled draft is refused. Reload and review current values before trying again."
   ],
   "sections": [
     {
@@ -49,19 +57,19 @@
       "items": [
         {
           "label": "Kind",
-          "description": "Required choice: Fee or Discount. Test lines cannot be added here. The selected kind remains fixed after saving."
+          "description": "Required choice: Fee, Discount or Tax. Test lines cannot be added here. The selected kind remains fixed after saving."
         },
         {
           "label": "Description",
-          "description": "Required text up to 400 characters that explains the charge or discount; surrounding whitespace is removed."
+          "description": "Required text up to 400 characters, trimmed around the edges. Explain the charge or discount; for tax, identify the basis or source of the entered assessment."
         },
         {
           "label": "Quantity",
-          "description": "Required positive whole number from 1 to 2,147,483,647, initially 1. Multiplies the unit price; it does not change sample or requested-test counts."
+          "description": "Required positive whole number from 1 to 2,147,483,647, initially 1. Tax must be exactly 1, so its unit price is the whole assessment. Other kinds multiply quantity by unit price; source counts do not change."
         },
         {
           "label": "Unit price",
-          "description": "Required signed USD amount in whole cents, at most 9,999,999,999.99 in magnitude. Fee prices must be nonnegative; discount prices must be zero or negative. Zero is allowed. No percentage or currency conversion is performed."
+          "description": "Required signed whole-cent USD amount, at most 9,999,999,999.99 in magnitude. Fees and tax must be nonnegative; discounts must be zero or negative. A zero tax amount retains an explicit assessment. No percentage or currency conversion is performed."
         },
         {
           "label": "Reason for change",
@@ -73,12 +81,12 @@
       "title": "Actions and limits",
       "items": [
         {
-          "label": "Add fee or discount",
-          "description": "Append one line after the existing lines, recompute the exact USD total, and save it with an attributed history event. Each line amount must fit 999,999,999,999.99 USD in magnitude; the final total must be between zero and that limit. All lines together are limited to 200. The form rejects a stale revision, cancelled draft, invalid sign or negative total. Success returns to the draft record."
+          "label": "Add fee, discount or tax",
+          "description": "Append one line after the existing lines, recompute the exact USD total, and save it with an attributed history event. Each line amount must fit 999,999,999,999.99 USD in magnitude; the final total must be between zero and that limit. All lines together are limited to 200. The form rejects a stale revision, cancelled draft, invalid tax quantity, invalid sign or negative total. Success returns to the draft record."
         },
         {
           "label": "Manually added",
-          "description": "On the draft and edit pages this identifies a staff-added fee or discount with no quote, sample or requested-test source. Existing quote and test sources are preserved. Every line retains its kind and origin through edits and cancellation. Lines cannot be deleted; correct an unwanted amount to zero with a reason."
+          "description": "On the draft and edit pages this identifies a staff-added fee, discount or tax assessment with no quote, sample or requested-test source. Existing quote and test sources are preserved. Every line retains its kind and origin through edits and cancellation. Lines cannot be deleted; correct an unwanted amount to zero with a reason."
         },
         {
           "label": "Errors and concurrent changes",
@@ -108,6 +116,13 @@
       "paragraphs": [
         "Adding a line preserves the draft’s optional staff-entered due date. To set, change or clear that date, use Edit on the draft record and give a reason. Payment terms do not calculate it."
       ]
+    },
+    {
+      "title": "Explicit tax assessments",
+      "paragraphs": [
+        "Tax assessments are entered manually on an active draft through Add fee, discount or tax. Each requires a description identifying its basis or source, quantity exactly 1 and a nonnegative whole-cent USD amount. Multiple assessments may be separate lines. Tax lines have no quote, sample or requested-test source. Creation from a price list or accepted quote never creates a tax line.",
+        "There are no tax rates, taxability or exemption decisions, or automatic tax calculations. The exact draft total includes every entered assessment. Changing test, fee or discount charges never recalculates tax: review each tax assessment separately after changing charges. Zero retains an explicit assessment; a missing tax line makes no tax determination. Tax lines cannot be deleted or change kind; correct an amount to zero with a reason. Cancellation retains the lines and their history."
+      ]
     }
   ],
   "sources": [
@@ -124,6 +139,8 @@
     "commercial/tests/test_invoice_manual_schema.py",
     "e2e/test_invoice_manual.py",
     "commercial/tests/test_invoice_due_dates.py",
-    "e2e/test_invoice_due_dates.py"
+    "e2e/test_invoice_due_dates.py",
+    "commercial/tests/test_invoice_tax.py",
+    "e2e/test_invoice_tax.py"
   ]
 }

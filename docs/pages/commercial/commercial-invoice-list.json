@@ -46,7 +46,7 @@
     {
       "title": "Access and purpose",
       "paragraphs": [
-        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. No tax, due date, payment or accounting entry is calculated."
+        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. Tax, due dates, payments and accounting entries are not calculated automatically. Staff may record explicit tax assessments on an active draft."
       ]
     },
     {
@@ -74,7 +74,7 @@
         },
         {
           "label": "Total (USD)",
-          "description": "Exact sum of saved line amounts. Cancelled records retain their original total for reference; it is not a balance due."
+          "description": "Exact sum of saved line amounts. Cancelled records retain their original total for reference; it is not a balance due. The total includes any manually entered tax assessments; missing tax lines do not establish tax applicability."
         },
         {
           "label": "Created",
@@ -97,6 +97,13 @@
           "description": "Clear active filters. An empty directory points you to a received chain of custody; no matches asks you to change or clear the filters."
         }
       ]
+    },
+    {
+      "title": "Explicit tax assessments",
+      "paragraphs": [
+        "Tax assessments are entered manually on an active draft through Add fee, discount or tax. Each requires a description identifying its basis or source, quantity exactly 1 and a nonnegative whole-cent USD amount. Multiple assessments may be separate lines. Tax lines have no quote, sample or requested-test source. Creation from a price list or accepted quote never creates a tax line.",
+        "There are no tax rates, taxability or exemption decisions, or automatic tax calculations. The exact draft total includes every entered assessment. Changing test, fee or discount charges never recalculates tax: review each tax assessment separately after changing charges. Zero retains an explicit assessment; a missing tax line makes no tax determination. Tax lines cannot be deleted or change kind; correct an amount to zero with a reason. Cancellation retains the lines and their history."
+      ]
     }
   ],
   "sources": [
@@ -116,6 +123,8 @@
     "commercial/tests/test_invoice_quote_lookup.py",
     "e2e/test_invoice_quote.py",
     "commercial/tests/test_invoice_due_dates.py",
-    "e2e/test_invoice_due_dates.py"
+    "e2e/test_invoice_due_dates.py",
+    "commercial/tests/test_invoice_tax.py",
+    "e2e/test_invoice_tax.py"
   ]
 }

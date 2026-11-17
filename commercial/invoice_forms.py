@@ -193,6 +193,13 @@ class InvoiceLineForm(StyledForm, forms.Form):
             )
         return value
 
+    def clean_quantity(self):
+        value = self.cleaned_data["quantity"]
+        if self.source_line is not None and self.source_line.kind == InvoiceDraftLine.Kind.TAX:
+            if value != 1:
+                raise forms.ValidationError("Tax quantity must be exactly 1.")
+        return value
+
     def clean_unit_price(self):
         value = self.cleaned_data["unit_price"]
         if self.source_line is not None:
@@ -200,7 +207,7 @@ class InvoiceLineForm(StyledForm, forms.Form):
                 if value > 0:
                     raise forms.ValidationError("A discount price must be zero or negative.")
             elif value < 0:
-                raise forms.ValidationError("A test or fee price must be nonnegative.")
+                raise forms.ValidationError("A test, fee or tax price must be nonnegative.")
         return value
 
 
@@ -210,13 +217,18 @@ class InvoiceAddLineForm(StyledForm, forms.Form):
         choices=[
             (InvoiceDraftLine.Kind.FEE, "Fee"),
             (InvoiceDraftLine.Kind.ADJUSTMENT, "Discount"),
+            (InvoiceDraftLine.Kind.TAX, "Tax"),
         ]
     )
-    description = forms.CharField(max_length=400)
+    description = forms.CharField(
+        max_length=400,
+        help_text="For tax, identify the basis or source of the entered assessment.",
+    )
     quantity = forms.IntegerField(
         min_value=1,
         max_value=MAX_QUANTITY,
         initial=1,
+        help_text="Tax quantity must be exactly 1.",
         widget=forms.NumberInput(attrs={"inputmode": "numeric"}),
     )
     unit_price = forms.DecimalField(
@@ -226,7 +238,8 @@ class InvoiceAddLineForm(StyledForm, forms.Form):
         decimal_places=2,
         label="Unit price",
         help_text=(
-            "Whole cents in USD. Fees must be nonnegative; discounts must be zero or negative."
+            "Whole cents in USD. Fees and tax must be nonnegative; "
+            "discounts must be zero or negative."
         ),
         widget=forms.NumberInput(attrs={"unit": "USD"}),
     )
@@ -236,6 +249,8 @@ class InvoiceAddLineForm(StyledForm, forms.Form):
 
     def clean(self):
         data = super().clean()
+        if data.get("kind") == InvoiceDraftLine.Kind.TAX and data.get("quantity", 1) != 1:
+            self.add_error("quantity", "Tax quantity must be exactly 1.")
         if all(name in data for name in ("kind", "quantity", "unit_price")):
             try:
                 _money(data["unit_price"], data["quantity"], 1, kind=data["kind"])

@@ -154,7 +154,7 @@ def test_manual_line_route_and_detail_edit_provenance(client, lab, received, pri
     row = draft.lines.last()
     assert all(getattr(row, name) in (None, "") for name in PROVENANCE[3:])
     html = client.get(response.url).content.decode()
-    assert "Manually added" in html and "Add fee or discount" in html
+    assert "Manually added" in html and "Add fee, discount or tax" in html
     assert "No requested test" in html
     html = client.get(reverse("commercial:invoice-edit", args=[draft.pk])).content.decode()
     assert "Manually added" in html and "zero price with a reason" in html

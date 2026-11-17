@@ -173,6 +173,14 @@ date. Do not clear dates to force reversal; use compatible code to inspect or ch
 a reason. Normal backup/restore includes the dates and their audit history. Deployment does
 not infer dates, seed invoices or reset data.
 
+Manual tax lines expand `commercial.0010`'s invoice line constraint; existing drafts and amounts
+are unchanged. Keep the schema on code rollback. Previous code can read, add a fee or discount
+to, and cancel a draft with tax lines while preserving its total, but cannot label Tax or edit
+those lines; use compatible code for presentation and editing. Reversal refuses while any tax
+line exists, including zero amounts and cancelled drafts. Never delete or relabel retained
+assessments to force reversal. Normal backup/restore includes tax lines and audit history.
+Deployment does not seed invoices or reset data.
+
 BOD bottle worksheets add the nullable `bottle_data` column in `analytical.0012`. Keep that column during a code rollback: reversing the migration refuses once any bottle snapshot exists. Older code cannot show or reproduce those bottle observations and cannot accept entries for a BOD calculation rule; deactivate that rule before using older code for new entries, and return to a compatible release to inspect retained worksheets. A normal deploy does not reseed; the synthetic BOD example appears at the demonstration’s next scheduled reset.
 
 Run calibration evidence adds `analytical.0013`: an immutable calibration table and nullable
