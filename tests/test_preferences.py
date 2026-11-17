@@ -39,7 +39,8 @@ def test_grid_layout_is_saved_per_user_and_isolated(client, staff):
     assert page_prefs(client, reverse("receipt:sample-list")) == {}  # defaults for everyone else
     client.force_login(first)
     assert post(client, "grid:receipt.samples:v3", None).status_code == 204  # reset
-    assert not UserPreference.objects.filter(user=first).exists()
+    # Only the grid layout is removed; the What's new seen mark (core.changelog) stays.
+    assert not UserPreference.objects.filter(user=first).exclude(key="whats_new.seen").exists()
 
 
 @pytest.mark.django_db

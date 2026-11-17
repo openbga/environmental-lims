@@ -1,4 +1,4 @@
-{% load static ui preferences %}<!doctype html>
+{% load static ui preferences whats_new %}<!doctype html>
 {% comment %}
 Application document and staff shell. Block contract (docs/ui-standards.md section 4):
   title          <title>; defaults to "{{ page_title }} · OpenBGA Environmental LIMS"
@@ -67,6 +67,7 @@ core/templatetags/navigation.py. Error pages (400/403/404) keep this shell for s
     {% if lab.name %}<span class="vr-lab-name d-none d-lg-inline">{{ lab.name }}</span>{% endif %}
     <div class="vr-topbar-end">
       {% include "includes/sample_lookup.html" %}
+      {% whats_new_button %}
       {% include "documentation/button.html" %}
       {% include "includes/theme_menu.html" %}
       {% if user.is_authenticated %}{% include "includes/user_menu.html" %}{% endif %}

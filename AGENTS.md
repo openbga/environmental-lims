@@ -85,3 +85,10 @@ page/URL-argument variant needs an entry and source evidence. Binary/POST-only e
 documented on their invoking pages and explicitly excluded in `tests/test_page_docs.py`.
 Run that coverage check and verify changed help beside the rendered page. This operator help
 is part of the product; architecture and process documentation still describe intent and constraints.
+
+## What's new
+
+Every change that users, deployers or integrators can observe adds an entry file in
+`changelog.d/` in the same change and regenerates `CHANGELOG.md` (never edited by hand); a
+change with nothing observable says so in the pull request. How: the
+[`changelog`](.agents/skills/changelog/SKILL.md) skill.

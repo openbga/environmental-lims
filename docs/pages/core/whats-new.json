@@ -1,0 +1,104 @@
+{
+  "id": "core-whats-new",
+  "routes": [
+    "whats-new"
+  ],
+  "title": "What's new",
+  "purpose": "Read what was added or changed in this application, newest first, grouped by month and ranked by impact.",
+  "summary": "The changes made to this application, newest first. Each month lists high-impact changes first, then medium and low.",
+  "tasks": [
+    {
+      "title": "See what changed since you last looked",
+      "steps": [
+        "Select [[What's new]] in the top bar. A number beside it counts the changes you have not seen.",
+        "Read the changes marked [[New]]. Opening the page marks every change as seen and clears the number."
+      ]
+    },
+    {
+      "title": "Try a change in the application",
+      "steps": [
+        "Under the change, select its Go to link to open the page where the change is found.",
+        "Open [[Technical notes]] for details a laboratory administrator or deployer may need, such as upgrade steps."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The list comes with the application itself: it is the same on every workstation and is updated when the application is.",
+    "Seen changes are remembered for your account on every workstation. A new account starts with nothing new; only later changes are counted.",
+    "A Go to link appears only when your menu has that page. A change may affect pages your roles do not open.",
+    "The list describes the software. It is not a record of your laboratory's work and changes no records."
+  ],
+  "sections": [
+    {
+      "title": "The list",
+      "items": [
+        {
+          "label": "Month",
+          "description": "One panel per calendar month in which changes were made, newest first. Its heading shows the month, the first and last date of the changes in it and how many there are."
+        },
+        {
+          "label": "High impact / Medium impact / Low impact",
+          "description": "Inside a month, changes are ranked by impact. High: a new capability or workflow, something users or deployers must act on, a removal or a security fix. Medium: a noticeable improvement to something that exists. Low: small fixes and polish. A level without changes is left out. Within a level the newest change comes first, then by title."
+        },
+        {
+          "label": "Type",
+          "description": "The uppercase word before the title: Added, Changed, Fixed, Removed, Deprecated or Security."
+        },
+        {
+          "label": "Title and summary",
+          "description": "What changed and what you can do now, written for the people who use the application."
+        },
+        {
+          "label": "Date, area and change number",
+          "description": "The date the change was made, the part of the application it belongs to when one is given, and the number of the published change request that delivered it."
+        },
+        {
+          "label": "New",
+          "description": "Marks the changes you had not seen when you opened the page, and a notice above the list counts them. Nothing is new for a new account: the list shows every change and marks none."
+        },
+        {
+          "label": "Go to",
+          "description": "Opens the page where the change is found. Shown only when that page is in your menu; the page still checks your access."
+        },
+        {
+          "label": "Technical notes",
+          "description": "Collapsed details for administrators and deployers: database changes, settings, commands and upgrade steps. Not every change has them."
+        },
+        {
+          "label": "No changes recorded yet",
+          "description": "Shown when the application carries no change entries."
+        }
+      ]
+    },
+    {
+      "title": "Unread count and access",
+      "items": [
+        {
+          "label": "What's new (top bar)",
+          "description": "Always in the staff top bar. When there are changes newer than the ones you saw last, it shows their number; its tooltip and accessible name read, for example, What's new: 3 new changes. A new account shows no number."
+        },
+        {
+          "label": "Seen changes",
+          "description": "The first page you open after your account is created records every change listed so far as seen, so only later changes are counted. Opening this page records the changes you have seen for your account, and the number then clears on every workstation. A change dated up to 60 days before the newest one you saw still counts as new if you had not seen it."
+        },
+        {
+          "label": "Who can open it",
+          "description": "Every signed-in staff account, with or without a laboratory role. Client portal accounts do not have What's new and are refused."
+        },
+        {
+          "label": "Where the list comes from",
+          "description": "The entries ship with the application, one file per change, and the same entries produce the CHANGELOG.md document in the source code. Opening the page sends nothing outside the application."
+        }
+      ]
+    }
+  ],
+  "sources": [
+    "core/views.py",
+    "core/changelog.py",
+    "core/preferences.py",
+    "core/templatetags/whats_new.py",
+    "templates/core/whats_new.html",
+    "templates/includes/whats_new_button.html",
+    "tests/test_changelog.py"
+  ]
+}

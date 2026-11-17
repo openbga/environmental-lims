@@ -81,6 +81,9 @@ Code that reimplements one of them is a finding. Fix violations in place:
 - Any page, field, action, filter, permission or rule change has its help updated in the same
   change: run the `document-page` skill. New POST-only, download or JSON routes go in
   `NON_PAGE_ROUTES` in `tests/test_page_docs.py`.
+- Any change users, deployers or integrators can observe has an entry in `changelog.d/` and a
+  regenerated `CHANGELOG.md`: run the `changelog` skill. Nothing observable: the pull request
+  says so.
 
 ## 5. Run the gate
 
@@ -91,6 +94,7 @@ set -a; . ./.env; set +a
 uv run ruff check . && uv run ruff format --check .
 uv run python manage.py check
 uv run python manage.py makemigrations --check --dry-run
+uv run python manage.py changelog --check
 uv run python manage.py collectstatic --noinput -v0
 TEST_DATABASE_NAME=test_roots_<you> REQUIRE_WEASYPRINT=1 uv run pytest <affected paths> -q
 ```

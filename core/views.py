@@ -2,11 +2,12 @@ from datetime import timedelta
 from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.db import connection
 from django.db.models import Count, Min, Q
 from django.http import JsonResponse, QueryDict
 from django.shortcuts import redirect, render
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
 
 from accounts.roles import can_authorize_release, effective_roles, has_role, require_staff
@@ -29,7 +30,9 @@ from receipt.subcontracts import filter_subcontracts_by_state, subcontracts_with
 from reporting.queries import staff_reports
 from reporting.services import PREPARER_ROLES
 
+from . import changelog, preferences
 from .models import AuditEvent, Lab
+from .templatetags.navigation import ITEMS, ROUTE_ITEMS, visible_staff_items
 
 # Dashboard lines: the laboratory area each queue belongs to, in work order (accents only, never
 # status), and the words of a queue's status pill when work is waiting, by tone.
@@ -331,6 +334,73 @@ def record_retention(request):
             )
             .select_related("actor")
             .order_by("-occurred_at")[:20],
+        },
+    )
+
+
+def _entry_link(entry, visible):
+    """The page an entry points to, when it is a staff menu destination this user has."""
+    key = ROUTE_ITEMS.get(entry.link)
+    if not entry.link or key not in visible:
+        return None
+    try:
+        return {"url": reverse(entry.link), "label": ITEMS[key].label}
+    except NoReverseMatch:
+        return None
+
+
+@login_required
+def whats_new(request):
+    """Every change in changelog.d/, grouped like CHANGELOG.md (core.changelog), for any staff
+    account, with or without a lab role. Opening it marks every entry as seen for this user (the
+    whats_new.seen preference), which clears the top bar's indicator. Entries that were unread
+    when the user arrived are marked New on this visit; an account without a seen mark has
+    nothing new (the top bar records one on its first page)."""
+    if request.user.client_id is not None:
+        raise PermissionDenied("What's new is part of the staff workspace.")
+    entries = changelog.entries()
+    marker = preferences.for_request(request).get(preferences.WHATS_NEW_KEY)
+    new_ids = {entry.id for entry in changelog.unread(entries, marker)} if marker else set()
+    seen = changelog.seen_marker(entries)
+    if seen is not None and seen != marker:
+        try:
+            preferences.save(request, preferences.WHATS_NEW_KEY, seen)
+        except ValueError:
+            pass  # too many saved preferences: the indicator stays, the list still shows
+    visible = visible_staff_items(request.user)
+    groups = [
+        {
+            "key": group.start.strftime("%Y-%m"),
+            "label": group.label,
+            "start": group.start,
+            "end": group.end,
+            "count": group.count,
+            "sections": [
+                {
+                    "impact": impact,
+                    "label": label,
+                    "entries": [
+                        {
+                            "entry": entry,
+                            "new": entry.id in new_ids,
+                            "link": _entry_link(entry, visible),
+                        }
+                        for entry in items
+                    ],
+                }
+                for impact, label, items in group.sections
+            ],
+        }
+        for group in changelog.group_entries(entries)
+    ]
+    return render(
+        request,
+        "core/whats_new.html",
+        {
+            "page_title": "What's new",
+            "groups": groups,
+            "total": len(entries),
+            "new_count": len(new_ids),
         },
     )
 

@@ -61,6 +61,13 @@ Follow [Local development](README.md#local-development) in the README. You need 
   request. The [`document-page` skill](.agents/skills/document-page/SKILL.md) describes the standard and
   `tests/test_page_docs.py` checks coverage.
 - Follow the [UI standards](docs/ui-standards.md) for templates, navigation and tables.
+- **Record the change for What's new.** Every change that users, deployers or integrators can
+  observe (a feature, fix, removal, security fix, migration, setting, dependency or upgrade step)
+  adds one file in `changelog.d/` and regenerates `CHANGELOG.md` with
+  `uv run python manage.py changelog`. Never edit `CHANGELOG.md` by hand. The
+  [`changelog` skill](.agents/skills/changelog/SKILL.md) describes the format, how to rate impact
+  and how to word the entry. A pull request with nothing observable (refactoring, tests, CI,
+  documentation) says so; a maintainer then adds the `no-changelog` label.
 - Migrations must stay backward compatible with the previous release. Never edit a migration
   that has already been merged.
 - Match the existing style. Ruff formats and lints the code; there is no separate style guide.
@@ -74,6 +81,7 @@ uv run ruff check .
 uv run ruff format --check .
 uv run python manage.py check
 uv run python manage.py makemigrations --check --dry-run
+uv run python manage.py changelog --check
 uv run python manage.py collectstatic --noinput
 REQUIRE_WEASYPRINT=1 uv run pytest
 ```
@@ -151,6 +159,7 @@ load the same files.
 | --- | --- | --- |
 | Skill | [`build-page`](.agents/skills/build-page/SKILL.md) | Building or changing any page, form, dialog or template: page types, shared components, controls, tokens, icons, lists |
 | Skill | [`document-page`](.agents/skills/document-page/SKILL.md) | Writing the in-app page help under `docs/pages/` |
+| Skill | [`changelog`](.agents/skills/changelog/SKILL.md) | Recording a change in `changelog.d/` for What's new and the generated `CHANGELOG.md` |
 | Skill | [`project-code-review`](.agents/skills/project-code-review/SKILL.md) | The pre-PR gate: diff review against `AGENTS.md` and the UI rules, fixes, checks, browser journeys, before/after screenshots |
 | Rule | [`frontend.md`](.agents/rules/frontend.md) | Short frontend rules: components, tokens, icons, controls, validation |
 | Rule | [`backend.md`](.agents/rules/backend.md) | The helpers behind the backend rules: role and release checks, client scoping, audit events, concurrency, exact decimals, lookups, migrations, tests |

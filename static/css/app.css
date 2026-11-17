@@ -1732,6 +1732,31 @@ html:hover::-webkit-scrollbar-thumb,
   color: var(--vr-topbar-text-muted);
 }
 
+/* What's new (includes/whats_new_button.html): the unread count, in the current-item fill of the
+   shell so it reads as "for you" in both themes. The link's accessible name carries the count. */
+.vr-whats-new {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vr-space-1-5);
+}
+
+.vr-whats-new:hover {
+  text-decoration: none;
+}
+
+.vr-topbar-count {
+  min-width: var(--vr-space-5);
+  padding: 0 var(--vr-space-1-5);
+  border-radius: var(--vr-radius-pill);
+  background: var(--vr-shell-current);
+  color: var(--vr-on-shell-current);
+  font-family: var(--vr-font-data);
+  font-size: var(--vr-font-size-1);
+  font-weight: var(--vr-font-weight-bold);
+  line-height: var(--vr-line-height-base);
+  text-align: center;
+}
+
 /* Sample lookup: a field-A box on the shell's field surface. */
 .vr-lookup {
   position: relative;
@@ -3676,6 +3701,77 @@ fieldset.vr-field > legend {
 
 .vr-history-item > p {
   margin-bottom: 0;
+}
+
+/* What's new (core/whats_new.html): one change per rounded row on the second surface. The type
+   is an uppercase label before the title; summary and technical notes keep their paragraphs. */
+.vr-changes {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--vr-space-1-5);
+  margin: 0;
+  padding: 0;
+}
+
+.vr-change {
+  padding: var(--vr-space-3);
+  border-radius: var(--vr-radius-lg);
+  background: var(--vr-surface-2);
+}
+
+.vr-change-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vr-space-1) var(--vr-space-2);
+  align-items: baseline;
+}
+
+.vr-change-title {
+  color: var(--vr-text-strong);
+  font-weight: var(--vr-font-weight-bold);
+}
+
+.vr-change-type {
+  color: var(--vr-text-muted);
+  font-size: var(--vr-font-size-1);
+  font-weight: var(--vr-font-weight-bold);
+  letter-spacing: var(--vr-tracking-label);
+  text-transform: uppercase;
+}
+
+.vr-change-meta {
+  margin: var(--vr-space-0-5) 0 var(--vr-space-1);
+  color: var(--vr-text-muted);
+  font-size: var(--vr-font-size-2);
+}
+
+.vr-change-summary > p,
+.vr-change-notes-body > p {
+  margin-bottom: var(--vr-space-1-5);
+}
+
+.vr-change-summary > :last-child,
+.vr-change-notes-body > :last-child {
+  margin-bottom: 0;
+}
+
+.vr-change-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--vr-space-1) var(--vr-space-4);
+  margin-top: var(--vr-space-2);
+}
+
+.vr-change-notes > summary {
+  color: var(--vr-text-muted);
+  font-size: var(--vr-font-size-2);
+}
+
+.vr-change-notes-body {
+  margin-top: var(--vr-space-1-5);
+  font-size: var(--vr-font-size-2);
 }
 
 .vr-history-changes {
