@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% load ui %}
-{% block breadcrumbs %}{% url 'commercial:invoice-list' as list_url %}{% url 'commercial:invoice-detail' draft.pk as record_url %}{% breadcrumbs section="Draft invoices" section_url=list_url record=draft.number record_url=record_url current="Add fee or discount" %}{% endblock %}
+{% block breadcrumbs %}{% url 'commercial:invoice-list' as list_url %}{% url 'commercial:invoice-detail' draft.pk as record_url %}{% breadcrumbs section="Draft invoices" section_url=list_url record=draft.number record_url=record_url current="Add fee, discount or tax" %}{% endblock %}
 {% block content %}
 {% include "commercial/_invoice_notice.html" %}
-{% notice tone="neutral" label="Manual adjustment" %}Add one fee or discount to {{ draft.number }}. Its original pricing source stays recorded. The draft may contain up to 200 lines, and its total cannot be negative. Every line is retained; correct an unwanted charge or discount to a zero price in Edit with a reason.{% endnotice %}
+{% notice tone="warning" label="Review tax separately" %}Tax is entered manually and never recalculated when charges change. Review each tax assessment after changing charges. A missing tax line makes no tax determination.{% endnotice %}
+{% notice tone="neutral" label="Manual adjustment" %}Add one fee, discount or tax assessment to {{ draft.number }}. For tax, enter a nonnegative USD amount at quantity 1 and describe its basis or source. Multiple tax assessments may be separate lines; zero retains an explicit assessment. Its original pricing source stays recorded. The draft may contain up to 200 lines, and its total cannot be negative. Every line is retained; correct an unwanted charge, discount or tax assessment to a zero price in Edit with a reason.{% endnotice %}
 {% url 'commercial:invoice-detail' draft.pk as cancel_url %}
-{% form_page form=form cancel_url=cancel_url submit_label="Add fee or discount" %}{% endform_page %}
+{% form_page form=form cancel_url=cancel_url submit_label="Add fee, discount or tax" %}{% endform_page %}
 {% endblock %}

@@ -64,6 +64,15 @@ drafts within an inclusive date range. Dates are entered explicitly, never calcu
 payment terms, and do not establish an outstanding balance. Drafts stay internal; issued
 invoices and accounting exports remain planned.
 
+A manually added Tax line records an externally determined nonnegative whole-cent USD amount
+at quantity one. Describe its basis or assessment source in Description and give a Reason.
+Separate assessments may have separate lines. Tax has no sample, test or quote source; its
+amount is included in the exact total and its kind and origin remain fixed through reasoned
+edits and cancellation. To remove an amount from the total, correct it to zero with a reason.
+No tax line means no recorded assessment, not a finding that tax is zero. Staff determine the
+applicable tax outside the application and review it whenever charges change: no rates,
+taxability, exemptions or automatic calculation or recalculation are supplied.
+
 ## Spreadsheet import of setup records
 
 **Setup → Spreadsheet import** loads clients, projects, analytes, methods, tests, QC

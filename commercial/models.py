@@ -146,6 +146,7 @@ class InvoiceDraftLine(models.Model):
         TEST = "test", "Test"
         FEE = "fee", "Fee"
         ADJUSTMENT = "adjustment", "Discount"
+        TAX = "tax", "Tax"
 
     draft = models.ForeignKey(InvoiceDraft, on_delete=models.PROTECT, related_name="lines")
     position = models.PositiveSmallIntegerField()
@@ -223,6 +224,12 @@ class InvoiceDraftLine(models.Model):
                         & (
                             models.Q(kind="fee", unit_price__gte=0)
                             | models.Q(kind="adjustment", unit_price__lte=0)
+                            | models.Q(
+                                kind="tax",
+                                unit_price__gte=0,
+                                quantity=1,
+                                source_quote_line__isnull=True,
+                            )
                         )
                     )
                 ),
