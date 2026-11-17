@@ -61,7 +61,7 @@ def protected_roots():
 def prepare_output(option, started):
     """Create the evidence directory and prove it is writable, before anything else happens."""
     stamp = started.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
-    path = Path(option) if option else Path.cwd() / f"smart-roots-acceptance-{stamp}"
+    path = Path(option) if option else Path.cwd() / f"environmental-lims-acceptance-{stamp}"
     path = path.resolve()
     for root in protected_roots():
         if path == root or root in path.parents:

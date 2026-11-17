@@ -31,8 +31,8 @@
       "title": "Navigation and appearance",
       "items": [
         {
-          "label": "Smart Roots / Find sample ID",
-          "description": "The brand (the mark, Smart Roots and An OpenBGA project; the name alone on phones) returns to the workspace home. In the client portal the laboratory name takes its place. On staff pages, Find sample ID submits a search to Samples; its guide describes the search scope. Press Enter to search. On wide screens the laboratory name beside the brand identifies this deployment."
+          "label": "OpenBGA Environmental LIMS / Find sample ID",
+          "description": "The brand (the mark, OpenBGA and Environmental LIMS; the mark alone in the top bar on phones) returns to the workspace home. In the client portal the laboratory name takes its place. On staff pages, Find sample ID submits a search to Samples; its guide describes the search scope. Press Enter to search. On wide screens the laboratory name beside the brand identifies this deployment."
         },
         {
           "label": "Menus and section tabs",

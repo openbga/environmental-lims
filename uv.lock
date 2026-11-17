@@ -628,7 +628,7 @@ wheels = [
 ]
 
 [[package]]
-name = "smart-roots-lims"
+name = "environmental-lims"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

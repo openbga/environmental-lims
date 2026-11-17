@@ -88,7 +88,7 @@ def main() -> None:
     errors = manifest.get("errors", [])
     summary = notes.get("summary")
     intro = (
-        "<h1>Smart Roots LIMS — UI before and after</h1>"
+        "<h1>OpenBGA Environmental LIMS — UI before and after</h1>"
         '<p class="muted">Rebuild from the repository root, with the development server '
         "running on :8000:</p>"
         f'<code class="cmd">{esc(REBUILD)}</code>'
@@ -115,7 +115,8 @@ def main() -> None:
     doc = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        f"<title>Smart Roots LIMS · UI before / after</title><style>{CSS}</style></head><body>"
+        "<title>OpenBGA Environmental LIMS · UI before / after</title>"
+        f"<style>{CSS}</style></head><body>"
         f'{toolbar}<main><div class="intro">{intro}</div>{"".join(sections)}</main>'
         f"<script>{JS}</script></body></html>\n"
     )

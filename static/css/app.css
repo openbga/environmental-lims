@@ -1,5 +1,5 @@
 /*
- * Smart Roots LIMS application theme for Bootstrap 5.3: Evergreen.
+ * OpenBGA Environmental LIMS application theme for Bootstrap 5.3: Evergreen.
  *
  * Bootstrap supplies every control, dialog, dropdown, table and form widget; DataTables supplies
  * grid behaviour. This file sets the design tokens for the light, dark and print modes (Bootstrap
@@ -1606,7 +1606,7 @@ html:hover::-webkit-scrollbar-thumb,
   outline-color: var(--vr-focus);
 }
 
-/* Product lock-up (includes/brand.html): the mark, "Smart Roots" over "An OpenBGA project". */
+/* Product lock-up (includes/brand.html): the mark, "OpenBGA" over "Environmental LIMS". */
 .vr-brand,
 .vr-brand:hover {
   display: flex;
@@ -1653,10 +1653,16 @@ html:hover::-webkit-scrollbar-thumb,
   border-radius: var(--vr-radius-lg);
 }
 
-/* Phones: the bar keeps its controls whole, so it shows the name alone rather than a cut-off line. */
+/* Phones: the bar keeps its controls whole, so it shows the mark alone rather than a cut-off name.
+   The name stays in the link for assistive technology and the navigation drawer shows it in full. */
 @media (max-width: 575.98px) {
-  .vr-topbar .vr-wordmark-parent {
-    display: none;
+  .vr-topbar .vr-wordmark {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 
@@ -1664,6 +1670,13 @@ html:hover::-webkit-scrollbar-thumb,
 @media (min-width: 576px) {
   .vr-topbar > .vr-brand {
     flex-shrink: 0;
+  }
+}
+
+/* Small tablets: the two-line name leaves less room, so the lookup may narrow further. */
+@media (min-width: 576px) and (max-width: 639.98px) {
+  .vr-topbar .vr-lookup {
+    min-width: 5rem;
   }
 }
 

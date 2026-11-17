@@ -1,6 +1,6 @@
 ---
 name: project-code-review
-description: The pre-PR quality gate for Smart Roots LIMS. It reviews the current diff against AGENTS.md (exact Decimal results, server-side authorization including client ownership and lookups, transitions committed with their audit events, no self-review, immutable releases), the frontend rules and ui-standards, migrations, tests and page help, fixes what it finds in place, runs the CI checks plus the affected pytest and browser journeys, captures before/after screenshots for UI changes, and ends with a summary table. Use it whenever you finish a change and before you commit, push or open a pull request, and whenever someone asks to review, check or verify the work on a branch.
+description: The pre-PR quality gate for OpenBGA Environmental LIMS. It reviews the current diff against AGENTS.md (exact Decimal results, server-side authorization including client ownership and lookups, transitions committed with their audit events, no self-review, immutable releases), the frontend rules and ui-standards, migrations, tests and page help, fixes what it finds in place, runs the CI checks plus the affected pytest and browser journeys, captures before/after screenshots for UI changes, and ends with a summary table. Use it whenever you finish a change and before you commit, push or open a pull request, and whenever someone asks to review, check or verify the work on a branch.
 ---
 
 # Pre-PR review and gate

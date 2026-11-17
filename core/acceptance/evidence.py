@@ -21,7 +21,7 @@ from django.template.loader import render_to_string
 
 from .runner import FAILED, LOOPBACK, NOT_RUN, PASSED, header_name, scrub_data
 
-PRODUCT = "Smart Roots LIMS"
+PRODUCT = "OpenBGA Environmental LIMS"
 TEMPLATE = "acceptance/report.html"
 MANIFEST = "manifest-sha256.txt"
 COMMIT_VARIABLES = ("SOURCE_COMMIT", "RENDER_GIT_COMMIT", "GIT_COMMIT")
@@ -165,7 +165,7 @@ def build_evidence(*, results, started, finished, operator, database, artifacts)
     if cleanup and cleanup not in ("dropped", "emptied", "kept for inspection"):
         problems.append(f"Scratch database cleanup {cleanup}.")
     return {
-        "record": "Smart Roots LIMS acceptance run",
+        "record": "OpenBGA Environmental LIMS acceptance run",
         "statement": STATEMENT.format(product=PRODUCT),
         "software": software(),
         "runtime": {**runtime(), "postgresql": database.get("postgresql")},
