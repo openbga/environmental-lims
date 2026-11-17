@@ -31,6 +31,28 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # Visits are counted on the GitHub Pages copy only. Every deployment of the application
+      # serves website/about at /about/, so the committed pages carry no analytics.
+      - name: Add Plausible analytics to the published pages
+        run: |
+          python3 - <<'EOF'
+          from pathlib import Path
+
+          snippet = '''<!-- Privacy-friendly analytics by Plausible -->
+          <script async src="https://plausible.io/js/pa-As5SrVpCQgama4d7wsW_9.js"></script>
+          <script>
+            window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
+            plausible.init()
+          </script>
+          '''
+          pages = sorted(Path("website/about").rglob("*.html"))
+          assert pages, "no pages to publish"
+          for page in pages:
+              html = page.read_text()
+              assert html.count("</head>") == 1 and "plausible" not in html, page
+              page.write_text(html.replace("</head>", snippet + "</head>"))
+              print(f"Added analytics to {page}")
+          EOF
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
