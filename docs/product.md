@@ -186,8 +186,8 @@ Staff review the included work and may edit the billing details, descriptions, q
 prices with a reason. Inclusion does not establish that a test is chargeable, completed or
 analytically accepted. One active draft per order and a 200-line limit are product bounds.
 Creation, edits and cancellation retain attributed history and reject stale submissions;
-cancelled drafts remain available internally. Drafts cannot be issued, paid or viewed by
-clients. Automatic tax and due-date calculation, payments, issued invoices and
+cancelled drafts remain available internally. Project managers and administrators handle
+issuance and manual delivery. Automatic tax and due-date calculation, payments and
 accounting export remain roadmap work.
 
 Accepted-quote pricing, added 2026-11-16, is an explicit alternative to a price list. The quote
@@ -229,7 +229,7 @@ replace this date. Past dates are permitted so staff can retain an agreed date w
 a chronology rule for an unissued worksheet. The directory supports inclusive date-range
 filters and date sorting. A date is preparation for billing, not evidence of an issued invoice,
 an outstanding balance, payment or delinquency. These are product choices; due-date calculation,
-business calendars, automatic tax calculation, issuance and accounting remain separate roadmap work.
+business calendars, automatic tax calculation and accounting remain separate roadmap work.
 
 Manually recorded tax lines, added 2026-11-17, retain an externally determined tax amount
 on an internal draft. Staff choose Tax, enter the nonnegative whole-cent USD amount at quantity
@@ -241,7 +241,7 @@ is corrected to zero with a reason; a missing tax line makes no tax determinatio
 The application does not determine taxability, jurisdiction, rates, exemptions or a taxable
 base, and changing other charges never recalculates a recorded tax amount. Staff review the
 assessment whenever charges change. These are recordkeeping product choices, not tax advice or
-a qualification of the amount entered. Issuance, automatic tax calculation and accounting
+a qualification of the amount entered. Automatic tax calculation and accounting
 export remain separate work.
 
 These are deliberately bounded product choices for whole-order draft preparation, not a
@@ -251,10 +251,20 @@ review applicability before creating a draft and retain responsibility for reaso
 Accepted quotes becoming invoice sources are an established software pattern
 ([Stripe quote acceptance](https://docs.stripe.com/api/quotes/accept), checked 2026-11-16).
 
-The distinction between editable preparation and a finalized invoice follows a common
-software workflow ([Stripe invoice lifecycle](https://docs.stripe.com/invoicing/overview),
-checked 2026-11-16). The snapshot timing, retained cancellations and bounds above are this
-product's choices, not accounting or regulatory requirements. No Stripe integration is used.
+Invoice issuance, added 2026-11-17, lets a project manager or administrator finalize a
+reviewed draft for manual delivery. The invoice has its own number. It freezes the issuing
+laboratory, billing details, explicit due date if present, itemized USD charges and total.
+The document labels tax amounts as Tax and keeps their assessment references internal.
+Every download returns the PDF stored at issue, including after later source edits or a
+void. An order can have one active draft or issued invoice. A reasoned void retains the
+issuer, original document and history, and permits a new draft from the order's current
+sources. Staff keep responsibility for sending invoices, handling corrections with clients
+and recording payments in their ledger. The application sends no email and exposes no
+invoice through the portal.
+
+Finalization and voiding follow an established invoice workflow. The roles, identifiers,
+document contents and replacement procedure above are product choices. [Invoice lifecycle,
+checked 2026-11-17](https://docs.stripe.com/invoicing/overview).
 
 Deliverable and reporting targets for milestones 2 to 4. All are exploratory. A recipient accepts an EDD only against its own current specification and reference values, so no format here is claimed as accepted until tested against one named recipient's spec.
 

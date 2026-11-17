@@ -1,21 +1,34 @@
-"""Internal draft invoices from an explicit snapshot of physically received requested tests."""
+"""Prepare, issue and void invoices for physically received requested tests."""
 
+import hashlib
 import json
 import uuid
 from collections import Counter
 from datetime import date
 from decimal import Decimal
 
-from django.core.exceptions import ValidationError
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import F, Q
 from django.utils import timezone
 from django.utils.crypto import constant_time_compare, salted_hmac
 
 from core.audit import record_event, snapshot
+from core.models import Lab
 from receipt.models import Client, Order, Project, RequestedTest
 
-from .models import InvoiceDraft, InvoiceDraftLine, PriceList, Quote, QuoteLine, QuoteVersion
+from .invoice_pdf import render_pdf
+from .models import (
+    InvoiceDraft,
+    InvoiceDraftLine,
+    IssuedInvoice,
+    PriceList,
+    Quote,
+    QuoteLine,
+    QuoteVersion,
+)
 from .permissions import PRICING_ROLES, require_role
 from .pricing import test_label
 
@@ -239,9 +252,20 @@ def create_invoice_draft(
         )
     if order.is_cancelled:
         raise ValidationError("This chain of custody is cancelled; a draft cannot be created.")
-    if InvoiceDraft.objects.filter(order=order, status=InvoiceDraft.Status.DRAFT).exists():
+    active_status = (
+        InvoiceDraft.objects.filter(
+            order=order, status__in=(InvoiceDraft.Status.DRAFT, InvoiceDraft.Status.ISSUED)
+        )
+        .values_list("status", flat=True)
+        .first()
+    )
+    if active_status == InvoiceDraft.Status.DRAFT:
         raise ValidationError(
             "This order already has an active draft invoice. Open that draft instead."
+        )
+    if active_status == InvoiceDraft.Status.ISSUED:
+        raise ValidationError(
+            "This order already has an issued invoice. Open that invoice instead."
         )
     if not tests:
         raise ValidationError(
@@ -356,19 +380,36 @@ def create_invoice_draft(
     return draft
 
 
-def _editable(draft, expected_revision):
+def _check_revision(draft, expected_revision):
     if draft.revision != expected_revision:
         raise ValidationError(
-            "This draft changed. Reload it and review the current values before saving."
+            "This invoice draft changed. Reload it and review the current values."
         )
-    if draft.status != InvoiceDraft.Status.DRAFT:
+
+
+def _editable(draft, expected_revision):
+    _check_revision(draft, expected_revision)
+    if draft.status == InvoiceDraft.Status.CANCELLED:
         raise ValidationError("A cancelled draft cannot be changed.")
+    if draft.status == InvoiceDraft.Status.ISSUED:
+        raise ValidationError("An issued invoice cannot be changed.")
+    if draft.status == InvoiceDraft.Status.VOIDED:
+        raise ValidationError("A voided invoice cannot be changed.")
 
 
 def _reason(reason):
-    if not (reason or "").strip():
+    if not isinstance(reason, str) or not reason.strip():
         raise ValidationError({"reason": "Give a reason for this change."})
     return reason.strip()
+
+
+def _lock_order_and_draft(draft_id):
+    # Creation and changes to the active invoice state share the order lock.
+    order_id = InvoiceDraft.objects.values_list("order_id", flat=True).get(pk=draft_id)
+    order = Order.objects.select_for_update().get(pk=order_id)
+    draft = InvoiceDraft.objects.select_for_update().get(pk=draft_id, order=order)
+    draft.order = order
+    return draft
 
 
 @transaction.atomic
@@ -483,7 +524,7 @@ def save_invoice_draft(
 @transaction.atomic
 def cancel_invoice_draft(*, actor, draft_id, expected_revision, reason):
     require_role(actor, *PRICING_ROLES)
-    draft = InvoiceDraft.objects.select_for_update().get(pk=draft_id)
+    draft = _lock_order_and_draft(draft_id)
     _editable(draft, expected_revision)
     reason = _reason(reason)
     before = _state(draft)
@@ -497,6 +538,158 @@ def cancel_invoice_draft(*, actor, draft_id, expected_revision, reason):
         obj=draft,
         before=before,
         after=_state(draft),
+        reason=reason,
+    )
+    return draft
+
+
+def _issued_snapshot(draft, lines, *, number, issued_at, lab):
+    local_issued_at = timezone.localtime(issued_at, timezone.get_default_timezone())
+    return {
+        "number": number,
+        "draft_number": draft.number,
+        "issued_at": local_issued_at.isoformat(),
+        "issued_date": local_issued_at.date().isoformat(),
+        "lab": {
+            "name": lab.name,
+            "address": lab.address_lines,
+            "phone": lab.phone,
+            "email": lab.email,
+            "website": lab.website,
+        },
+        "billing": {
+            **{name: getattr(draft, name) for name in BILLING_FIELDS},
+            "payment_terms_label": draft.get_payment_terms_display(),
+        },
+        "order_reference": draft.order_reference,
+        "project_name": draft.project_name,
+        "due_date": draft.due_date.isoformat() if draft.due_date else None,
+        "currency": "USD",
+        "total": str(draft.total),
+        "lines": [
+            {
+                **snapshot(line),
+                "kind_label": line.get_kind_display(),
+                # Tax descriptions identify the assessment's source or basis for staff.
+                "display_description": "Tax"
+                if line.kind == InvoiceDraftLine.Kind.TAX
+                else line.description,
+            }
+            for line in lines
+        ],
+        "synthetic_notice": settings.REPORT_SYNTHETIC_DATA_NOTICE,
+    }
+
+
+def _document_state(document):
+    return {
+        "number": document.number,
+        "issued_at": document.issued_at.isoformat(),
+        "issued_by": document.issued_by_id,
+        "sha256": document.sha256,
+    }
+
+
+def _lock_invoice_actor(actor):
+    user_model = get_user_model()
+    actor = user_model.objects.select_for_update(no_key=True).filter(pk=actor.pk).first()
+    if actor is None:
+        raise PermissionDenied("Your role does not permit this action.")
+    require_role(actor, *PRICING_ROLES)
+    # An account lock alone does not protect group membership from deletion. The built-in
+    # role group names are fixed by account administration; hold a qualifying membership.
+    membership = (
+        user_model.groups.through.objects.select_for_update(of=("self",))
+        .filter(user_id=actor.pk, group__name__in=PRICING_ROLES)
+        .order_by("pk")
+        .first()
+    )
+    if membership is None:
+        raise PermissionDenied("Your role does not permit this action.")
+    return actor
+
+
+@transaction.atomic
+def issue_invoice(*, actor, draft_id, expected_revision):
+    """Freeze one draft revision and its rendered PDF in the attributed transition."""
+    actor = _lock_invoice_actor(actor)
+    draft = _lock_order_and_draft(draft_id)
+    _check_revision(draft, expected_revision)
+    if draft.status == InvoiceDraft.Status.CANCELLED:
+        raise ValidationError("A cancelled draft cannot be issued.")
+    if draft.status == InvoiceDraft.Status.ISSUED:
+        raise ValidationError("This invoice has already been issued.")
+    if draft.status == InvoiceDraft.Status.VOIDED:
+        raise ValidationError("A voided invoice cannot be issued again.")
+    if draft.order.is_cancelled:
+        raise ValidationError("This chain of custody is cancelled; the draft cannot be issued.")
+    lines = list(draft.lines.select_for_update()[: MAX_LINES + 1])
+    if not 1 <= len(lines) <= MAX_LINES:
+        raise ValidationError(f"An invoice needs between 1 and {MAX_LINES} recorded lines.")
+    if _total(lines) != draft.total:
+        raise ValidationError(
+            "The draft total does not match its lines. Review and save the draft."
+        )
+    lab = Lab.objects.filter(pk=1).first()
+    if lab is None:
+        raise ValidationError("Set up the laboratory before issuing an invoice.")
+    issued_at = timezone.now()
+    number = f"INV-{draft.pk:06d}"
+    content = _issued_snapshot(draft, lines, number=number, issued_at=issued_at, lab=lab)
+    pdf = render_pdf(content)
+    before = _state(draft)
+    document = IssuedInvoice.objects.create(
+        draft=draft,
+        number=number,
+        issued_at=issued_at,
+        issued_by=actor,
+        snapshot=content,
+        pdf=pdf,
+        sha256=hashlib.sha256(pdf).hexdigest(),
+    )
+    draft.status = InvoiceDraft.Status.ISSUED
+    draft.revision += 1
+    draft.save(update_fields=["status", "revision"])
+    record_event(
+        actor=actor,
+        action="invoice_draft.issued",
+        obj=draft,
+        before=before,
+        after={**_state(draft), "issued_invoice": _document_state(document)},
+    )
+    return draft
+
+
+@transaction.atomic
+def void_invoice(*, actor, draft_id, expected_revision, reason):
+    """Void an invoice with attribution while preserving the original document."""
+    actor = _lock_invoice_actor(actor)
+    draft = _lock_order_and_draft(draft_id)
+    _check_revision(draft, expected_revision)
+    if draft.status == InvoiceDraft.Status.DRAFT:
+        raise ValidationError("Issue this draft before voiding the invoice.")
+    if draft.status == InvoiceDraft.Status.CANCELLED:
+        raise ValidationError("A cancelled draft has no issued invoice to void.")
+    if draft.status == InvoiceDraft.Status.VOIDED:
+        raise ValidationError("This invoice has already been voided.")
+    reason = _reason(reason)
+    document = IssuedInvoice.objects.only("number", "issued_at", "issued_by", "sha256").get(
+        draft=draft
+    )
+    document_state = {"issued_invoice": _document_state(document)}
+    before = {**_state(draft), **document_state}
+    draft.status = InvoiceDraft.Status.VOIDED
+    draft.cancelled_at, draft.cancelled_by, draft.cancel_reason = timezone.now(), actor, reason
+    draft.revision += 1
+    draft.save(
+        update_fields=["status", "revision", "cancelled_at", "cancelled_by", "cancel_reason"]
+    )
+    record_event(
+        actor=actor,
+        action="invoice_draft.voided",
+        obj=draft,
+        before=before,
+        after={**_state(draft), **document_state},
         reason=reason,
     )
     return draft

@@ -1,13 +1,30 @@
 {% extends "base.html" %}
 {% load commercial_extras ui %}
-{% block breadcrumbs %}{% url 'commercial:invoice-list' as list_url %}{% breadcrumbs section="Draft invoices" section_url=list_url current=draft.number %}{% endblock %}
-{% block page_heading %}<span class="vr-id">{{ draft.number }}</span>{% endblock %}
-{% block page_meta %}{% page_meta %}<li>{% status label=draft.get_status_display tone="neutral" plain=True %}</li><li>Internal only</li><li>{{ draft.client_name }}</li><li>{{ draft.total|usd }} USD</li>{% endpage_meta %}{% endblock %}
-{% block page_actions %}{% if draft.status == "draft" %}<a class="btn btn-outline-danger" href="{% url 'commercial:invoice-cancel' draft.pk %}">Cancel draft invoice</a><a class="btn btn-primary" href="{% url 'commercial:invoice-edit' draft.pk %}">Edit</a>{% endif %}{% endblock %}
+{% block breadcrumbs %}{% url 'commercial:invoice-list' as list_url %}{% breadcrumbs section="Draft invoices" section_url=list_url current=page_title %}{% endblock %}
+{% block page_heading %}<span class="vr-id">{{ page_title }}</span>{% endblock %}
+{% block page_meta %}{% page_meta %}
+<li>{% if issued and draft.status == "issued" %}{% status label="Issued" tone="success" plain=True %}{% else %}{% status label=draft.get_status_display tone="neutral" plain=True %}{% endif %}</li>
+{% if issued %}<li>Draft {{ draft.number }}</li>{% else %}<li>Internal only</li>{% endif %}
+<li>{{ draft.client_name }}</li><li>{{ draft.total|usd }} USD</li>
+{% endpage_meta %}{% endblock %}
+{% block page_actions %}
+{% if draft.status == "draft" %}
+<a class="btn btn-outline-danger" href="{% url 'commercial:invoice-cancel' draft.pk %}">Cancel draft invoice</a>
+<a class="btn btn-outline-secondary" href="{% url 'commercial:invoice-edit' draft.pk %}">Edit</a>
+{% if issue_blocked %}<button class="btn btn-primary" type="button" aria-describedby="invoice-issue-blocked" disabled>Review and issue</button>{% else %}<a class="btn btn-primary" href="{% url 'commercial:invoice-issue' draft.pk %}">Review and issue</a>{% endif %}
+{% elif issued %}
+{% if draft.status == "issued" %}<a class="btn btn-outline-danger" href="{% url 'commercial:invoice-void' draft.pk %}">Void invoice</a>{% endif %}
+<a class="btn {% if draft.status == "voided" %}btn-outline-secondary{% else %}btn-primary{% endif %}" href="{% url 'commercial:invoice-pdf' draft.pk %}">{% icon name="download" %}{% if draft.status == "voided" %}Download original PDF{% else %}Download invoice PDF{% endif %}</a>
+{% endif %}
+{% endblock %}
 {% block content %}
+{% if not issued %}
 {% include "commercial/_invoice_notice.html" %}
-{% notice tone="warning" label="Review tax separately" %}Tax is entered manually and never recalculated when charges change. Review each tax assessment after changing charges. A missing tax line makes no tax determination.{% endnotice %}
-{% if draft.status == "cancelled" %}{% notice tone="neutral" label="Cancelled" %}{{ draft.cancelled_at|date:"Y-m-d H:i T" }} by {{ draft.cancelled_by.get_full_name|default:draft.cancelled_by.get_username }}: {{ draft.cancel_reason }}{% endnotice %}{% endif %}
+{% if draft.status == "draft" %}{% notice tone="warning" label="Review tax separately" %}Tax is entered manually and never recalculated when charges change. Review each tax assessment after changing charges. A missing tax line makes no tax determination.{% endnotice %}{% endif %}
+{% endif %}
+{% if issue_blocked %}{% notice tone="warning" label="Cannot issue invoice" id="invoice-issue-blocked" blocking=True %}{{ issue_blocked }}{% endnotice %}{% endif %}
+{% if draft.status == "cancelled" %}{% notice tone="neutral" label="Cancelled" %}{{ draft.cancelled_at|date:"Y-m-d H:i T" }} by {{ draft.cancelled_by.get_full_name|default:draft.cancelled_by.get_username }}. {{ draft.cancel_reason }}{% endnotice %}{% endif %}
+{% if draft.status == "voided" %}{% notice tone="warning" label="Voided" %}{{ draft.cancelled_at|date:"Y-m-d H:i T" }} by {{ draft.cancelled_by.get_full_name|default:draft.cancelled_by.get_username }}. {{ draft.cancel_reason }} The original PDF is retained for reference.{% endnotice %}{% endif %}
 {% record_layout %}
 {% fill lead %}{% panel title="Billing snapshot" heading_id="billing-heading" class="mb-3" %}<dl class="vr-facts">
   {% fact label="Client name" value=draft.client_name %}{% fact label="Account code" value=draft.account_code %}
@@ -21,14 +38,16 @@
   {% fact label="Accepted quote" wide=True %}<a href="{% url 'commercial:quote-detail' draft.quote_version.quote_id %}">{{ draft.quote_snapshot.number }}</a> · version {{ draft.quote_snapshot.version }} · {{ draft.quote_snapshot.title }}{% endfact %}
   {% fact label="Quote accepted" %}{% if quote_accepted_at %}<time datetime="{{ quote_accepted_at|date:'c' }}">{{ quote_accepted_at|date:"Y-m-d H:i T" }}</time>{% else %}Not recorded{% endif %}{% if draft.quote_snapshot.accepted_by %} by {{ draft.quote_snapshot.accepted_by }}{% endif %}{% endfact %}
   {% else %}{% fact label="Price list" %}{{ draft.price_list_name }} · revision {{ draft.price_list_revision }}{% endfact %}{% endif %}
+  {% if issued %}{% fact label="Issued" %}<time datetime="{{ issued.issued_at|date:'c' }}">{{ issued.issued_at|date:"Y-m-d H:i T" }}</time> by {{ issued.issued_by.get_full_name|default:issued.issued_by.get_username }}{% endfact %}{% endif %}
   {% fact label="Created" %}<time datetime="{{ draft.created_at|date:'c' }}">{{ draft.created_at|date:"Y-m-d H:i T" }}</time> by {{ draft.created_by.get_full_name|default:draft.created_by.get_username }}{% endfact %}
 </dl>{% endpanel %}{% endfill %}
-{% panel title="Draft lines" heading_id="lines-heading" table=True count=lines|length class="mb-3" %}
-{% fill actions %}{% if draft.status == "draft" and not line_limit_reached %}<a class="btn btn-outline-secondary btn-sm" href="{% url 'commercial:invoice-add-line' draft.pk %}">Add fee, discount or tax</a>{% else %}<button class="btn btn-outline-secondary btn-sm" type="button" disabled>Add fee, discount or tax</button><span class="small vr-muted">{% if draft.status != "draft" %}A cancelled draft cannot be changed.{% else %}This draft has reached the 200-line limit.{% endif %}</span>{% endif %}{% endfill %}
+{% if issued %}{% firstof "Invoice lines" as lines_title %}{% firstof "Invoice total (USD)" as total_label %}{% else %}{% firstof "Draft lines" as lines_title %}{% firstof "Draft total (USD)" as total_label %}{% endif %}
+{% panel title=lines_title heading_id="lines-heading" table=True count=lines|length class="mb-3" %}
+{% fill actions %}{% if draft.status == "draft" and not line_limit_reached %}<a class="btn btn-outline-secondary btn-sm" href="{% url 'commercial:invoice-add-line' draft.pk %}">Add fee, discount or tax</a>{% else %}<button class="btn btn-outline-secondary btn-sm" type="button" disabled>Add fee, discount or tax</button><span class="small vr-muted">{% if draft.status != "draft" %}The charges are locked.{% else %}This draft has reached the 200-line limit.{% endif %}</span>{% endif %}{% endfill %}
 <div class="vr-table-wrap"><table class="table vr-table" aria-labelledby="lines-heading"><thead><tr><th scope="col">Kind</th><th scope="col">Source sample</th><th scope="col">Source requested test</th><th scope="col">Description</th><th scope="col" class="text-end">Quantity</th><th scope="col" class="text-end">Unit price (USD)</th><th scope="col" class="text-end">Amount (USD)</th></tr></thead><tbody>
 {% for line in lines %}<tr><th scope="row">{{ line.get_kind_display }}</th><td>{% if line.kind == "test" %}<span class="vr-id">{{ line.lab_id }}</span><div class="small vr-muted">{{ line.client_sample_id }} · {{ line.get_sample_disposition_display }}</div>{% else %}<span class="vr-muted">No sample</span>{% endif %}</td><td class="vr-wrap">{% if line.kind == "test" %}{{ line.test_description }}{% else %}<span class="vr-muted">No requested test</span>{% endif %}{% if line.source_quote_line_id %}<div class="small vr-muted">{{ draft.quote_snapshot.number }} · version {{ draft.quote_snapshot.version }} · quote line {{ line.source_quote_line.position }}</div>{% elif line.kind != "test" %}<div class="small vr-muted">Manually added</div>{% endif %}</td><td class="vr-wrap">{{ line.description }}</td><td class="text-end">{{ line.quantity }}</td><td class="text-end vr-nowrap">{{ line.unit_price|usd }}</td><td class="text-end vr-nowrap">{{ line.amount|usd }}</td></tr>{% endfor %}
-</tbody><tfoot><tr><th scope="row" colspan="6" class="text-end">Draft total (USD)</th><td class="text-end vr-nowrap">{{ draft.total|usd }}</td></tr></tfoot></table></div>{% endpanel %}
+</tbody><tfoot><tr><th scope="row" colspan="6" class="text-end">{{ total_label }}</th><td class="text-end vr-nowrap">{{ draft.total|usd }}</td></tr></tfoot></table></div>{% endpanel %}
 {% history_panel events=history %}{% endhistory_panel %}
 {% endrecord_layout %}
 {% endblock %}
-{% block record_foot %}{% record_foot identifier=draft.number %}{% endblock %}
+{% block record_foot %}{% record_foot identifier=page_title %}{% endblock %}

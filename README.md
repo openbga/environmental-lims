@@ -32,8 +32,9 @@ records; it does not certify compliance or accreditation.
   their source retained. Staff can add fees and discounts with a reason and a distinct manual
   origin. Staff can record a due date with a reason and find drafts by date; payment terms
   never calculate it. Staff can record externally determined tax amounts as separate lines, with
-  their basis in the description. Tax is never calculated or recalculated automatically. Issuance,
-  payments and accounting export remain planned.
+  their basis in the description. Project managers and administrators can issue a numbered invoice and download its
+  original PDF for delivery. A reasoned void preserves the original and allows a replacement
+  draft on the order. Payments, automatic tax calculation and accounting export remain planned.
 - **Laboratory records:** materials, lots and stock movements, equipment, training,
   nonconformance, and physical sample retention and disposal.
 

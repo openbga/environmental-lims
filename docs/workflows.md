@@ -39,7 +39,7 @@ replace sample dispositions, QC checks or release authority. Clearing the hold r
 unless it is edited; the reason and old/new values stay in the client's history. Hold notes do
 not appear in the client portal, report snapshots, PDFs or deliverables.
 
-## Draft invoices
+## Draft and issued invoices
 
 Project managers and administrators prepare an internal draft from a received chain of custody
 and an explicitly selected active price list or accepted quote version. Each current requested
@@ -61,8 +61,11 @@ Additions use the same amount and line bounds, reject stale or cancelled drafts 
 attributed before/after history. Every line remains present: correct an unwanted amount to zero
 with a reason. Staff may also set, change or clear an optional due date with a reason and find
 drafts within an inclusive date range. Dates are entered explicitly, never calculated from
-payment terms, and do not establish an outstanding balance. Drafts stay internal; issued
-invoices and accounting exports remain planned.
+payment terms, and do not establish an outstanding balance. Project managers and administrators can issue the reviewed draft and download its
+numbered PDF for manual delivery. The portal has no invoice access. One draft or issued
+invoice can be active per order. To correct an issued invoice, void it with a reason, then
+create a fresh draft from the order. Review the new draft against the current sources.
+The original invoice number, PDF and issue history stay available after a void.
 
 A manually added Tax line records an externally determined nonnegative whole-cent USD amount
 at quantity one. Describe its basis or assessment source in Description and give a Reason.

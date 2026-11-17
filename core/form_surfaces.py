@@ -95,6 +95,7 @@ FORM_SURFACES = {
     "commercial:invoice-edit": "xl",
     "commercial:invoice-add-line": "lg",
     "commercial:invoice-cancel": "lg",
+    "commercial:invoice-void": "lg",
     "commercial:price-list-create": "xl",
     "commercial:price-list-edit": "xl",
     "commercial:submission-receive": "xl",

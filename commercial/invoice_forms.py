@@ -135,15 +135,15 @@ class InvoiceEditForm(GroupedForm, StyledForm, forms.Form):
     payment_terms = forms.ChoiceField(
         required=False,
         choices=[("", "Not recorded"), *Client.PaymentTerms.choices],
-        help_text="Recorded terms only; no due date or payment is calculated.",
+        help_text="Recorded terms. Enter a due date separately when one is agreed.",
     )
     due_date = forms.DateField(
         required=False,
         label="Due date",
         widget=DATE,
         help_text=(
-            "Manually entered for internal draft preparation only. "
-            "Not calculated from payment terms. Leave blank when not recorded."
+            "Enter the date while preparing the draft. "
+            "Issuance copies the saved date. Payment terms never calculate it."
         ),
     )
     po_number = forms.CharField(max_length=60, required=False, label="Purchase order")
@@ -292,4 +292,19 @@ class InvoiceCancelForm(StyledForm, forms.Form):
     expected_revision = forms.IntegerField(widget=forms.HiddenInput)
     reason = forms.CharField(
         max_length=2000, label="Reason for cancellation", widget=forms.Textarea(attrs={"rows": 3})
+    )
+
+
+class InvoiceIssueForm(StyledForm, forms.Form):
+    expected_revision = forms.IntegerField(
+        widget=forms.HiddenInput, min_value=1, label="Draft revision"
+    )
+
+
+class InvoiceVoidForm(StyledForm, forms.Form):
+    expected_revision = forms.IntegerField(
+        widget=forms.HiddenInput, min_value=1, label="Invoice revision"
+    )
+    reason = forms.CharField(
+        max_length=2000, label="Reason for voiding", widget=forms.Textarea(attrs={"rows": 3})
     )

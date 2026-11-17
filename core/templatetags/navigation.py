@@ -77,6 +77,8 @@ STAFF_NAV = (
             "commercial:invoice-edit",
             "commercial:invoice-add-line",
             "commercial:invoice-cancel",
+            "commercial:invoice-issue",
+            "commercial:invoice-void",
         ),
     ),
     NavItem(

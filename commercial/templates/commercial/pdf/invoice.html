@@ -1,0 +1,69 @@
+{% load l10n %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Invoice {{ invoice.number }}</title>
+</head>
+<body>
+  {% if invoice.synthetic_notice %}<div class="synthetic-notice">Synthetic demonstration data</div>{% endif %}
+  <header>
+    <div class="issuer">
+      <p class="issuer-name">{{ invoice.lab.name }}</p>
+      {% for line in invoice.lab.address %}<div>{{ line }}</div>{% endfor %}
+      {% if invoice.lab.phone %}<div>{{ invoice.lab.phone }}</div>{% endif %}
+      {% if invoice.lab.email %}<div>{{ invoice.lab.email }}</div>{% endif %}
+      {% if invoice.lab.website %}<div>{{ invoice.lab.website }}</div>{% endif %}
+    </div>
+    <div class="invoice-id">
+      <h1>Invoice</h1>
+      <p class="invoice-number">{{ invoice.number }}</p>
+      <p>Issued {{ invoice.issued_date }}</p>
+      {% if invoice.due_date %}<p>Due {{ invoice.due_date }}</p>{% endif %}
+    </div>
+  </header>
+  <section class="billing">
+    <h2>Bill to</h2>
+    <strong>{{ invoice.billing.client_name }}</strong>
+    {% if invoice.billing.billing_contact_name %}<div>{{ invoice.billing.billing_contact_name }}</div>{% endif %}
+    {% if invoice.billing.billing_address %}<div class="address">{{ invoice.billing.billing_address }}</div>{% endif %}
+    {% if invoice.billing.billing_email %}<div>{{ invoice.billing.billing_email }}</div>{% endif %}
+    {% if invoice.billing.account_code %}<div>Account {{ invoice.billing.account_code }}</div>{% endif %}
+  </section>
+  <section class="references">
+    {% if invoice.order_reference %}<p><strong>Chain of custody</strong> {{ invoice.order_reference }}</p>{% endif %}
+    {% if invoice.project_name %}<p><strong>Project</strong> {{ invoice.project_name }}</p>{% endif %}
+    {% if invoice.billing.po_number %}<p><strong>Purchase order</strong> {{ invoice.billing.po_number }}</p>{% endif %}
+    {% if invoice.billing.payment_terms_label %}<p><strong>Payment terms</strong> {{ invoice.billing.payment_terms_label }}</p>{% endif %}
+  </section>
+  <table>
+    <colgroup><col><col class="quantity"><col class="unit-price"><col class="amount"></colgroup>
+    <thead>
+      <tr>
+        <th scope="col">Description</th>
+        <th scope="col" class="number">Qty</th>
+        <th scope="col" class="number">Unit price ({{ invoice.currency }})</th>
+        <th scope="col" class="number">Amount ({{ invoice.currency }})</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in invoice.lines %}
+      <tr>
+        <th scope="row">
+          {{ line.display_description }}
+          {% if line.kind != 'tax' %}
+          <div class="line-detail">{{ line.kind_label }}{% if line.lab_id %} · Lab sample {{ line.lab_id }}{% endif %}{% if line.client_sample_id %} · Client sample {{ line.client_sample_id }}{% endif %}</div>
+          {% endif %}
+        </th>
+        <td class="number">{{ line.quantity|unlocalize }}</td>
+        <td class="number">{{ line.unit_price }}</td>
+        <td class="number">{{ line.amount }}</td>
+      </tr>
+      {% endfor %}
+      <tr class="total">
+        <th scope="row" colspan="3">Total ({{ invoice.currency }})</th>
+        <td class="number">{{ invoice.total }}</td>
+      </tr>
+    </tbody>
+  </table>
+</body>
+</html>

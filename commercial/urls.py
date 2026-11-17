@@ -16,6 +16,9 @@ urlpatterns = [
         "invoice-drafts/<int:pk>/add-line/", invoice_views.invoice_add_line, name="invoice-add-line"
     ),
     path("invoice-drafts/<int:pk>/cancel/", invoice_views.invoice_cancel, name="invoice-cancel"),
+    path("invoice-drafts/<int:pk>/issue/", invoice_views.invoice_issue, name="invoice-issue"),
+    path("invoice-drafts/<int:pk>/void/", invoice_views.invoice_void, name="invoice-void"),
+    path("invoice-drafts/<int:pk>/pdf/", invoice_views.invoice_pdf, name="invoice-pdf"),
     path("price-lists/", views.price_list_list, name="price-list-list"),
     path("price-lists/new/", views.price_list_edit, name="price-list-create"),
     path("price-lists/<int:pk>/", views.price_list_edit, name="price-list-edit"),

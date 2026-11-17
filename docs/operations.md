@@ -90,11 +90,12 @@ production (`DEBUG=false`) and `DATABASE_URL` set to the restored database.
 Source summary, taken with writes quiet; save the output beside the dump:
 
 ```sql
-select 'audit', count(*), max(id) from core_auditevent
-union all select 'custody', count(*), max(id) from receipt_custodyevent
-union all select 'result_revisions', count(*), max(id) from analytical_resultrevision
-union all select 'report_versions', count(*), max(id) from reporting_reportversion
-union all select 'report_files', count(*), null from reporting_reportfile;
+select 'audit', count(*), max(id::text) from core_auditevent
+union all select 'custody', count(*), max(id::text) from receipt_custodyevent
+union all select 'result_revisions', count(*), max(id)::text from analytical_resultrevision
+union all select 'report_versions', count(*), max(id)::text from reporting_reportversion
+union all select 'report_files', count(*), null from reporting_reportfile
+union all select 'issued_invoices', count(*), max(id)::text from commercial_issuedinvoice;
 ```
 
 1. `python manage.py migrate --check` exits successfully (no unapplied migrations).
@@ -107,6 +108,7 @@ union all select 'report_files', count(*), null from reporting_reportfile;
    select count(*) from reporting_reportversion v join reporting_reportfile f
      on f.version_id = v.id where encode(sha256(f.pdf), 'hex') <> v.pdf_sha256;
    select count(*) from reporting_eddexport where encode(sha256(data), 'hex') <> sha256;
+   select count(*) from commercial_issuedinvoice where encode(sha256(pdf), 'hex') <> sha256;
    select count(*) from receipt_subcontractresult
      where encode(sha256(source_pdf), 'hex') <> source_sha256;
    ```
@@ -180,6 +182,15 @@ those lines; use compatible code for presentation and editing. Reversal refuses 
 line exists, including zero amounts and cancelled drafts. Never delete or relabel retained
 assessments to force reversal. Normal backup/restore includes tax lines and audit history.
 Deployment does not seed invoices or reset data.
+
+Invoice issuance in `commercial.0011` adds immutable snapshots, numbered PDF bytes and
+their digests. The database allows one active draft or issued invoice per order. Existing
+drafts and cancellations retain their identifiers and amounts. Reversing the migration
+refuses once an issued document exists, including a subsequently voided invoice. Keep the
+schema on code rollback. Wait until every web instance runs the new code before issuing
+the first invoice. Older instances offer to create a draft on an already-issued order, which
+the database rejects. Use compatible code for billing on those orders. Include issued PDFs,
+void history and the immutability trigger in restore checks.
 
 BOD bottle worksheets add the nullable `bottle_data` column in `analytical.0012`. Keep that column during a code rollback: reversing the migration refuses once any bottle snapshot exists. Older code cannot show or reproduce those bottle observations and cannot accept entries for a BOD calculation rule; deactivate that rule before using older code for new entries, and return to a compatible release to inspect retained worksheets. A normal deploy does not reseed; the synthetic BOD example appears at the demonstration’s next scheduled reset.
 

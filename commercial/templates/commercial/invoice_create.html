@@ -4,7 +4,7 @@
 {% block page_meta %}{% page_meta %}<li>Internal draft</li><li><a href="{% url 'receipt:order-detail' order.pk %}">{{ order.coc_reference }}</a></li><li>{{ order.project.client.name }} / {{ order.project.name }}</li>{% endpage_meta %}{% endblock %}
 {% block content %}
 {% include "commercial/_invoice_notice.html" %}
-{% if blocked %}{% notice tone="warning" label="Cannot create draft" blocking=True %}{{ blocked }}{% if active_draft %} <a href="{% url 'commercial:invoice-detail' active_draft.pk %}">{{ active_draft.number }}</a>.{% endif %}{% endnotice %}{% endif %}
+{% if blocked %}{% notice tone="warning" label="Cannot create draft" blocking=True %}{{ blocked }}{% if active_invoice %} <a href="{% url 'commercial:invoice-detail' active_invoice.pk %}">{% firstof active_invoice.issued_invoice.number active_invoice.number %}</a>{% endif %}{% endnotice %}{% endif %}
 {% url 'receipt:order-detail' order.pk as cancel_url %}
 {% form_page form=form cancel_url=cancel_url submit_label="Create draft invoice" no_submit=blocked %}{% endform_page %}
 {% panel title="Current received tests" heading_id="source-heading" count=tests|length table=True class="mt-3" %}

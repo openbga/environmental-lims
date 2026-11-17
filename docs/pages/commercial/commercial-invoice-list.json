@@ -4,15 +4,15 @@
     "commercial:invoice-list"
   ],
   "title": "Draft invoices",
-  "purpose": "Find internal draft invoices and their saved amounts, including cancelled drafts. Only project managers and administrators can use this directory.",
-  "summary": "Find internal draft invoices and their saved amounts, including cancelled drafts. Only project managers and administrators can use this directory.",
+  "purpose": "Find drafts and issued invoices, including cancelled and voided records. Only project managers and administrators can use this directory.",
+  "summary": "Find drafts and issued invoices, including cancelled and voided records. Only project managers and administrators can use this directory.",
   "tasks": [
     {
-      "title": "Find a draft",
+      "title": "Find an invoice record",
       "steps": [
-        "Enter a draft number, client, account code, chain of custody, project or purchase order in [[Search]].",
+        "Enter an invoice or draft number, client, account code, chain of custody, project or purchase order in [[Search]].",
         "Choose a [[Status]] if needed and select [[Apply]].",
-        "Select the draft number to open its billing snapshot and history."
+        "Select the number to open the billing snapshot, history and any issued PDF."
       ]
     },
     {
@@ -23,30 +23,30 @@
       ]
     },
     {
-      "title": "Find cancelled drafts",
+      "title": "Find records taken out of use",
       "steps": [
-        "Choose Cancelled in [[Status]] and select [[Apply]]."
+        "Choose Cancelled for drafts or Voided for issued invoices in [[Status]], then select [[Apply]]."
       ]
     },
     {
-      "title": "Find drafts by due date",
+      "title": "Find invoice records by due date",
       "steps": [
         "Enter [[Due from]], [[Due through]] or both, then select [[Apply]].",
-        "Select [[Due date]] to sort the matching drafts."
+        "Select [[Due date]] to sort the matching records."
       ]
     }
   ],
   "good_to_know": [
-    "The list includes Draft and Cancelled records unless you filter by status.",
+    "The directory includes all four statuses by default.",
     "Amounts and client labels come from the draft snapshot; changing the client or price list does not update them.",
-    "These drafts are internal. Nothing is issued, emailed or sent to accounting.",
-    "Date filters exclude drafts without a date. A draft due date does not establish a balance due."
+    "Once issued, an invoice keeps its number and PDF, even after a void.",
+    "Date filters exclude records without a due date."
   ],
   "sections": [
     {
       "title": "Access and purpose",
       "paragraphs": [
-        "Only project managers and administrators can open or change draft invoices. Other staff and client accounts are refused, including direct links. These are internal USD billing worksheets. They cannot be issued or paid and are not visible in the client portal. Tax, due dates, payments and accounting entries are not calculated automatically. Staff may record explicit tax assessments on an active draft."
+        "Only project managers and administrators can open or change invoice records. Drafts and issued records stay in the staff workspace. Staff issue an active draft from its detail page and deliver the PDF separately. Staff enter due dates and tax amounts. The invoice workflow has no payment or accounting entry."
       ]
     },
     {
@@ -54,19 +54,19 @@
       "items": [
         {
           "label": "Search",
-          "description": "Matches draft number, saved client name, account code, chain-of-custody reference, project name and PO. Apply runs the search on the full authorized directory."
+          "description": "Matches issued invoice number, draft number, saved client name, account code, chain-of-custody reference, project name and PO. Apply runs the search on the full authorized directory."
         },
         {
           "label": "Status",
-          "description": "All statuses, Draft or Cancelled. Invalid choices show a filter error; correct the field to continue."
+          "description": "All statuses, Draft, Cancelled, Issued or Voided. Invalid choices show a filter error; correct the field to continue."
         },
         {
           "label": "Due from / Due through",
-          "description": "Optional inclusive calendar-date bounds. Either bound excludes drafts without a due date; leave both blank to include undated drafts. Due through must be on or after Due from. Invalid dates or a reversed range show field errors and no records until corrected. Filters combine with Search and Status across all pages."
+          "description": "Optional inclusive calendar-date bounds. Either bound excludes records without a due date. Leave both blank to include undated records. Due through must be on or after Due from. Invalid dates or a reversed range show field errors and no records until corrected. Filters combine with Search and Status across all pages."
         },
         {
-          "label": "Draft",
-          "description": "Internal ID number and link to the draft. Newest numbers appear first by default; this is not an issued invoice number."
+          "label": "Invoice / draft",
+          "description": "Links to the staff record. Issued and voided invoices show the invoice number with its draft ID beneath it. Other records show only the draft ID. The latest draft IDs appear first by default."
         },
         {
           "label": "Client / Chain of custody",
@@ -74,7 +74,7 @@
         },
         {
           "label": "Total (USD)",
-          "description": "Exact sum of saved line amounts. Cancelled records retain their original total for reference; it is not a balance due. The total includes any manually entered tax assessments; missing tax lines do not establish tax applicability."
+          "description": "Exact sum of saved line amounts. Cancelled and voided records retain their original total for reference. The total includes any manually entered tax assessments; missing tax lines do not establish tax applicability."
         },
         {
           "label": "Created",
@@ -82,7 +82,7 @@
         },
         {
           "label": "Due date",
-          "description": "Staff-entered payment date, shown as YYYY-MM-DD or Not recorded. It is not calculated from payment terms and does not mean an invoice was issued or is overdue. Sorting applies to the whole result set: ascending places undated drafts last; descending places them first. Equal dates are ordered by internal record ID."
+          "description": "Staff-entered payment date, shown as YYYY-MM-DD or Not recorded. Staff enter it independently of payment terms. Sorting applies to the whole result set. Ascending order places undated records last and descending order places them first. Equal dates are ordered by internal record ID."
         },
         {
           "label": "Project / Purchase order",
