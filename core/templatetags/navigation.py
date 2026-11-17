@@ -468,11 +468,8 @@ STAFF_MENU_ROLES = {
 }
 
 
-@register.simple_tag(takes_context=True)
-def staff_nav_sections(context):
-    """Return nonempty menu sections for this account's current work capabilities."""
-    user = context["request"].user
-    roles = context.get("user_roles")
+def visible_staff_items(user, roles=None):
+    """Keys of the staff menu items this account's current work capabilities show."""
     if roles is None:
         roles = effective_roles(user)
     visible = {key for key, allowed in STAFF_MENU_ROLES.items() if roles.intersection(allowed)}
@@ -486,6 +483,13 @@ def staff_nav_sections(context):
         and user.is_superuser
     ):
         visible.add("accounts-roles")
+    return visible
+
+
+@register.simple_tag(takes_context=True)
+def staff_nav_sections(context):
+    """Return nonempty menu sections for this account's current work capabilities."""
+    visible = visible_staff_items(context["request"].user, context.get("user_roles"))
     return [
         {"key": key, "label": label, "items": items}
         for key, label, keys in STAFF_SECTIONS
@@ -493,9 +497,11 @@ def staff_nav_sections(context):
     ]
 
 
-# Pages reached from the user menu: they render inside the user's shell and mark no item.
+# Pages reached from the user menu or the top bar (What's new): they render inside the user's
+# shell and mark no item.
 ACCOUNT_ROUTES = frozenset(
     {
+        "whats-new",
         "account_change_password",
         "account_set_password",
         "account_email",

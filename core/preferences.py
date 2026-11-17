@@ -4,6 +4,8 @@ Keys and the values they accept:
   grid:<grid>:v<version>  {"order": [column id, …], "hidden": [column id, …]}, static/js/grid.js
   page:<view name>        {"per_page": 25 | 50 | 100, "sort": "<-column>"}, the middleware below
   nav.collapsed           true | false, static/js/sidebar.js
+  whats_new.seen          {"date": "YYYY-MM-DD", "ids": [entry id, …]}, set by the What's new
+                          page (core.views.whats_new) for its unread indicator (core.changelog)
 
 Every value is checked when written and again when read: a value that no longer fits (an old
 format, a column that was removed) is ignored and the page falls back to its defaults.
@@ -17,6 +19,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.views.decorators.http import require_POST
 
+from core.changelog import valid_marker
 from core.grids import PAGE_SIZES
 from core.models import UserPreference
 
@@ -26,6 +29,7 @@ GRID_KEY = re.compile(r"^grid:[a-z0-9_.-]{1,80}:v\d{1,3}$")
 PAGE_KEY = re.compile(r"^page:[a-z0-9_:-]{1,100}$")
 COLUMN_ID = re.compile(r"^[a-z0-9_-]{1,40}$")
 SORT = re.compile(r"^-?[a-z0-9_]{1,40}$")
+WHATS_NEW_KEY = "whats_new.seen"  # written only by the What's new page, never by /preferences/
 CLIENT_KEYS = re.compile(r"^(grid:|nav\.)")  # what the page hands to its scripts
 
 
@@ -55,6 +59,8 @@ def clean(key, value):
         return cleaned or None
     if key == "nav.collapsed":
         return value if isinstance(value, bool) else None
+    if key == WHATS_NEW_KEY:
+        return value if valid_marker(value) else None
     return None
 
 

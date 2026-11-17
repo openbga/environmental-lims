@@ -41,6 +41,8 @@ jobs:
       - run: uv run ruff check . && uv run ruff format --check .
       - run: uv run python manage.py check
       - run: uv run python manage.py makemigrations --check --dry-run
+      - name: CHANGELOG.md matches changelog.d/
+        run: uv run python manage.py changelog --check
       - run: uv run python manage.py migrate --noinput
       - name: Collect static assets for template-serving tests
         run: uv run python manage.py collectstatic --noinput

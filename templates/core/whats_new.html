@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% load ui %}
+{% comment %}
+What's new: every change recorded in changelog.d/, in the groups and order of CHANGELOG.md
+(core.changelog). Reached from the top bar (includes/whats_new_button.html); marks no sidebar item.
+Context: groups (key YYYY-MM, label, start, end, count, sections of impact, label and entries; each entry row
+has entry (core.changelog.Entry), new (unread when the page was opened) and link (url and label
+of the staff menu destination, only when the user has it)), total, new_count.
+{% endcomment %}
+{% block page_intro %}<p class="vr-page-intro">Changes to this application, newest first, grouped by month and ranked by impact.</p>{% endblock %}
+{% block content %}
+{% if new_count %}{% notice tone="info" %}{% if new_count == 1 %}1 change is new since you last opened this page. It is marked New.{% else %}{{ new_count }} changes are new since you last opened this page. They are marked New.{% endif %}{% endnotice %}{% endif %}
+{% for group in groups %}
+{% with heading_id="whats-new-"|add:group.key %}
+{% panel title=group.label heading_id=heading_id flush=True class="mb-3 vr-narrow" %}
+  {% fill count %}<span><time datetime="{{ group.start|date:'Y-m-d' }}">{{ group.start|date:"Y-m-d" }}</time>{% if group.end != group.start %} to <time datetime="{{ group.end|date:'Y-m-d' }}">{{ group.end|date:"Y-m-d" }}</time>{% endif %} · {{ group.count }} change{{ group.count|pluralize }}</span>{% endfill %}
+  {% for section in group.sections %}
+  {% panel_section rule=forloop.counter0 %}
+    <h3 class="vr-section-title">{{ section.label }}</h3>
+    <ol class="vr-changes">
+      {% for row in section.entries %}{% with entry=row.entry %}
+      <li class="vr-change"{% if row.new %} data-new{% endif %}>
+        <div class="vr-change-head">
+          <span class="vr-change-type">{{ entry.type_label }}</span>
+          <span class="vr-change-title">{{ entry.title }}</span>
+          {% if row.new %}{% status label="New" tone="info" %}{% endif %}
+        </div>
+        <p class="vr-change-meta"><time datetime="{{ entry.date|date:'Y-m-d' }}">{{ entry.date|date:"Y-m-d" }}</time>{% if entry.area %} · {{ entry.area }}{% endif %}{% if entry.pr %} · Change #{{ entry.pr }}{% endif %}</p>
+        <div class="vr-change-summary">{{ entry.summary|linebreaks }}</div>
+        {% if row.link or entry.notes %}
+        <div class="vr-change-more">
+          {% if row.link %}<a href="{{ row.link.url }}">Go to {{ row.link.label }}</a>{% endif %}
+          {% if entry.notes %}<details class="vr-change-notes"><summary>Technical notes</summary><div class="vr-change-notes-body">{{ entry.notes|linebreaks }}</div></details>{% endif %}
+        </div>
+        {% endif %}
+      </li>
+      {% endwith %}{% endfor %}
+    </ol>
+  {% endpanel_section %}
+  {% endfor %}
+{% endpanel %}
+{% endwith %}
+{% empty %}
+{% panel title="Changes" heading_id="whats-new-heading" class="vr-narrow" %}
+  {% empty_state title="No changes recorded yet" body="Changes to the application are listed here, newest first, once they are recorded." %}
+{% endpanel %}
+{% endfor %}
+{% endblock %}

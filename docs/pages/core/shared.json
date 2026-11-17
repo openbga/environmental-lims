@@ -43,6 +43,10 @@
           "description": "On wide screens (992px and up) the button at the top of the staff sidebar folds the menu into a rail of icons, leaving more room for tables. In the rail, hover over or focus an icon to see its label; the current destination stays highlighted and section names become short coloured rules. Select Expand menu to restore the full menu. The choice is saved for your account, so it follows you to any workstation and does not affect other people. On narrow screens the menu opens from the Menu button instead and is always full width."
         },
         {
+          "label": "What's new",
+          "description": "On staff pages, What's new in the top bar opens the list of changes to this application, newest first. A number beside it counts the changes made since you last looked; opening the list clears it for your account on every workstation. A new account starts with no number. Client portal pages do not show it."
+        },
+        {
           "label": "Theme",
           "description": "The Theme menu offers Light, Dark and System. System follows the device preference. The chosen appearance is saved in this browser. After choosing an appearance, focus returns to the Theme button."
         },
@@ -133,6 +137,7 @@
     "e2e/test_keyboard_focus.py",
     "templates/includes/user_menu.html",
     "templates/includes/theme_menu.html",
+    "templates/includes/whats_new_button.html",
     "static/js/documentation.js",
     "templates/includes/source_footer.html",
     "core/templatetags/source_code.py",

@@ -129,6 +129,14 @@ per-account panel visibility and width preferences, as it does table presentatio
 Route-coverage checks require help for every HTML page; downloads and transitions are documented
 on their invoking pages. The document-page skill defines the authoring and maintenance standard.
 
+What's new is versioned content too: one entry file per observable change in `changelog.d/`,
+read by the staff What's new page and by `manage.py changelog`, which generates `CHANGELOG.md`
+(checked in CI). Deployments have no version tags, so both group by calendar month. Entries ship
+with the release, with no network request. Which entries a user has seen is a per-user
+presentation preference (`whats_new.seen`), so the unread count follows the account across shared
+workstations without a migration. An account without one has nothing unread: its first page
+records the current entries as seen. The client portal has no What's new.
+
 ## Deployment and recovery
 
 One Docker web service on Render plus managed PostgreSQL in the same US region is the initial
