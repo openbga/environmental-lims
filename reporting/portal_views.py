@@ -6,8 +6,9 @@ from datetime import UTC, datetime
 from functools import wraps
 
 from django import forms
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import (
     Case,
     CharField,
@@ -23,7 +24,7 @@ from django.db.models import (
 )
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse, HttpResponseBadRequest
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import content_disposition_header
 from django.views.decorators.http import require_GET, require_http_methods
 
@@ -41,6 +42,7 @@ from .queries import (
     started_tests,
 )
 from .results_csv import example_csv_template, export_results_csv
+from .results_xlsx import export_results_xlsx
 from .views import pdf_response, toolbar_fields
 
 SAMPLE_STATUSES = [
@@ -405,7 +407,7 @@ def report_pdf(request, pk, number):
 
 @client_required
 @require_GET
-def report_results_csv(request, pk, number):
+def report_results_download(request, pk, number, output_format):
     snapshot = get_object_or_404(
         client_versions(request.user)
         .filter(file__isnull=False)
@@ -413,12 +415,29 @@ def report_results_csv(request, pk, number):
         report_id=pk,
         number=number,
     )
-    filename = f"{snapshot['content']['report']['number']}-v{number}-results.csv"
-    return _csv_download(export_results_csv(snapshot), filename)
+    try:
+        return _results_download(snapshot, output_format)
+    except ValidationError as exc:
+        messages.error(request, f"Version {number}. {' '.join(exc.messages)}")
+        return redirect("portal:report-detail", pk=pk)
 
 
-def _csv_download(content, filename):
-    response = HttpResponse(content, content_type="text/csv; charset=utf-8")
+def _results_download(snapshot, output_format, *, columns=None):
+    number = snapshot["content"]["report"]["number"]
+    version = snapshot["release"]["version"]
+    suffix = "custom-results" if columns is not None else "results"
+    filename = f"{number}-v{version}-{suffix}.{output_format}"
+    if output_format == "xlsx":
+        return _download(
+            export_results_xlsx(snapshot, columns=columns),
+            filename,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    return _download(export_results_csv(snapshot, columns=columns), filename)
+
+
+def _download(content, filename, *, content_type="text/csv; charset=utf-8"):
+    response = HttpResponse(content, content_type=content_type)
     response["Content-Disposition"] = content_disposition_header(True, filename)
     response["Cache-Control"] = "private, no-store"
     response["X-Content-Type-Options"] = "nosniff"
@@ -428,7 +447,7 @@ def _csv_download(content, filename):
 @client_required
 @require_GET
 def result_template_example(request):
-    return _csv_download(example_csv_template(), "results-template.csv")
+    return _download(example_csv_template(), "results-template.csv")
 
 
 @client_required
@@ -446,10 +465,14 @@ def report_csv_template(request, pk, number):
         form = ResultCSVTemplateForm(request.POST, request.FILES)
         if form.is_valid():
             snapshot = ReportFile.objects.values_list("snapshot", flat=True).get(version=version)
-            return _csv_download(
-                export_results_csv(snapshot, columns=form.cleaned_data["template_file"]),
-                f"{version.report.number}-v{number}-custom-results.csv",
-            )
+            try:
+                return _results_download(
+                    snapshot,
+                    form.cleaned_data["output_format"],
+                    columns=form.cleaned_data["template_file"],
+                )
+            except ValidationError as exc:
+                form.add_error("output_format", exc)
     else:
         form = ResultCSVTemplateForm()
     return render(

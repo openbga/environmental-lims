@@ -14,6 +14,15 @@ class ResultCSVTemplateForm(forms.Form):
         widget=forms.FileInput(attrs={"accept": ".csv,text/csv"}),
     )
 
+    output_format = forms.TypedChoiceField(
+        label="Download format",
+        choices=[("csv", "CSV"), ("xlsx", "Excel (.xlsx)")],
+        initial="csv",
+        required=False,
+        empty_value="csv",
+        help_text="The Excel workbook keeps reported values and identifiers as text.",
+    )
+
     def clean_template_file(self):
         return parse_csv_template(self.cleaned_data["template_file"])
 
