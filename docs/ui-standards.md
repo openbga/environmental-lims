@@ -217,6 +217,13 @@ destination; multi-step forms and Add another remain in the dialog. Direct form 
 same dialog, with a server-rendered page as the no-JavaScript fallback. Authentication,
 authorization, CSRF, concurrency and scientific validation stay on the server.
 
+Every form opens in the dialog: a route whose page submits a form is registered in
+`FORM_SURFACES` (`core/form_surfaces.py`). The only pages that stay pages are in `NOT_FORM_PAGES`
+with their reason: sign-in steps, and records or review lists whose own forms open in the dialog
+from the page or act on rows ticked in the list. `tests/test_form_dialog.py` fails for a form
+route in neither list. Account settings (Password, Two-factor authentication) are pages that
+show their state; the change opens in the dialog.
+
 This follows [Bootstrap's scrollable and fullscreen modal patterns](https://getbootstrap.com/docs/5.3/components/modal/)
 and [WAI-ARIA dialog keyboard and focus guidance](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/),
 reviewed 2026-11-10. Choosing dialogs for every editing task is this application's consistency

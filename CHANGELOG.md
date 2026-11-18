@@ -136,6 +136,10 @@ The same list is shown in the application under What's new.
 
 ### Medium impact
 
+- **Changed:** Every form opens in the form dialog, including invoice issue and account settings (2026-11-18, Draft invoices)
+
+  Review and issue on a draft invoice, the password change, adding an email address and the two-factor setup, removal and recovery-code forms now open in the same dialog as every other form, over the page you opened them from. Password in the account menu now opens a Password page that shows whether a password is set, with Change password opening the dialog; the two-factor forms have a Cancel that keeps everything as it was.
+
 - **Added:** Record and filter explicit due dates on invoice drafts (2026-11-17, Draft invoices, [#23](https://github.com/openbga/environmental-lims/pull/23))
 
   Project managers and administrators can record an optional due date while editing a draft invoice; setting, changing or clearing it needs a reason, and the earlier value stays in the history. The Draft invoices list shows the date, can be filtered with Due from and Due through, and can be sorted by Due date.

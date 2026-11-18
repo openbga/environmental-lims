@@ -6,6 +6,7 @@ from django.shortcuts import redirect, resolve_url
 from django.urls import include, path
 from django.views.decorators.cache import never_cache
 
+from accounts import views as account_views
 from core import announcement_views, lab_profile_views, lookups, preferences, views
 
 
@@ -75,6 +76,7 @@ urlpatterns = [
     path("ready/", views.ready, name="ready"),
     path("lookups/<slug:name>/", lookups.lookup, name="lookup"),
     path("preferences/", preferences.preference, name="preference"),
+    path("accounts/password/", account_views.password, name="account_password"),
     path("accounts/", include("allauth.urls")),
     path("admin/", admin.site.urls),
     path("", include("receipt.urls")),

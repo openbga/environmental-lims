@@ -10,8 +10,8 @@
     {
       "title": "Add an email address",
       "steps": [
-        "Type the address in [[Email]] under Add Email Address.",
-        "Select [[Add Email]]. A verification link is sent to that address."
+        "Select [[Add Email]] under Add Email Address. A dialog opens.",
+        "Type the address in [[Email]] and select [[Add Email]]. A verification link is sent to that address."
       ]
     },
     {
@@ -38,7 +38,7 @@
     {
       "title": "Records and selection",
       "paragraphs": [
-        "Requires a signed-in account and shows only its authentication addresses, ordered by email. Each radio row displays the address, Verified or Unverified, and Primary when applicable. The primary address, or the only address, is preselected; no selected address means the action leaves the list unchanged. On opening the page, an account email created through administration is synchronized into an unverified address record if missing. These records are not client reporting contacts."
+        "Requires a signed-in account and shows only its authentication addresses, ordered by email. Each radio row displays the address, Verified or Unverified, and Primary when applicable. The primary address, or the only address, is preselected; no selected address means the action leaves the list unchanged. On opening the page, an account email created through administration is synchronized into an unverified address record if missing. These records are not client reporting contacts. The page shows the addresses' state. Make Primary, Re-send Verification and Remove act on the address chosen in the list, on the page. Add Email opens its form in the shared form dialog over the page; after adding, the page reloads with the new address and the result message."
       ]
     },
     {
@@ -74,10 +74,12 @@
     }
   ],
   "sources": [
+    "accounts/models.py",
     "config/settings.py",
+    "core/form_dialog.py",
+    "core/form_surfaces.py",
     "templates/allauth/layouts/base.html",
     "templates/allauth/layouts/manage.html",
-    "uv.lock",
-    "accounts/models.py"
+    "uv.lock"
   ]
 }

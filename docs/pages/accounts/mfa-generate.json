@@ -17,7 +17,7 @@
     {
       "title": "Keep the current codes",
       "steps": [
-        "Leave with the normal account navigation without selecting Generate."
+        "Select [[Cancel]] without selecting Generate."
       ]
     }
   ],
@@ -43,12 +43,15 @@
     {
       "title": "Navigation and limits",
       "paragraphs": [
-        "No Back or Cancel button appears on this confirmation. Leave via normal account navigation without submitting to retain the set. Generation does not disable the app. Repeated successful generation replaces the set again; keep the latest set. Codes are not laboratory observations or report content."
+        "The confirmation opens in the shared form dialog over Two-factor authentication. Cancel closes it and keeps the set (opened by its address, Cancel goes to Two-factor authentication). Generation does not disable the app. Repeated successful generation replaces the set again; keep the latest set. Codes are not laboratory observations or report content."
       ]
     }
   ],
   "sources": [
+    "accounts/adapter.py",
     "config/settings.py",
+    "core/form_surfaces.py",
+    "templates/allauth/elements/form__manage.html",
     "templates/allauth/layouts/base.html",
     "templates/allauth/layouts/manage.html",
     "uv.lock"

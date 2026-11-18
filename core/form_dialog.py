@@ -7,7 +7,7 @@ from django.http import HttpResponse
 from django.urls import Resolver404, resolve
 from django.utils.cache import patch_vary_headers
 
-from .form_surfaces import FORM_SURFACES
+from .form_surfaces import FORM_HEADER, FORM_SURFACES, is_dialog_request
 
 
 class FormDialogMiddleware:
@@ -16,12 +16,10 @@ class FormDialogMiddleware:
 
     def __call__(self, request):
         response = self.get_response(request)
-        patch_vary_headers(response, ("X-VR-Form",))
-        if request.headers.get("X-VR-Form") != "1":
-            return response
-        # Browsers follow 302 before HTMX can inspect it. Keep Django messages intact and
+        patch_vary_headers(response, (FORM_HEADER,))
+        # Browsers follow a redirect before HTMX can inspect it. Keep Django messages intact and
         # let HTMX load the next form, or navigate to the saved record, exactly once.
-        if response.status_code not in (302, 303):
+        if not is_dialog_request(request) or response.status_code not in (301, 302, 303):
             return response
         destination = response["Location"]
         parsed = urlsplit(destination)
@@ -40,7 +38,7 @@ class FormDialogMiddleware:
                     "path": destination,
                     "target": "#vr-form-content",
                     "push": "false",
-                    "headers": {"X-VR-Form": "1"},
+                    "headers": {FORM_HEADER: "1"},
                 }
             )
         else:

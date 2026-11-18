@@ -360,6 +360,7 @@ def invoice_issue(request, pk):
             "blocked": blocked,
             "form": form,
             "review_again": review_again,
+            "can_issue": not blocked and not review_again,
             "proposed_due_date": proposed_due_date,
         },
     )

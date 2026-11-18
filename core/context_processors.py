@@ -2,14 +2,14 @@ from django.contrib.auth.models import AnonymousUser
 
 from accounts.roles import effective_roles
 
-from .form_surfaces import form_route_patterns, surface_for_request
+from .form_surfaces import form_route_patterns, is_dialog_request, surface_for_request
 from .models import Lab
 from .page_docs import documentation_for_request
 
 
 def form_presentation(request):
     surface = surface_for_request(request)
-    form_dialog = bool(surface and request.headers.get("X-VR-Form") == "1")
+    form_dialog = bool(surface and is_dialog_request(request))
     return {
         "form_surface": surface,
         "form_route_patterns": form_route_patterns(),

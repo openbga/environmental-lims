@@ -11,6 +11,7 @@ from .conftest import PASSWORD
 pytestmark = pytest.mark.django_db
 
 SETTINGS_PAGES = (
+    "account_password",
     "account_change_password",
     "account_set_password",
     "account_email",
@@ -50,7 +51,8 @@ def test_shared_account_cannot_reach_any_account_setting(client, make_user):
 
     menu = client.get(reverse("dashboard")).content.decode()
     assert "Shared demonstration account" in menu
-    assert reverse("account_change_password") not in menu and reverse("mfa_index") not in menu
+    for name in ("account_password", "account_change_password", "mfa_index"):
+        assert f'href="{reverse(name)}"' not in menu, name
 
     # Signing out still works, and a reset link is never mailed for a shared account.
     assert client.post(reverse("account_logout")).status_code == 302

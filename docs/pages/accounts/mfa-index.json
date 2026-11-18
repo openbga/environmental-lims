@@ -50,7 +50,7 @@
       "items": [
         {
           "label": "Authenticator App",
-          "description": "Displays whether an app is active. Activate opens QR/secret enrollment; Deactivate opens removal confirmation."
+          "description": "Displays whether an app is active. Activate opens QR/secret enrollment and Deactivate opens removal confirmation, each in the shared form dialog over this page."
         },
         {
           "label": "Recovery Codes",
@@ -62,7 +62,7 @@
         },
         {
           "label": "Generate",
-          "description": "Shown when an authenticator is enabled. Opens confirmation to replace all recovery codes, including unused ones. No generation action appears with no enabled authenticator."
+          "description": "Shown when an authenticator is enabled. Opens a confirmation in the shared form dialog to replace all recovery codes, including unused ones. No generation action appears with no enabled authenticator."
         }
       ]
     },
@@ -75,6 +75,7 @@
   ],
   "sources": [
     "config/settings.py",
+    "core/form_surfaces.py",
     "templates/allauth/layouts/base.html",
     "templates/allauth/layouts/manage.html",
     "uv.lock"
