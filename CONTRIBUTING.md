@@ -122,7 +122,15 @@ installation command. On Apple Silicon run the last command as
 
 ### Continuous integration
 
-Every pull request runs the checks above, the browser journeys, and a container smoke test that
+Every pull request rehearses an upgrade on a disposable PostgreSQL database. CI installs
+`main` with its own locked dependencies and seeds a synthetic working week and an invoice draft.
+The candidate then applies its migrations to that database and checks the existing records,
+including exact results and invoice charges. A client downloads an original and amended PDF
+and the check compares their bytes with the stored files. A pull
+request into `main` uses its base commit, and a push to `main` uses the previous tip. The
+application job logs both tested commits.
+
+CI also runs the checks above, the browser journeys, and a container smoke test that
 builds the Docker image, migrates a disposable PostgreSQL database, renders a PDF, runs the
 acceptance scripts inside the image and starts Gunicorn for health, readiness, sign-in and static
 checks. These checks never publish or deploy.
