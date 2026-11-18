@@ -140,6 +140,10 @@ The same list is shown in the application under What's new.
 
   Review and issue on a draft invoice, the password change, adding an email address and the two-factor setup, removal and recovery-code forms now open in the same dialog as every other form, over the page you opened them from. Password in the account menu now opens a Password page that shows whether a password is set, with Change password opening the dialog; the two-factor forms have a Cancel that keeps everything as it was.
 
+- **Changed:** Follow up on the oldest returned results first (2026-11-18, Worklist)
+
+  The dashboard shows how long the oldest result has waited since a reviewer returned it. Open Results returned for correction to see the reviewer, time and reason for each return, oldest first. Select the analyte to open the result.
+
 - **Added:** Record and filter explicit due dates on invoice drafts (2026-11-17, Draft invoices, [#23](https://github.com/openbga/environmental-lims/pull/23))
 
   Project managers and administrators can record an optional due date while editing a draft invoice; setting, changing or clearing it needs a reason, and the earlier value stays in the history. The Draft invoices list shows the date, can be filtered with Due from and Due through, and can be sorted by Due date.

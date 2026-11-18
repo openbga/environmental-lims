@@ -163,6 +163,11 @@ instrument responses are allowed. Source references remain the laboratory's resp
 US method sources checked 2026-11-15: [EPA 200.7 Rev. 4.4](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P10177CN.txt)
 and [EPA 6010D Rev. 5](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P1017DDQ.txt).
 
+Analysts share a dashboard queue for results returned from technical review. The time waiting
+starts when the reviewer returns the current revision. Analysts can open the oldest return
+first, read the reviewer's reason and go directly to the result. Saving a correction clears
+that reminder and keeps the earlier decision in the result history.
+
 Account-hold notices, added 2026-11-16, are the first invoicing increment. Project managers
 and administrators can mark a client on hold and record a staff note. Client edits retain the
 actor, reason and old/new values and reject stale changes. Staff see the current notice while

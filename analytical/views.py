@@ -192,9 +192,14 @@ def worklist(request):
                 request, f"Added {len(added)} test{'s' if len(added) != 1 else ''} to the batch."
             )
         return redirect(request.get_full_path())
+    return_filter = request.GET.get("status") == "returned"
+    # The dashboard opens this filter without applying or changing the saved worklist sort.
+    if return_filter and "sort" in getattr(request, "vr_saved_params", ()):
+        request.GET = request.GET.copy()
+        request.GET.pop("sort")
     form = f.WorklistFilterForm(request.GET or None)
     data = _cleaned(form)
-    grid = _grid(request, selectors.WORKLIST_SORTS, "deadline")
+    grid = _grid(request, selectors.WORKLIST_SORTS, "returned" if return_filter else "deadline")
     match = selectors.BATCH_NUMBER.match((data.get("batch") or "").strip())
     qs = selectors.worklist_queryset(
         q=(data.get("q") or "").strip(),
@@ -207,8 +212,11 @@ def worklist(request):
         received_from=data.get("received_from"),
         received_to=data.get("received_to"),
     )
+    if grid.sort.removeprefix("-") == "returned":
+        qs = selectors.with_returned_at(qs)
     qs = _scoped(form, qs).order_by(*selectors.ordering(selectors.WORKLIST_SORTS, grid.sort))
     page = _paginate(grid, qs)
+    selectors.attach_worklist_returns(page)
     for rt in page:
         rt.status_label = selectors.WORK_STATUS_LABELS.get(rt.work_status, rt.work_status)
         rt.status_tone = status_tone(rt.work_status)
@@ -229,6 +237,7 @@ def worklist(request):
             **ctx,
             "page_obj": page,
             "sort": grid.sort,
+            "toolbar_sort": "" if return_filter and "sort" not in request.GET else grid.sort,
             "batch_form": f.AddToBatchForm(open_batches),
             "filtered": ctx["active"],
             "selectable_count": sum(

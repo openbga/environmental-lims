@@ -5,13 +5,21 @@
   ],
   "title": "Worklist",
   "purpose": "Prioritize requested tests and assign eligible work to an existing open analytical batch. Each row represents one sample’s requested test.",
-  "summary": "See every requested test that is not yet approved, most urgent holding deadline first, and add eligible tests to an open analytical batch.",
+  "summary": "Prioritize requested tests, follow up on review returns and add eligible tests to an open analytical batch. The regular worklist starts with the earliest holding deadline unless you have chosen another sort.",
   "tasks": [
     {
       "title": "Find the most urgent work",
       "steps": [
-        "Read the list from the top. It starts with the earliest holding deadline.",
+        "To bring the earliest collection deadline to the top, sort [[Hold deadline]] in ascending order.",
         "To see only urgent work, set [[Holding time]] to At risk or expired and select [[Apply]]."
+      ]
+    },
+    {
+      "title": "Follow up on a returned result",
+      "steps": [
+        "Open [[Results returned for correction]] from the dashboard to see the oldest return first.",
+        "Expand [[Return reason]] in the Status column. Check [[Returned at]] for the decision time and reviewer.",
+        "Select the analyte to open the result and its revision history."
       ]
     },
     {
@@ -96,11 +104,15 @@
         },
         {
           "label": "Analyte",
-          "description": "Requested analyte and configured test unit."
+          "description": "Requested analyte and configured test unit. For a current return, select the analyte name to open the result."
         },
         {
           "label": "Status",
-          "description": "Derived work status. A receipt Hold or Reject is displayed instead and prevents selection."
+          "description": "Derived work status. A receipt Hold or Reject is displayed instead and prevents selection. On a returned test, expand Return reason to read the reviewer’s full note on the current revision."
+        },
+        {
+          "label": "Returned at",
+          "description": "Date and time when the reviewer returned the current result revision, with the reviewer’s username. Sort by this heading to see the oldest or newest returns first. A corrected revision clears the reminder. Previous returns remain in the result history."
         },
         {
           "label": "Method",
@@ -174,7 +186,7 @@
         }
       ],
       "paragraphs": [
-        "Initially sorted by earliest collection-based Hold deadline, missing deadlines last. Sample, Analyte, Hold deadline and Received headings sort the entire filtered worklist; click again to reverse."
+        "The regular worklist defaults to the earliest collection-based Hold deadline and remembers your chosen sort. The dashboard’s returned-work link starts with the earliest return and preserves your regular worklist sort. Sample, Analyte, Hold deadline, Returned at and Received sort all matching rows. Missing dates sort last."
       ]
     },
     {
@@ -195,6 +207,8 @@
     "analytical/holding.py",
     "analytical/tests/test_lists.py",
     "analytical/tests/test_subcontract_routing.py",
-    "analytical/tests/test_disposed_samples.py"
+    "analytical/tests/test_disposed_samples.py",
+    "core/views.py",
+    "tests/test_dashboard.py"
   ]
 }

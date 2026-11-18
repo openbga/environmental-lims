@@ -4,7 +4,8 @@ import pytest
 from django.urls import reverse
 from django.utils import timezone
 
-from analytical.models import HoldingTimeRule
+from analytical import services as svc
+from analytical.models import HoldingTimeRule, ResultRevision
 from commercial.models import Quote, Submission
 from receipt.models import Order
 from receipt.services import receive_sample
@@ -163,10 +164,8 @@ def test_dashboard_query_count_is_bounded(client, staff, work, django_assert_max
         assert client.get(reverse("dashboard")).status_code == 200
 
 
-def submitted_batch(analyst, sample, receipt_data):
+def submitted_batch(analyst, sample):
     """A batch with one submitted result, entered and submitted by `analyst`."""
-    from analytical import services as svc
-
     definition = sample.requested_tests.get().definition
     batch = svc.create_batch(actor=analyst, method=definition.method, matrix="water")
     test = sample.requested_tests.get()
@@ -183,6 +182,175 @@ def submitted_batch(analyst, sample, receipt_data):
     return batch
 
 
+def return_sample_result(analyst, reviewer, sample, returned_at, reason, monkeypatch):
+    with monkeypatch.context() as clock:
+        clock.setattr(timezone, "now", lambda: returned_at - timedelta(minutes=1))
+        batch = submitted_batch(analyst, sample)
+        revision = ResultRevision.objects.get(batch=batch)
+        clock.setattr(timezone, "now", lambda: returned_at)
+        return svc.return_result(actor=reviewer, revision_id=revision.pk, reason=reason)
+
+
+def test_returned_queue_uses_current_return_time_and_clears_on_correction(
+    client, staff, receipt_data, monkeypatch
+):
+    analyst = staff("returned-analyst", "analyst")
+    first_reviewer = staff("returned-reviewer", "reviewer")
+    second_reviewer = staff("second-return-reviewer", "reviewer")
+    custodian = staff("returned-custodian", "custodian")
+    now = timezone.now().replace(microsecond=0)
+    returns = []
+    for sample_age, return_age, reason in (
+        (2, 1, "Verify the reporting limit"),
+        (1, 4, "Check the dilution record"),
+    ):
+        received_at = now - timedelta(days=sample_age)
+        sample = receive_sample(
+            actor=custodian,
+            **{
+                **receipt_data,
+                "client_sample_id": f"RETURN-{sample_age}",
+                "collected_at": received_at - timedelta(hours=1),
+                "received_at": received_at,
+            },
+        )
+        returned_at = now - timedelta(hours=return_age)
+        returns.append(
+            return_sample_result(analyst, first_reviewer, sample, returned_at, reason, monkeypatch)
+        )
+    newer, older = returns
+    worklist = reverse("analytical:batch-worklist")
+    detail_url = reverse("analytical:result-detail", args=[older.result_id])
+    client.force_login(analyst)
+    assert client.get(worklist).context["sort"] == "deadline"
+    client.get(worklist, {"sort": "lab_id"})  # the dashboard always opens by return age
+    label = "Results returned for correction"
+    dashboard = client.get(reverse("dashboard"))
+    item = queue(dashboard, label)
+    assert item["count"] == 2 and item["oldest_at"] == older.reviewed_at
+    assert f'datetime="{timezone.localtime(older.reviewed_at).isoformat(timespec="seconds")}"' in (
+        dashboard.content.decode()
+    )
+    listing = client.get(item["url"])
+    assert listing.context["sort"] == "returned"
+    assert b'name="sort" value="returned"' not in listing.content
+    assert [rt.result.pk for rt in listing.context["page_obj"]] == [
+        older.result_id,
+        newer.result_id,
+    ]
+    invalid = client.get(worklist, {"status": "returned", "batch": "invalid"})
+    assert "batch" in invalid.context["filter_form"].errors
+    assert not list(invalid.context["page_obj"])
+    assert invalid.context["sort"] == "returned"
+    assert b'name="sort"' not in invalid.content
+
+    applied = client.get(worklist, {"status": "returned", "batch": older.batch.number})
+    assert applied.context["sort"] == "returned"
+    assert [rt.result.pk for rt in applied.context["page_obj"]] == [older.result_id]
+    assert b'name="sort" value="returned"' not in applied.content
+    status_chip = next(
+        chip for chip in listing.context["active_filters"] if chip["label"] == "Status"
+    )
+    assert client.get(worklist + status_chip["remove_url"]).context["sort"] == "lab_id"
+    assert b'<summary class="vr-nowrap">Return reason</summary>' in listing.content
+    assert older.review_note.encode() in listing.content
+    assert first_reviewer.get_username().encode() in listing.content
+    assert f'href="{detail_url}"'.encode() in listing.content
+    assert b"Correct result" in client.get(detail_url).content
+
+    corrected = client.post(
+        detail_url,
+        {
+            "expected_revision": older.number,
+            "supplied_text": "0.0200",
+            "reporting_limit_applied": "0.0050",
+            "dilution_factor": "2",
+            "analysis_started_at": timezone.localtime(now - timedelta(minutes=5)).strftime(
+                "%Y-%m-%dT%H:%M"
+            ),
+            "reason": "Corrected dilution transcription",
+        },
+    )
+    assert corrected.status_code == 302
+    assert older.review_note.encode() in client.get(detail_url).content
+    all_statuses = client.get(worklist, {"status": "all", "sort": "returned"})
+    assert older.review_note.encode() not in all_statuses.content
+    assert f'href="{detail_url}"'.encode() not in all_statuses.content
+    item = queue(client.get(reverse("dashboard")), label)
+    assert item["count"] == 1 and item["oldest_at"] == newer.reviewed_at
+
+    correction = ResultRevision.objects.get(result_id=older.result_id, number=2)
+    svc.submit_result(actor=analyst, revision_id=correction.pk)
+    re_return = svc.return_result(
+        actor=second_reviewer, revision_id=correction.pk, reason="Confirm dilution factor"
+    )
+    item = queue(client.get(reverse("dashboard")), label)
+    assert item["count"] == 2 and item["oldest_at"] == newer.reviewed_at
+    listing = client.get(item["url"])
+    assert [rt.returned_revision.pk for rt in listing.context["page_obj"]] == [
+        newer.pk,
+        re_return.pk,
+    ]
+    assert re_return.review_note.encode() in listing.content
+    assert second_reviewer.get_username().encode() in listing.content
+    assert older.review_note.encode() not in listing.content
+
+
+def test_worklist_return_sort_applies_before_paging_and_keeps_missing_dates_last(
+    client, staff, receipt_data, monkeypatch
+):
+    analyst = staff("return-sort-analyst", "analyst")
+    reviewer = staff("return-sort-reviewer", "reviewer")
+    custodian = staff("return-sort-custodian", "custodian")
+    pending = [
+        receive_sample(actor=custodian, **{**receipt_data, "client_sample_id": f"PENDING-{i}"})
+        .requested_tests.get()
+        .pk
+        for i in range(3)
+    ]
+    now = timezone.now()
+    returned = []
+    for i in range(26):
+        received_at = now - timedelta(days=1)
+        sample = receive_sample(
+            actor=custodian,
+            **{
+                **receipt_data,
+                "client_sample_id": f"RETURN-SORT-{i}",
+                "collected_at": received_at - timedelta(hours=1),
+                "received_at": received_at,
+            },
+        )
+        return_sample_result(
+            analyst,
+            reviewer,
+            sample,
+            now - timedelta(hours=2 if i else 1),
+            "Check source data",
+            monkeypatch,
+        )
+        returned.append(sample.requested_tests.get().pk)
+
+    client.force_login(analyst)
+    url = reverse("analytical:batch-worklist")
+    client.get(url, {"sort": "lab_id"})
+    first = client.get(url, {"status": "returned"})
+    assert [rt.pk for rt in first.context["page_obj"]] == returned[1:]
+    assert b'href="?status=returned&amp;page=2"' in first.content
+    second = client.get(url, {"status": "returned", "page": 2}).context["page_obj"]
+    assert [rt.pk for rt in second] == returned[:1]
+    assert client.get(url).context["sort"] == "lab_id"
+
+    for sort, expected in (
+        ("returned", [*returned[1:], returned[0]]),
+        ("-returned", returned),
+    ):
+        first = client.get(url, {"sort": sort}).context["page_obj"]
+        second = client.get(url, {"sort": sort, "page": 2}).context["page_obj"]
+        assert [rt.pk for rt in first] == expected[:25]
+        assert [rt.pk for rt in second] == [expected[-1], *pending]
+
+
 def test_reviewer_queue_separates_own_work_from_work_for_others(client, staff, receipt_data):
     custodian = staff("rq-custodian", "custodian")
     samples = [
@@ -192,8 +360,8 @@ def test_reviewer_queue_separates_own_work_from_work_for_others(client, staff, r
     analyst = staff("rq-analyst", "analyst")
     both = staff("rq-both", "analyst")
     both.groups.add(staff("rq-seed", "reviewer").groups.get())
-    other_batch = submitted_batch(analyst, samples[0], receipt_data)
-    own_batch = submitted_batch(both, samples[1], receipt_data)
+    other_batch = submitted_batch(analyst, samples[0])
+    own_batch = submitted_batch(both, samples[1])
     label = "Batches awaiting technical review"
 
     client.force_login(both)  # may review analyst's batch, not the one they entered

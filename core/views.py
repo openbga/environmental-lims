@@ -143,7 +143,6 @@ def _work_queues(user):
         for label, status in (
             ("Tests not yet in a batch", "not_batched"),
             ("In a batch, awaiting entry", "awaiting"),
-            ("Results returned for correction", "returned"),
         ):
             queues.append(
                 _queue(
@@ -153,10 +152,20 @@ def _work_queues(user):
                     {"status": status},
                     area="bench",
                     oldest="sample__received_at",
-                    tone="warning" if status == "returned" else "info",
-                    status="Returned" if status == "returned" else "",
                 )
             )
+        queues.append(
+            _queue(
+                "Results returned for correction",
+                analytical.with_returned_at(analytical.worklist_queryset(status="returned")),
+                "analytical:batch-worklist",
+                {"status": "returned"},
+                area="bench",
+                oldest="returned_at",
+                tone="warning",
+                status="Returned",
+            )
+        )
     if roles & {"analyst", "custodian", "project_manager"}:
         queue = _queue(
             "Holding time at risk or expired",
