@@ -36,6 +36,7 @@ COLUMNS = (
     "subcontract_report_reference",
     "subcontract_sample_id",
 )
+STANDARD_COLUMNS = tuple((key, key) for key in COLUMNS)
 NUMERIC_COLUMNS = {"result", "reporting_limit", "percent_solids"}
 MAX_TEMPLATE_BYTES = 16 * 1024
 
@@ -116,8 +117,8 @@ def _spreadsheet_cell(value, *, numeric):
     return spreadsheet_text(value)
 
 
-def export_results_csv(snapshot, *, columns=None):
-    """Return issued result text in standard columns or ordered (key, heading) pairs."""
+def issued_result_rows(snapshot):
+    """Yield unescaped fields for each sample result in the issued version."""
     content = snapshot["content"]
     synthetic = content.get("synthetic_notice")
     common = {
@@ -125,11 +126,6 @@ def export_results_csv(snapshot, *, columns=None):
         "report_version": snapshot["release"]["version"],
         "synthetic_data": str(synthetic).lower() if synthetic is not None else "",
     }
-    if columns is None:
-        columns = ((key, key) for key in COLUMNS)
-    columns = tuple(columns)
-    output, writer = _spreadsheet_writer()
-    writer.writerow(spreadsheet_text(heading) for _, heading in columns)
     for sample in content["samples"]:
         sample_cells = {
             **common,
@@ -146,7 +142,7 @@ def export_results_csv(snapshot, *, columns=None):
                 if result.get("source") == "external"
                 else ", ".join(result.get("qualifiers", []))
             )
-            cells = {
+            yield {
                 **sample_cells,
                 "analyte": result["analyte"],
                 "result": result["reported"],
@@ -163,7 +159,15 @@ def export_results_csv(snapshot, *, columns=None):
                 "subcontract_report_reference": external.get("report_reference"),
                 "subcontract_sample_id": external.get("external_sample_id"),
             }
-            writer.writerow(
-                _spreadsheet_cell(cells[key], numeric=key in NUMERIC_COLUMNS) for key, _ in columns
-            )
+
+
+def export_results_csv(snapshot, *, columns=None):
+    """Return issued result text in standard columns or ordered (key, heading) pairs."""
+    columns = STANDARD_COLUMNS if columns is None else tuple(columns)
+    output, writer = _spreadsheet_writer()
+    writer.writerow(spreadsheet_text(heading) for _, heading in columns)
+    for cells in issued_result_rows(snapshot):
+        writer.writerow(
+            _spreadsheet_cell(cells[key], numeric=key in NUMERIC_COLUMNS) for key, _ in columns
+        )
     return output.getvalue()

@@ -3,6 +3,7 @@ from codecs import BOM_UTF8
 from datetime import timedelta
 from io import StringIO
 
+import pytest
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
@@ -19,8 +20,8 @@ from .test_soil_basis import DRY, soil_report
 from .test_subcontract_release import accept, enter, subcontracted_sample
 
 
-def url(report, number=1):
-    return reverse("portal:report-results-csv", args=[report.pk, number])
+def url(report, number=1, extension="csv"):
+    return reverse(f"portal:report-results-{extension}", args=[report.pk, number])
 
 
 def rows(response):
@@ -80,21 +81,22 @@ def test_csv_reads_issued_text_without_fetching_pdf(world, people, client, setti
     ]
 
 
-def test_only_active_owning_client_can_download_issued_versions(world, people, client):
+@pytest.mark.parametrize("extension", ["csv", "xlsx"])
+def test_only_active_owning_client_can_download_issued_versions(world, people, client, extension):
     report, draft = world["report_a"], world["report_b"]
     release(report, people["approver"])
-    assert client.get(url(report)).status_code == 302
+    assert client.get(url(report, extension=extension)).status_code == 302
     client.force_login(people["approver"])
-    assert client.get(url(report)).status_code == 403
+    assert client.get(url(report, extension=extension)).status_code == 403
     client.force_login(world["user_b"])
-    assert client.get(url(report)).status_code == 404
-    assert client.get(url(draft)).status_code == 404
+    assert client.get(url(report, extension=extension)).status_code == 404
+    assert client.get(url(draft, extension=extension)).status_code == 404
     client.force_login(world["user_a"])
-    assert client.get(url(report)).status_code == 200
-    assert client.get(url(report, 2)).status_code == 404
-    assert client.post(url(report)).status_code == 405
+    assert client.get(url(report, extension=extension)).status_code == 200
+    assert client.get(url(report, 2, extension)).status_code == 404
+    assert client.post(url(report, extension=extension)).status_code == 405
     User.objects.filter(pk=world["user_a"].pk).update(is_active=False)
-    assert client.get(url(report)).status_code == 302
+    assert client.get(url(report, extension=extension)).status_code == 302
 
 
 def test_csv_keeps_original_version_after_correction(world, people, client):

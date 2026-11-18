@@ -23,8 +23,15 @@ urlpatterns = [
     path("reports/<int:pk>/v<int:number>.pdf", views.report_pdf, name="report-pdf"),
     path(
         "reports/<int:pk>/v<int:number>/results.csv",
-        views.report_results_csv,
+        views.report_results_download,
+        {"output_format": "csv"},
         name="report-results-csv",
+    ),
+    path(
+        "reports/<int:pk>/v<int:number>/results.xlsx",
+        views.report_results_download,
+        {"output_format": "xlsx"},
+        name="report-results-xlsx",
     ),
     path("reports/<int:pk>/edd/<int:export_pk>.zip", edd.portal_edd_download, name="edd-download"),
 ]

@@ -300,7 +300,9 @@
   document.addEventListener("submit", function (event) {
     var form = event.target;
     var method = (form.getAttribute("method") || "get").toLowerCase();
-    if (event.defaultPrevented || method !== "post" || form.hasAttribute("hx-post")) {
+    // Attachment downloads keep this form open for the next download.
+    if (event.defaultPrevented || method !== "post" ||
+        form.hasAttribute("hx-post") || form.hasAttribute("data-vr-download-form")) {
       return;
     }
     if (form.dataset.vrSubmitting === "true") {

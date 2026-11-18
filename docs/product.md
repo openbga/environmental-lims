@@ -298,13 +298,15 @@ One row per charge with a repeated invoice number supports manual column mapping
 system determines the required fields and which charges it accepts. [US invoice import guidance,
 checked 2026-11-18](https://quickbooks.intuit.com/learn-support/en-us/help-article/import-export-data-files/import-multiple-invoices/L7E9Xrd8l_US_en_US).
 
-A client can read the current issued result table in the portal and download a CSV for any
-issued version of its own report. In the standard CSV each row identifies the report version and sample and carries
-the reported result text, unit, qualifiers and reporting limit from that issue. Historical
-downloads use the original issue even after an amendment. Clients may also supply a reusable
-two-row CSV template to select result fields and set column headings and order for a single
-download. Clients keep their template locally and choose the fields their recipient needs.
-The issued result text and row order are preserved. The stored PDF is the report of record.
+A client can read the current issued result table in the portal and download any issued version
+of its own report as CSV or as an Excel workbook (.xlsx). In either standard download, each row
+identifies the report version and sample and carries the reported result text, unit, qualifiers
+and reporting limit from that issue. Historical downloads use the original issue after an amendment.
+Clients can use the same two-row CSV template in either format to select fields and set column
+headings and order. They keep the template locally. Both downloads preserve issued row order.
+The Excel worksheet stores values as text so sample IDs retain leading zeros and results keep
+the precision and qualifiers the laboratory reported. If a selected value cannot be written
+exactly in the workbook, clients can download that version as CSV. The stored PDF is the report of record.
 
 Deliverable and reporting targets for milestones 2 to 4. All are exploratory. A recipient accepts an EDD only against its own current specification and reference values, so no format here is claimed as accepted until tested against one named recipient's spec.
 

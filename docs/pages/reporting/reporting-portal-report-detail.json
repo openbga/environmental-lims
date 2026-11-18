@@ -5,7 +5,7 @@
   ],
   "title": "Issued report",
   "purpose": "Read the latest issued result summary and retrieve all retained report versions and generated export files.",
-  "summary": "Read the latest issued results. Download the report of record as a PDF or use the results CSV to work with the data in a spreadsheet. Earlier versions are also available.",
+  "summary": "Read the latest issued results. Download the report of record as a PDF or download the data as a CSV or Excel workbook. Earlier versions are also available.",
   "tasks": [
     {
       "title": "Download the report of record",
@@ -16,14 +16,14 @@
     {
       "title": "Get results for a spreadsheet",
       "steps": [
-        "Select [[Download results (CSV)]] at the top of the page to get the latest issued results.",
+        "Select [[Download results (CSV)]] or [[Download Excel workbook]] at the top of the page to get the latest issued results.",
         "To choose columns and headings, select [[Use CSV template]] for the version you need."
       ]
     },
     {
       "title": "Get an earlier version",
       "steps": [
-        "In [[Version history]], select [[Download PDF]] or [[Download results CSV]] for the version you need."
+        "In [[Version history]], select [[Download PDF]], [[Download results CSV]] or [[Download Excel workbook]] for the version you need."
       ]
     },
     {
@@ -35,7 +35,7 @@
   ],
   "good_to_know": [
     "Everything here comes from the issued version. Later changes appear only after a further release.",
-    "The results CSV is generated from the selected version, including when that version has been superseded.",
+    "CSV and Excel downloads both use the selected version, including when that version has been superseded.",
     "ND means not detected at or above the reporting limit, not zero.",
     "NYSDEC export files are exploratory and not validated by EQuIS EDP.",
     "Ask the laboratory about errors or needed amendments. You can't change results here."
@@ -106,6 +106,10 @@
           "description": "Download the latest issued results as a comma-separated file, with one row per sample result. Use the PDF for the complete report of record."
         },
         {
+          "label": "Download Excel workbook",
+          "description": "Download the latest issued results as an .xlsx file. The Results sheet has one row per result, a frozen heading row and column filters."
+        },
+        {
           "label": "Page contents",
           "description": "When at least three sample sections exist, jump links list client sample IDs and Version history. Fewer samples omit this contents list."
         },
@@ -115,7 +119,7 @@
         },
         {
           "label": "Use CSV template",
-          "description": "Open a custom result download for the current version. The same link under Version history opens the version on that history entry, including a superseded version."
+          "description": "Choose the columns, headings and order in a CSV or Excel download for the current version. The same link under Version history opens the version on that history entry, including a superseded version."
         }
       ]
     },
@@ -173,12 +177,13 @@
       ]
     },
     {
-      "title": "Standard results CSV",
+      "title": "Standard results CSV and Excel workbook",
       "paragraphs": [
         "Each row contains one result from the selected issue, in report order. It includes the report number, version and synthetic data indicator, lab and client sample IDs, matrix, collection time and location, analyte, issued result text, unit, qualifiers and reporting limit.",
         "The row also includes the result basis, percent solids and reference, method code and version, analysis-start time, and subcontract laboratory, report reference and sample ID when recorded. Timestamps keep the offsets recorded in the issue.",
         "Optional values are blank when missing from the issue, including the synthetic data indicator in older issues that did not record it. For an in-house soil result without a recorded basis, the basis reads Basis not recorded.",
-        "The UTF-8 CSV keeps the issued result text, including ND and trailing zeroes. Text that a spreadsheet could interpret as a formula has an apostrophe added at the beginning. The filename includes the report number and version."
+        "The UTF-8 CSV keeps the issued result text, including ND and trailing zeroes. Text that a spreadsheet could interpret as a formula has an apostrophe added at the beginning. Both filenames include the report number and version.",
+        "In the Excel workbook all values are text. Sample IDs keep leading zeros, values keep the exact reported digits, and timestamps keep their offsets. If the workbook cannot preserve a cell’s text or a row or cell exceeds an Excel limit, the report shows a message. Download the CSV for that version to keep all the data."
       ]
     },
     {
@@ -200,6 +205,10 @@
           "description": "Export the results from the selected issued version. This also works for earlier versions marked superseded and uses the values frozen at their release."
         },
         {
+          "label": "Download Excel workbook",
+          "description": "Get an Excel workbook from this version’s issued results. Check the version number when downloading an earlier issue."
+        },
+        {
           "label": "NYSDEC EDD (exploratory) ZIP",
           "description": "Shown for every stored export belonging to each version, with generation date. These are generated files, not automatically created by PDF release. They are not validated by EQuIS EDP. Multiple exports of one issue can use different mappings/context; downloading returns the exact stored file rather than current settings."
         }
@@ -213,10 +222,12 @@
     "reporting/models.py",
     "reporting/content.py",
     "reporting/results_csv.py",
+    "reporting/results_xlsx.py",
     "reporting/templates/reporting/portal/notice.html",
     "templates/layouts/portal.html",
     "reporting/tests/test_portal.py",
     "reporting/tests/test_portal_results_csv.py",
+    "reporting/tests/test_portal_csv_template.py",
     "reporting/tests/test_grids.py",
     "reporting/templates/reporting/portal/report_detail.html",
     "reporting/templates/reporting/portal/_version_files.html",

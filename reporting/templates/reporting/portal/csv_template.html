@@ -8,12 +8,13 @@
 {% block page_intro %}<p class="vr-page-intro">Choose which result columns to download, their headings and their order.</p>{% endblock %}
 {% block content %}
 {% url 'portal:report-detail' version.report_id as back %}
-{% form_page form=form cancel_url=back submit_label="Download custom CSV" download=True multipart=True %}
+{% form_page form=form cancel_url=back submit_label="Download results" download=True multipart=True %}
   <fieldset class="vr-form-section">
     <legend>Prepare your template</legend>
     <p><a href="{% url 'portal:csv-template-example' %}" download>{% icon name="download" %}Download example template</a></p>
     <p>Rename headings in the first row. Keep the field keys in the second row paired with their headings. Move or delete whole columns, then save the file to use again.</p>
     {{ form.template_file.as_field_group }}
+    {{ form.output_format.as_field_group }}
   </fieldset>
 {% endform_page %}
 {% endblock %}
