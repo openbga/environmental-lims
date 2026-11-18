@@ -1,5 +1,6 @@
 """Staff invoice pages preserve the reviewed revision and protect the original download."""
 
+import re
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import patch
@@ -63,7 +64,11 @@ def test_issue_applies_only_the_selected_proposal(
         assert b'id="invoice-proposed-due-date" datetime="2028-03-15"' in preview.content
         checkbox = preview.context["form"]["use_proposed_due_date"]
         assert b'name="use_proposed_due_date"' in preview.content
-        assert 'form="issue-invoice-form"' in str(checkbox) and " checked" not in str(checkbox)
+        issue_form = re.search(
+            rb'<form[^>]*id="issue-invoice-form".*?</form>', preview.content, re.S
+        ).group(0)
+        assert b'name="use_proposed_due_date"' in issue_form
+        assert " checked" not in str(checkbox)
         net_draft.refresh_from_db()
         assert net_draft.due_date is None
         submission = {
@@ -235,6 +240,28 @@ def test_stale_review_requires_reload_and_render_failure_can_retry(
     assert draft.status == InvoiceDraft.Status.DRAFT and draft.revision == current.revision
     assert not AuditEvent.objects.filter(action="invoice_draft.issued").exists()
     assert issue(client, current).status_code == 302
+
+
+def test_issue_in_the_form_dialog_keeps_the_revision_check(client, lab, draft, rendered_pdf):
+    """The issue review opens in the dialog; a stale review is refused there, as on the page."""
+    dialog = {"X-VR-Form": "1"}
+    client.force_login(lab["pm"])
+    opened = client.get(invoice_url(draft, "issue"), headers=dialog)
+    assert opened.status_code == 200 and b"<!doctype html>" not in opened.content
+    assert b"data-vr-form-page" in opened.content and b'id="issue-invoice-form"' in opened.content
+    current = save(lab, draft, due_date=date(2027, 1, 31))
+    stale = client.post(
+        invoice_url(draft, "issue"), {"expected_revision": draft.revision}, headers=dialog
+    )
+    assert stale.status_code == 200 and stale.context["review_again"]
+    assert b"<!doctype html>" not in stale.content and b"disabled>Issue invoice" in stale.content
+    assert not IssuedInvoice.objects.exists()
+    issued = client.post(
+        invoice_url(draft, "issue"), {"expected_revision": current.revision}, headers=dialog
+    )
+    assert issued.status_code == 204
+    assert issued["HX-Redirect"] == invoice_url(draft, "detail")
+    assert IssuedInvoice.objects.count() == 1
 
 
 def test_issue_needs_laboratory_profile(client, lab, draft):

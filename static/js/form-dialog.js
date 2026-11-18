@@ -343,8 +343,15 @@
           destination = part;
         });
       }
-      var heading = page.querySelector(".vr-page-header h1, h1");
+      // The page's heading names the dialog. Account pages (allauth) have no page title: their
+      // heading is in the body, so it moves to the dialog title rather than showing twice.
+      var heading = Array.from(page.querySelectorAll("h1")).find(function (h1) {
+        return h1.textContent.trim();
+      });
       title.textContent = heading ? heading.textContent.trim() : "Form";
+      if (heading && !heading.closest(".vr-page-header")) {
+        heading.hidden = true;
+      }
       setSize(page.getAttribute("data-vr-form-size"));
       // Query-only sort/pager links belong to the form URL, while the document stays
       // on its background record. Resolve them once so modified clicks work too.

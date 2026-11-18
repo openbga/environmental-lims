@@ -307,7 +307,6 @@ class InvoiceIssueForm(StyledForm, forms.Form):
         label="Use proposed due date",
         widget=forms.CheckboxInput(
             attrs={
-                "form": "issue-invoice-form",
                 "aria-describedby": "invoice-proposed-due-date id_use_proposed_due_date_helptext",
             }
         ),

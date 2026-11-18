@@ -2,15 +2,9 @@
 {% load commercial_extras ui %}
 {% block breadcrumbs %}{% url 'commercial:invoice-list' as list_url %}{% url 'commercial:invoice-detail' draft.pk as record_url %}{% breadcrumbs section="Draft invoices" section_url=list_url record=draft.number record_url=record_url current="Issue invoice" %}{% endblock %}
 {% block page_meta %}{% page_meta %}<li>{% status label="Draft" tone="neutral" plain=True %}</li><li>{{ draft.number }}</li><li>{{ draft.client_name }}</li><li>{{ draft.total|usd }} USD</li>{% endpage_meta %}{% endblock %}
-{% block page_actions %}
-{% url 'commercial:invoice-issue' draft.pk as issue_url %}
-<a class="btn btn-outline-secondary" href="{% url 'commercial:invoice-detail' draft.pk %}">Back to draft</a>
-{% if review_again %}<a class="btn btn-outline-secondary" href="{{ issue_url }}">Reload preview</a>{% endif %}
-{% if blocked or review_again %}<button class="btn btn-primary" type="button" aria-describedby="{% if blocked %}issue-unavailable{% else %}issue-review-again{% endif %}" disabled>Issue invoice</button>{% else %}{% post_button action=issue_url label="Issue invoice" variant="primary" fields=form.hidden_fields id="issue-invoice-form" %}{% endif %}
-{% endblock %}
+{% block page_actions %}{% if review_again %}<a class="btn btn-outline-secondary" href="{% url 'commercial:invoice-issue' draft.pk %}">Reload preview</a>{% endif %}{% endblock %}
 {% block content %}
 {% if blocked %}{% notice tone="warning" label="Cannot issue invoice" id="issue-unavailable" blocking=True %}{{ blocked }}{% endnotice %}{% endif %}
-{% form_errors form=form %}
 {% if review_again %}{% notice tone="warning" label="Review again" id="issue-review-again" %}Reload this preview and review the billing details and any proposed due date before you issue the invoice.{% endnotice %}{% endif %}
 {% notice tone="neutral" label="Before you issue" %}Review the billing details and charges below. Issuing assigns an invoice number, locks the draft and stores a PDF. Download the PDF to deliver it to the client.{% endnotice %}
 {% panel title="Billing details" class="mb-3" %}<dl class="vr-facts">
@@ -22,7 +16,7 @@
 {% fact label="Purchase order" value=draft.po_number %}
 {% fact label="Chain of custody" value=draft.order_reference %}{% fact label="Project" value=draft.project_name %}
 {% if proposed_due_date %}{% fact label="Proposed due date" wide=True %}<time id="invoice-proposed-due-date" datetime="{{ proposed_due_date|date:'Y-m-d' }}">{{ proposed_due_date|date:"Y-m-d" }}</time>{% endfact %}{% endif %}
-</dl>{% if proposed_due_date and not blocked and not review_again %}{% field field=form.use_proposed_due_date %}{% endif %}{% endpanel %}
+</dl>{% endpanel %}
 {% notice tone="warning" label="Review descriptions and tax" %}Test, fee and discount descriptions appear on the invoice PDF. Tax amounts appear under Tax. The basis or source of each tax assessment stays on the staff record. Review tax after any change to charges.{% endnotice %}
 {% panel title="Invoice lines" heading_id="invoice-preview-lines" table=True count=lines|length %}
 <div class="vr-table-wrap"><table class="table vr-table" aria-labelledby="invoice-preview-lines"><thead><tr>
@@ -31,4 +25,10 @@
 {% for line in lines %}<tr><th scope="row">{{ line.get_kind_display }}</th><td class="vr-wrap">{% if line.kind == "tax" %}Tax{% else %}{{ line.description }}{% if line.kind == "test" %}<div class="small vr-muted">Lab sample {{ line.lab_id }}{% if line.client_sample_id %} · Client sample {{ line.client_sample_id }}{% endif %}</div>{% endif %}{% endif %}</td><td class="text-end">{{ line.quantity }}</td><td class="text-end vr-nowrap">{{ line.unit_price|usd }}</td><td class="text-end vr-nowrap">{{ line.amount|usd }}</td></tr>{% endfor %}
 </tbody><tfoot><tr><th scope="row" colspan="4" class="text-end">Invoice total (USD)</th><td class="text-end vr-nowrap">{{ draft.total|usd }}</td></tr></tfoot></table></div>
 {% endpanel %}
+{% url 'commercial:invoice-issue' draft.pk as issue_url %}{% url 'commercial:invoice-detail' draft.pk as cancel_url %}
+{% form_page form=form action=issue_url id="issue-invoice-form" cancel_url=cancel_url submit_label="Issue invoice" no_submit=can_issue|yesno:",True" no_required_note=True %}
+  {% fill actions %}{% if not can_issue %}<button class="btn btn-primary" type="button" aria-describedby="{% if blocked %}issue-unavailable{% else %}issue-review-again{% endif %}" disabled>Issue invoice</button>{% endif %}{% endfill %}
+  {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+  {% if proposed_due_date and can_issue %}<fieldset class="vr-form-section"><legend>Due date</legend>{% field field=form.use_proposed_due_date %}</fieldset>{% endif %}
+{% endform_page %}
 {% endblock %}

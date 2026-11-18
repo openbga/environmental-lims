@@ -16,7 +16,7 @@
     {
       "title": "Keep the app",
       "steps": [
-        "Leave with the normal account navigation without selecting Deactivate."
+        "Select [[Cancel]] without selecting Deactivate."
       ]
     }
   ],
@@ -31,19 +31,22 @@
       "items": [
         {
           "label": "Deactivate",
-          "description": "POSTs removal of the signed-in account’s TOTP authenticator after recent reauthentication. If no other non-recovery authenticator remains, recovery codes are deleted as well. Returns to the MFA overview."
+          "description": "POSTs removal of the signed-in account’s TOTP authenticator after recent reauthentication. If no other non-recovery authenticator remains, recovery codes are deleted as well. Returns to the MFA overview. Success closes the dialog."
         }
       ]
     },
     {
       "title": "Eligibility and navigation",
       "paragraphs": [
-        "Requires an existing TOTP record, sign-in and recent reauthentication, normally within five minutes. This form has no editable fields, Back button or Cancel button. Leave via normal account navigation without submitting to keep the app active. Removing TOTP here does not remove laboratory roles or change the password. The normal flow performs recovery-code cleanup; direct maintenance deletion has different behavior."
+        "Requires an existing TOTP record, sign-in and recent reauthentication, normally within five minutes. The confirmation opens in the shared form dialog over Two-factor authentication. It has no editable fields; Cancel closes it and keeps the app active (opened by its address, Cancel goes to Two-factor authentication). Removing TOTP here does not remove laboratory roles or change the password. The normal flow performs recovery-code cleanup; direct maintenance deletion has different behavior."
       ]
     }
   ],
   "sources": [
+    "accounts/adapter.py",
     "config/settings.py",
+    "core/form_surfaces.py",
+    "templates/allauth/elements/form__manage.html",
     "templates/allauth/layouts/base.html",
     "templates/allauth/layouts/manage.html",
     "uv.lock"
