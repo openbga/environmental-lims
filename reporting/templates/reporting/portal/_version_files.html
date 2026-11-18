@@ -2,4 +2,5 @@
 {% if version.amends and version.changes %}<ul class="ps-3 mb-1">{% for change in version.changes %}<li>{% include "reporting/_change.html" %}</li>{% endfor %}</ul>{% endif %}
 <div><a href="{% url 'portal:report-pdf' report.pk version.number %}">Download PDF<span class="visually-hidden"> version {{ version.number }}</span></a> ({{ version.pdf_size|filesizeformat }})</div>
 <div><a href="{% url 'portal:report-results-csv' report.pk version.number %}">Download results CSV<span class="visually-hidden"> for version {{ version.number }}</span></a></div>
+<div><a href="{% url 'portal:report-csv-template' report.pk version.number %}">Use CSV template<span class="visually-hidden"> for version {{ version.number }}</span></a></div>
 {% for export in version.portal_exports %}<div><a href="{% url 'portal:edd-download' report.pk export.pk %}">NYSDEC EDD (exploratory) ZIP<span class="visually-hidden"> export {{ export.pk }} of version {{ version.number }}</span></a> · {{ export.created_at|date:"Y-m-d" }} · not validated by EQuIS EDP</div>{% endfor %}

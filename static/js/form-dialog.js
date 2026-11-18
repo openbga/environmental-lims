@@ -370,6 +370,9 @@
         var action = form.getAttribute("action") || currentUrl;
         action = new URL(action, new URL(currentUrl, window.location.href)).href;
         form.action = action;
+        if (form.hasAttribute("data-vr-download-form")) {
+          return; // Let the browser handle the attachment or display the returned form errors.
+        }
         form.setAttribute(method === "post" ? "hx-post" : "hx-get", action);
         form.setAttribute("hx-target", "#vr-form-content");
         form.setAttribute("hx-swap", "innerHTML");
@@ -555,6 +558,8 @@
           dirty = false;
           event.target.requestSubmit(event.submitter || undefined);
         });
+      } else if (event.target.hasAttribute("data-vr-download-form")) {
+        dirty = false; // A download does not leave the page.
       } else if (localForm && event.target === localForm.form) {
         nativeLeaving = true;
       }

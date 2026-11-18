@@ -16,7 +16,8 @@
     {
       "title": "Get results for a spreadsheet",
       "steps": [
-        "Select [[Download results (CSV)]] at the top of the page to get the latest issued results."
+        "Select [[Download results (CSV)]] at the top of the page to get the latest issued results.",
+        "To choose columns and headings, select [[Use CSV template]] for the version you need."
       ]
     },
     {
@@ -111,6 +112,10 @@
         {
           "label": "Amended report",
           "description": "Latest amendment names replaced version and reason. Earlier versions remain in history."
+        },
+        {
+          "label": "Use CSV template",
+          "description": "Open a custom result download for the current version. The same link under Version history opens the version on that history entry, including a superseded version."
         }
       ]
     },
@@ -168,7 +173,7 @@
       ]
     },
     {
-      "title": "Results CSV",
+      "title": "Standard results CSV",
       "paragraphs": [
         "Each row contains one result from the selected issue, in report order. It includes the report number, version and synthetic data indicator, lab and client sample IDs, matrix, collection time and location, analyte, issued result text, unit, qualifiers and reporting limit.",
         "The row also includes the result basis, percent solids and reference, method code and version, analysis-start time, and subcontract laboratory, report reference and sample ID when recorded. Timestamps keep the offsets recorded in the issue.",

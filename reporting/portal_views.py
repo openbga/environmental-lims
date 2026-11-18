@@ -25,12 +25,13 @@ from django.db.models.functions import Coalesce
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, render
 from django.utils.http import content_disposition_header
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_http_methods
 
 from core.grids import GridRequest, active_filters
 from receipt.models import Project, RequestedTest, Sample
 
 from .content import synthetic_notice
+from .forms import ResultCSVTemplateForm
 from .models import Report, ReportFile, ReportVersion
 from .queries import (
     approved_tests,
@@ -39,7 +40,7 @@ from .queries import (
     reported_versions,
     started_tests,
 )
-from .results_csv import export_results_csv
+from .results_csv import example_csv_template, export_results_csv
 from .views import pdf_response, toolbar_fields
 
 SAMPLE_STATUSES = [
@@ -413,8 +414,46 @@ def report_results_csv(request, pk, number):
         number=number,
     )
     filename = f"{snapshot['content']['report']['number']}-v{number}-results.csv"
-    response = HttpResponse(export_results_csv(snapshot), content_type="text/csv; charset=utf-8")
+    return _csv_download(export_results_csv(snapshot), filename)
+
+
+def _csv_download(content, filename):
+    response = HttpResponse(content, content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = content_disposition_header(True, filename)
     response["Cache-Control"] = "private, no-store"
     response["X-Content-Type-Options"] = "nosniff"
     return response
+
+
+@client_required
+@require_GET
+def result_template_example(request):
+    return _csv_download(example_csv_template(), "results-template.csv")
+
+
+@client_required
+@require_http_methods(["GET", "POST"])
+def report_csv_template(request, pk, number):
+    version = get_object_or_404(
+        client_versions(request.user)
+        .filter(file__isnull=False)
+        .select_related("report")
+        .only("number", "report__latest_version"),
+        report_id=pk,
+        number=number,
+    )
+    if request.method == "POST":
+        form = ResultCSVTemplateForm(request.POST, request.FILES)
+        if form.is_valid():
+            snapshot = ReportFile.objects.values_list("snapshot", flat=True).get(version=version)
+            return _csv_download(
+                export_results_csv(snapshot, columns=form.cleaned_data["template_file"]),
+                f"{version.report.number}-v{number}-custom-results.csv",
+            )
+    else:
+        form = ResultCSVTemplateForm()
+    return render(
+        request,
+        "reporting/portal/csv_template.html",
+        _context(request, "Use CSV template", form=form, version=version),
+    )

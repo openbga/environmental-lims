@@ -1,0 +1,19 @@
+{% extends "layouts/portal.html" %}
+{% load ui %}
+{% block breadcrumbs %}{% url 'portal:report-list' as list_url %}{% url 'portal:report-detail' version.report_id as record_url %}{% breadcrumbs section="Reports" section_url=list_url record=version.report.number record_url=record_url current="Use CSV template" %}{% endblock %}
+{% block page_meta %}{% page_meta %}
+  <li>{% if version.number == version.report.latest_version %}{% status label="Current version" tone="success" %}{% else %}{% status label="Superseded version" tone="neutral" %}{% endif %}</li>
+  <li>{{ version.report.number }} · Version {{ version.number }}</li>
+{% endpage_meta %}{% endblock %}
+{% block page_intro %}<p class="vr-page-intro">Choose which result columns to download, their headings and their order.</p>{% endblock %}
+{% block content %}
+{% url 'portal:report-detail' version.report_id as back %}
+{% form_page form=form cancel_url=back submit_label="Download custom CSV" download=True multipart=True %}
+  <fieldset class="vr-form-section">
+    <legend>Prepare your template</legend>
+    <p><a href="{% url 'portal:csv-template-example' %}" download>{% icon name="download" %}Download example template</a></p>
+    <p>Rename headings in the first row. Keep the field keys in the second row paired with their headings. Move or delete whole columns, then save the file to use again.</p>
+    {{ form.template_file.as_field_group }}
+  </fieldset>
+{% endform_page %}
+{% endblock %}

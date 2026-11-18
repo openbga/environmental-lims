@@ -25,6 +25,7 @@ records; it does not certify compliance or accreditation.
 - **Reporting:** explicit release authorization, versioned immutable PDF reports that print the
   laboratory's address, logo and certificate numbers, amendments and a client portal where each
   client can read its issued results and download a CSV for the current or an earlier report version.
+  Clients can supply a reusable CSV template to choose the columns, headings and order.
 - **Operations:** price lists and versioned quotes, client-submitted COCs, delivery scheduling,
   labels, subcontracted results and staff account-hold notices at receipt and report release.
   Internal draft invoices take received tests and an explicitly selected price list or matching

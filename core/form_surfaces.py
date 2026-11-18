@@ -120,6 +120,7 @@ FORM_SURFACES = {
     "client_commercial:submission-edit": "lg",
     "client_commercial:sample-create": "xl",
     "client_commercial:sample-edit": "xl",
+    "portal:report-csv-template": "lg",
     "reporting:report-create": "xl",
     "reporting:report-edit": "xl",
     "reporting:nysdec-project": "lg",
