@@ -63,6 +63,7 @@ WORKLIST_SORTS = {
     "lab_id": ("sample__lab_id", "definition__analyte__name"),
     "received": ("sample__received_at",),
     "analyte": ("definition__analyte__name", "sample__lab_id"),
+    "returned": ("returned_at",),
 }
 
 
@@ -170,6 +171,42 @@ def worklist_queryset(
         )
         qs = running.filter(expired if holding == "expired" else expired | at_risk)
     return qs
+
+
+def with_returned_at(qs):
+    """Age of the current return, shared by the dashboard and worklist ordering."""
+    current_return = (
+        ResultRevision.objects.filter(
+            result_id=OuterRef("result__pk"),
+            number=OuterRef("result__latest_number"),
+            status=ResultRevision.Status.RETURNED,
+        )
+        .order_by()
+        .values("reviewed_at")
+    )
+    return qs.annotate(
+        returned_at=Case(When(work_status="returned", then=Subquery(current_return[:1])))
+    )
+
+
+def attach_worklist_returns(tests):
+    """Load return details in one query for the returned rows on this page."""
+    returned = {rt.result.pk: rt for rt in tests if rt.work_status == "returned"}
+    if returned:
+        revisions = (
+            ResultRevision.objects.filter(
+                result_id__in=returned,
+                number=F("result__latest_number"),
+                status=ResultRevision.Status.RETURNED,
+            )
+            .order_by()
+            .select_related("reviewed_by")
+            .only("result_id", "number", "reviewed_at", "review_note", "reviewed_by__username")
+        )
+        for revision in revisions:
+            rt = returned[revision.result_id]
+            if revision.number == rt.result.latest_number:
+                rt.returned_revision = revision
 
 
 def clock_state(deadline, warning, now=None):

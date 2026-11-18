@@ -21,6 +21,7 @@ records; it does not certify compliance or accreditation.
   and mapped CSV/TSV or XLSX worksheet imports, results calculated from bench readings that are kept
   with the result and rounded by the laboratory's own rule (dilutions, solids by weight, preparation factors and dry-weight
   correction for soil, alkalinity and EDTA hardness titrations, BOD bottle worksheets), QC evaluation, independent review, control charts and MDL studies.
+  Analysts can open returned results from the dashboard, oldest return first, and see why each needs correction.
 - **Reporting:** explicit release authorization, versioned immutable PDF reports that print the
   laboratory's address, logo and certificate numbers, amendments and a client portal where each
   client can read its issued results and download a CSV for the current or an earlier report version.

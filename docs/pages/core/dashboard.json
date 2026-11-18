@@ -15,6 +15,13 @@
       ]
     },
     {
+      "title": "Pick up work returned by a reviewer",
+      "steps": [
+        "On the Bench line, select [[Results returned for correction]].",
+        "Start with the earliest return. On the worklist, expand [[Return reason]] and select the analyte to open its result."
+      ]
+    },
+    {
       "title": "Receive a shipment",
       "steps": [
         "Select [[Receive samples]]. A new chain of custody opens for the actual receipt."
@@ -97,8 +104,12 @@
           "description": "Quotes in Draft status, shown to staff who can manage quotations."
         },
         {
-          "label": "Tests not yet in a batch / awaiting entry / returned",
-          "description": "Analyst queues use the analytical worklist’s eligibility and current result state."
+          "label": "Tests not yet in a batch / In a batch, awaiting entry",
+          "description": "Analyst queues count requested tests by their current worklist status."
+        },
+        {
+          "label": "Results returned for correction",
+          "description": "Analysts see all current returns across the laboratory. Oldest measures time since the earliest outstanding review decision. The link opens those tests in return order, earliest first. Saving a corrected revision removes the test from this queue."
         },
         {
           "label": "Holding time at risk or expired",
@@ -177,6 +188,9 @@
     "tests/test_announcements.py",
     "core/templatetags/navigation.py",
     "templates/includes/nav_staff.html",
-    "tests/test_navigation.py"
+    "tests/test_navigation.py",
+    "analytical/selectors.py",
+    "analytical/views.py",
+    "analytical/templates/analytical/worklist.html"
   ]
 }
