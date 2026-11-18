@@ -23,7 +23,7 @@ records; it does not certify compliance or accreditation.
   correction for soil, alkalinity and EDTA hardness titrations, BOD bottle worksheets), QC evaluation, independent review, control charts and MDL studies.
 - **Reporting:** explicit release authorization, versioned immutable PDF reports that print the
   laboratory's address, logo and certificate numbers, amendments and a client portal where each
-  client sees only its own work.
+  client can read its issued results and download a CSV for the current or an earlier report version.
 - **Operations:** price lists and versioned quotes, client-submitted COCs, delivery scheduling,
   labels, subcontracted results and staff account-hold notices at receipt and report release.
   Internal draft invoices take received tests and an explicitly selected price list or matching

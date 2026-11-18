@@ -22,8 +22,10 @@ from django.db.models import (
     When,
 )
 from django.db.models.functions import Coalesce
-from django.http import HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, render
+from django.utils.http import content_disposition_header
+from django.views.decorators.http import require_GET
 
 from core.grids import GridRequest, active_filters
 from receipt.models import Project, RequestedTest, Sample
@@ -37,6 +39,7 @@ from .queries import (
     reported_versions,
     started_tests,
 )
+from .results_csv import export_results_csv
 from .views import pdf_response, toolbar_fields
 
 SAMPLE_STATUSES = [
@@ -397,3 +400,21 @@ def report_pdf(request, pk, number):
         client_versions(request.user).select_related("report"), report_id=pk, number=number
     )
     return pdf_response(version)
+
+
+@client_required
+@require_GET
+def report_results_csv(request, pk, number):
+    snapshot = get_object_or_404(
+        client_versions(request.user)
+        .filter(file__isnull=False)
+        .values_list("file__snapshot", flat=True),
+        report_id=pk,
+        number=number,
+    )
+    filename = f"{snapshot['content']['report']['number']}-v{number}-results.csv"
+    response = HttpResponse(export_results_csv(snapshot), content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = content_disposition_header(True, filename)
+    response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response

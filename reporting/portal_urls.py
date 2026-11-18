@@ -11,5 +11,10 @@ urlpatterns = [
     path("reports/", views.report_list, name="report-list"),
     path("reports/<int:pk>/", views.report_detail, name="report-detail"),
     path("reports/<int:pk>/v<int:number>.pdf", views.report_pdf, name="report-pdf"),
+    path(
+        "reports/<int:pk>/v<int:number>/results.csv",
+        views.report_results_csv,
+        name="report-results-csv",
+    ),
     path("reports/<int:pk>/edd/<int:export_pk>.zip", edd.portal_edd_download, name="edd-download"),
 ]

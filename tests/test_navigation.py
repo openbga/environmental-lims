@@ -92,6 +92,7 @@ NON_PAGE_ROUTES = {
     "laboratory:evidence",
     "portal:edd-download",
     "portal:report-pdf",
+    "portal:report-results-csv",
     "receipt:order-labels",
     "receipt:sample-labels",
     "receipt:subcontract-source-download",

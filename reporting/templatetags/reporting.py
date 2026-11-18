@@ -3,9 +3,11 @@ from datetime import datetime
 from django import template
 
 from analytical.models import QCType
+from reporting.content import basis_label
 from reporting.pdf import logo_url as snapshot_logo_url
 
 register = template.Library()
+register.filter(basis_label)
 
 
 @register.filter
@@ -73,24 +75,6 @@ def qc_type_label(value):
         return QCType(value).label
     except ValueError:
         return words(value)
-
-
-BASIS_LABELS = {"wet": "Wet weight", "dry": "Dry weight"}
-
-
-@register.filter
-def basis_label(row, matrix):
-    """Reporting basis of an internal soil result as frozen in its snapshot. Rows without the key
-    (issued before it existed, or legacy results) are "Basis not recorded" for soil; subcontracted
-    rows and non-soil matrices show nothing. Never inferred from the catalog."""
-    if row.get("source") == "external":
-        return ""
-    basis = row.get("result_basis")
-    if basis in BASIS_LABELS:
-        return BASIS_LABELS[basis]
-    if basis == "na":
-        return ""
-    return "Basis not recorded" if str(matrix).lower() == "soil" else ""
 
 
 @register.filter
