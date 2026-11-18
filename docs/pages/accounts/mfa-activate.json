@@ -18,12 +18,12 @@
     {
       "title": "Give up the setup",
       "steps": [
-        "Leave with the normal account navigation. Nothing is activated until you select Activate."
+        "Select [[Cancel]]. Nothing is activated until you select Activate."
       ]
     }
   ],
   "good_to_know": [
-    "Reloading this page creates new setup details. Use the QR code shown now.",
+    "Opening the setup again creates new setup details. Use the QR code shown now.",
     "Setup is blocked while any email address on your account is unverified.",
     "Keep the recovery codes somewhere private. They let you sign in if you lose the app.",
     "An authenticator app does not change your laboratory roles."
@@ -53,12 +53,15 @@
     {
       "title": "Prerequisites and changing enrollment",
       "paragraphs": [
-        "Requires sign-in, recent reauthentication and no unverified associated email records. This check is not a blanket requirement that a verified email record must exist: an account with no address records passes that particular test. If an app is already active, this route opens deactivation instead. Reloading an unsubmitted activation form generates new enrollment information; use the QR/secret currently displayed. There is no Back or Cancel button in this form; leave through the normal account navigation to abandon enrollment."
+        "Requires sign-in, recent reauthentication and no unverified associated email records. This check is not a blanket requirement that a verified email record must exist: an account with no address records passes that particular test. If an app is already active, this route opens deactivation instead. Reloading an unsubmitted activation form generates new enrollment information; use the QR/secret currently displayed. There is no Back or Cancel button in this form; leave through the normal account navigation to abandon enrollment. The setup opens in the shared form dialog over Two-factor authentication. When your sign-in is not recent, the Confirm Access page asks for your password first, then opens the setup; Cancel goes to Two-factor authentication."
       ]
     }
   ],
   "sources": [
+    "accounts/adapter.py",
     "config/settings.py",
+    "core/form_surfaces.py",
+    "templates/allauth/elements/form__manage.html",
     "templates/allauth/layouts/base.html",
     "templates/allauth/layouts/manage.html",
     "uv.lock"

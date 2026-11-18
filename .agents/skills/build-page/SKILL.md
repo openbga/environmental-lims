@@ -21,7 +21,7 @@ the breadcrumbs and where the primary action goes:
 | --- | --- | --- |
 | List | One `{% panel table=True hidden_title=True %}` with `{% grid_toolbar %}`, `{% sort_header %}` columns and `{% list_results %}` (table, pagination, empty, no-results and filter-error states) | `New <thing>` in `page_actions` |
 | Record | `{% page_meta %}` (status first, at most four facts), `{% record_layout %}` (lead panel of `{% fact %}` rows in `dl.vr-facts`, an optional aside launch panel), related table panels, `{% history_panel %}` last | The next step for the record's state, in the header |
-| Form | `{% form_page form=… cancel_url=… submit_label=… %}`, opened in the shared form dialog; the page is the no-JS fallback | The submit, in the action row |
+| Form | `{% form_page form=… cancel_url=… submit_label=… %}`, opened in the shared form dialog; the page is the no-JS fallback. Register the route in `FORM_SURFACES` (`core/form_surfaces.py`), or in `NOT_FORM_PAGES` with the reason it stays a page | The submit, in the action row |
 | Action form | `{% form_page %}` with the reason field; title equals the button that opened it | The submit |
 | Entry grid | A plain table of form fields (never DataTables), sticky `{% form_actions %}`, units in headers | Save |
 | Overview | Panels of queue and count tables that link to filtered lists | None, or the one most frequent start |

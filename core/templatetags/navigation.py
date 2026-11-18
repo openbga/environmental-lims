@@ -504,6 +504,7 @@ def staff_nav_sections(context):
 ACCOUNT_ROUTES = frozenset(
     {
         "whats-new",
+        "account_password",
         "account_change_password",
         "account_set_password",
         "account_email",

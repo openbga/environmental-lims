@@ -1,16 +1,18 @@
 {
   "id": "commercial-invoice-issue",
-  "routes": ["commercial:invoice-issue"],
+  "routes": [
+    "commercial:invoice-issue"
+  ],
   "title": "Issue invoice",
   "purpose": "Confirm saved billing details and USD charges, then issue an invoice and store its original PDF.",
-  "summary": "Review the saved billing details and USD charges before you issue an invoice. Issuing locks the draft and stores the numbered PDF for you to deliver.",
+  "summary": "Review the saved billing details and USD charges before you issue an invoice. The review opens in a dialog over the draft. Issuing locks the draft and stores the numbered PDF.",
   "tasks": [
     {
       "title": "Issue the invoice",
       "steps": [
         "Check the recipient, due date and purchase order in [[Billing details]].",
         "Read the charge descriptions and check the [[Invoice total (USD)]].",
-        "Select [[Issue invoice]], then select [[Download invoice PDF]] on the issued record."
+        "Select [[Issue invoice]] at the bottom of the dialog, then select [[Download invoice PDF]] on the issued record."
       ]
     },
     {
@@ -23,7 +25,7 @@
     {
       "title": "Correct the draft before issuing",
       "steps": [
-        "Select [[Back to draft]].",
+        "Select [[Cancel]] to close the review and return to the draft.",
         "Select [[Edit]], update the billing details or charges and save with a reason.",
         "Select [[Review and issue]] and check the current values."
       ]
@@ -45,15 +47,15 @@
         },
         {
           "label": "Issue invoice",
-          "description": "Assigns the invoice number, copies the saved billing and pricing details and current laboratory identity, and uses any saved or accepted due date. Stores the original PDF and checksum and locks the draft. The status, due date and attributed history change together. Success opens the issued invoice. Staff deliver the PDF manually."
+          "description": "The last button of the dialog's action row. Assigns the invoice number, copies the saved billing and pricing details and current laboratory identity, and uses any saved or accepted due date. Stores the original PDF and checksum and locks the draft. The status, due date and attributed history change together. Success closes the dialog and shows the issued invoice. Staff deliver the PDF manually."
         },
         {
           "label": "Cannot issue invoice / Review again / Reload preview",
-          "description": "Issue invoice is disabled for a cancelled chain of custody or missing laboratory profile. The server checks that the draft is current and active, has 1 to 200 lines and its saved total matches them. If the draft or accepted proposal has changed, reload and review the preview. A reload clears the checkbox. After a PDF render failure, retry from the preview. A refusal leaves the draft and audit history unchanged."
+          "description": "Issue invoice is shown disabled, with the reason beside it, for a cancelled chain of custody or missing laboratory profile, and after the draft changed under the review. The server checks that the draft is current and active, has 1 to 200 lines and its saved total matches them. If the draft or accepted proposal has changed, select Reload preview (in the dialog header) and review again. A reload clears the checkbox. After a PDF render failure, retry from the preview. A refusal leaves the draft and audit history unchanged."
         },
         {
-          "label": "Back to draft / Draft invoices",
-          "description": "Go back to the source draft or use the breadcrumb to return to the directory. These actions leave the draft unchanged."
+          "label": "Cancel / Close form",
+          "description": "Close the review and return to the draft, unchanged. Opened by its address, the review opens in the same dialog and Cancel goes to the draft. Without JavaScript the review is an ordinary page with the same actions."
         }
       ]
     },
@@ -74,7 +76,7 @@
         },
         {
           "label": "Proposed due date / Use proposed due date",
-          "description": "An undated draft with saved Net 15, Net 30, Net 45 or Net 60 terms shows a proposal. The proposal adds that many calendar days to the issue date in the deployment's configured time zone. A saved date, blank or unrecognized terms, Prepaid and Due on receipt all suppress the proposal. Check the box to save the proposal on the issued record and original PDF. The box starts unchecked and leaving it unchecked keeps the due date blank."
+          "description": "An undated draft with saved Net 15, Net 30, Net 45 or Net 60 terms shows a proposal. The proposal adds that many calendar days to the issue date in the deployment's configured time zone. A saved date, blank or unrecognized terms, Prepaid and Due on receipt all suppress the proposal. Check the box to save the proposal on the issued record and original PDF. The box starts unchecked and leaving it unchecked keeps the due date blank. The checkbox sits under Due date, just above the action row, and is offered only while the invoice can be issued."
         },
         {
           "label": "Purchase order / Chain of custody / Project",
@@ -97,14 +99,17 @@
     }
   ],
   "sources": [
-    "commercial/urls.py",
-    "commercial/invoice_views.py",
     "commercial/invoice_forms.py",
-    "commercial/invoices.py",
     "commercial/invoice_pdf.py",
+    "commercial/invoice_views.py",
+    "commercial/invoices.py",
     "commercial/models.py",
     "commercial/templates/commercial/invoice_issue.html",
     "commercial/tests/test_invoice_issue_views.py",
-    "e2e/test_invoice_issuance.py"
+    "commercial/urls.py",
+    "core/form_dialog.py",
+    "core/form_surfaces.py",
+    "e2e/test_invoice_issuance.py",
+    "static/js/form-dialog.js"
   ]
 }

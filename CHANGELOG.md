@@ -136,6 +136,10 @@ The same list is shown in the application under What's new.
 
 ### Medium impact
 
+- **Changed:** Every form opens in the form dialog, including invoice issue and account settings (2026-11-18, Draft invoices)
+
+  Review and issue on a draft invoice, the password change, adding an email address and the two-factor setup, removal and recovery-code forms now open in the same dialog as every other form, over the page you opened them from. Password in the account menu now opens a Password page that shows whether a password is set, with Change password opening the dialog; the two-factor forms have a Cancel that keeps everything as it was.
+
 - **Changed:** Follow up on the oldest returned results first (2026-11-18, Worklist)
 
   The dashboard shows how long the oldest result has waited since a reviewer returned it. Open Results returned for correction to see the reviewer, time and reason for each return, oldest first. Select the analyte to open the result.

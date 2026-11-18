@@ -52,11 +52,11 @@
         },
         {
           "label": "Account menu",
-          "description": "Shows the signed-in name and laboratory roles or client. Change password and Two-factor authentication open account settings. A shared demonstration account, one whose password the deployment publishes on the sign-in page, shows a note instead of those two links: its password, email addresses and two-factor settings cannot be changed, opening those pages returns to the home page with a notice, and no password-reset link is mailed for it. Sign out ends the session."
+          "description": "Shows the signed-in name and laboratory roles or client. Password and Two-factor authentication open account settings pages that show their state; the change itself opens in a dialog. A shared demonstration account, one whose password the deployment publishes on the sign-in page, shows a note instead of those two links: its password, email addresses and two-factor settings cannot be changed, opening those pages returns to the home page with a notice, and no password-reset link is mailed for it. Sign out ends the session."
         },
         {
           "label": "Forms",
-          "description": "Required fields are marked. Validation errors identify fields or the reason an action is blocked. After a failed page submission, focus moves to the first invalid field or the error summary when no field is invalid. Some forms open in a dialog; close/cancel leaves the underlying page. A direct form link opens the same dialog with its title as the page heading; Cancel returns to the related page or list. Sticky action buttons stay at the bottom while long forms scroll. Save applies the form only when server checks pass. A stale-edit message requires refreshing and checking current values before retrying."
+          "description": "Required fields are marked. Validation errors identify fields or the reason an action is blocked. After a failed page submission, focus moves to the first invalid field or the error summary when no field is invalid. Every form opens in a dialog over the page it was opened from; close or Cancel leaves that page as it was. Sign-in steps, record pages and review lists stay pages. A direct form link opens the same dialog with its title as the page heading; Cancel returns to the related page or list. Sticky action buttons stay at the bottom while long forms scroll. Save applies the form only when server checks pass. A stale-edit message requires refreshing and checking current values before retrying."
         },
         {
           "label": "Footer / Source code",
