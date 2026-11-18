@@ -198,8 +198,7 @@ prices with a reason. Inclusion does not establish that a test is chargeable, co
 analytically accepted. One active draft per order and a 200-line limit are product bounds.
 Creation, edits and cancellation retain attributed history and reject stale submissions;
 cancelled drafts remain available internally. Project managers and administrators handle
-issuance and manual delivery. Automatic tax calculation, payments and
-accounting export remain roadmap work.
+issuance and manual delivery. Payments stay in the accounting system. Staff can export the charges after issuance.
 
 Accepted-quote pricing, added 2026-11-16, is an explicit alternative to a price list. The quote
 must be accepted for this client and either this project or no particular project, and the
@@ -262,8 +261,7 @@ is corrected to zero with a reason; a missing tax line makes no tax determinatio
 The application does not determine taxability, jurisdiction, rates, exemptions or a taxable
 base, and changing other charges never recalculates a recorded tax amount. Staff review the
 assessment whenever charges change. These are recordkeeping product choices, not tax advice or
-a qualification of the amount entered. Automatic tax calculation and accounting
-export remain separate work.
+a qualification of the amount entered. Automatic tax calculation remains separate work.
 
 These are deliberately bounded product choices for whole-order draft preparation, not a
 contract interpretation or billing qualification. Quote quantities are matched per order;
@@ -286,6 +284,19 @@ invoice through the portal.
 Finalization and voiding follow an established invoice workflow. The roles, identifiers,
 document contents and replacement procedure above are product choices. [Invoice lifecycle,
 checked 2026-11-17](https://docs.stripe.com/invoicing/overview).
+
+An issued invoice can supply a CSV for manual accounting import (added 2026-11-18).
+Project managers and administrators can download one row per issued line. Each row identifies
+the invoice and line position, client and client account code, purchase order, source order
+and payment due date when supplied. Discounts keep their signed USD price and amount. Tax
+lines carry the issued display description. The invoice number and line position let staff
+identify repeat downloads. Only an invoice still in Issued status can be exported. Staff map
+the file to their accounting system, check its treatment of discounts and tax, and reconcile
+any subsequent void there.
+
+One row per charge with a repeated invoice number supports manual column mapping. The receiving
+system determines the required fields and which charges it accepts. [US invoice import guidance,
+checked 2026-11-18](https://quickbooks.intuit.com/learn-support/en-us/help-article/import-export-data-files/import-multiple-invoices/L7E9Xrd8l_US_en_US).
 
 A client can read the current issued result table in the portal and download a CSV for any
 issued version of its own report. Each row identifies the report version and sample and carries

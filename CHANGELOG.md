@@ -10,6 +10,10 @@ The same list is shown in the application under What's new.
 
 ### High impact
 
+- **Added:** Download issued invoice lines for accounting (2026-11-18, Draft invoices)
+
+  Project managers and administrators can download an accounting CSV from an issued invoice. It includes one row per charge with the original billing references, quantities and signed USD amounts. Voiding the invoice closes the download.
+
 - **Added:** Download issued results as a CSV (2026-11-18, Client portal)
 
   Clients can download the results from an issued report as a CSV. Version history includes a download for each earlier issue, so clients can retrieve the values the laboratory reported before an amendment.

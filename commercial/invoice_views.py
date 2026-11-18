@@ -17,6 +17,7 @@ from receipt.models import Order
 
 from . import invoices
 from .forms import apply_errors
+from .invoice_csv import export_invoice_csv
 from .invoice_forms import (
     InvoiceAddLineForm,
     InvoiceCancelForm,
@@ -411,6 +412,22 @@ def invoice_pdf(request, pk):
     else:
         response = HttpResponse(data, content_type="application/pdf")
         response["Content-Disposition"] = content_disposition_header(True, f"{invoice.number}.pdf")
+    response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+@staff_role_required(*PRICING_ROLES)
+@require_safe
+def invoice_accounting_csv(request, pk):
+    snapshot = get_object_or_404(
+        IssuedInvoice.objects.values_list("snapshot", flat=True),
+        draft_id=pk,
+        draft__status=InvoiceDraft.Status.ISSUED,
+    )
+    response = HttpResponse(export_invoice_csv(snapshot), content_type="text/csv; charset=utf-8")
+    filename = f"{snapshot['number']}-accounting.csv"
+    response["Content-Disposition"] = content_disposition_header(True, filename)
     response["Cache-Control"] = "private, no-store"
     response["X-Content-Type-Options"] = "nosniff"
     return response

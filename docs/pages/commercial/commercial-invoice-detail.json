@@ -4,8 +4,8 @@
     "commercial:invoice-detail"
   ],
   "title": "Invoice record",
-  "purpose": "Review saved billing details, source tests, USD amounts and history. Prepare a draft, issue its invoice, get its PDF or record a void.",
-  "summary": "Review saved billing details, source tests, USD amounts and history. Prepare a draft, issue its invoice, get its PDF or record a void.",
+  "purpose": "Review the invoice, check its source and charges, and download its PDF or accounting CSV.",
+  "summary": "Review invoice charges and billing history. Project managers and administrators can issue the invoice, download its PDF, export charges for accounting or record a void.",
   "tasks": [
     {
       "title": "Check the prepared charges",
@@ -38,16 +38,18 @@
       ]
     },
     {
-      "title": "Review the source order",
+      "title": "Export issued charges for accounting",
       "steps": [
-        "Select the reference under [[Chain of custody]] to open the current order."
+        "On an issued invoice, select [[Download accounting CSV]].",
+        "Map the columns in your accounting software. Match the invoice number against the ledger before importing the charges.",
+        "Sum the signed line amounts and check the result against [[Invoice total (USD)]]."
       ]
     }
   ],
   "good_to_know": [
     "Tax is entered manually. Review the assessment after any charge changes.",
     "Issuance locks the draft and stores the PDF. Download the PDF to deliver it yourself.",
-    "A voided invoice keeps its invoice number and original PDF. The order can then start a new draft.",
+    "A void closes the accounting CSV download and keeps the original PDF. Reconcile any earlier export in your accounting software.",
     "A saved due date copies to the PDF. For a draft with net terms and a blank date, you can choose a proposed date in [[Review and issue]].",
     "The draft, PDF and void history are available to project managers and administrators."
   ],
@@ -147,6 +149,10 @@
           "description": "Downloads the original invoice PDF for manual handling. Both Issued and Voided require the same staff access and are checked against the stored file checksum. After a void, the original is retained for reference."
         },
         {
+          "label": "Download accounting CSV",
+          "description": "Saves the charges from one currently issued invoice. Repeated downloads contain the same lines. Draft, cancelled and voided records have no accounting CSV."
+        },
+        {
           "label": "Void invoice",
           "description": "Appears on Issued invoices. Give a reason to mark the invoice Voided and free the chain of custody for a fresh draft. The invoice number, original PDF, billing values and history are retained."
         }
@@ -160,6 +166,14 @@
       ]
     },
     {
+      "title": "Accounting CSV columns",
+      "paragraphs": [
+        "Each row identifies one charge by invoice_number and line_position. The issue_date and optional due_date use YYYY-MM-DD. The client_name, client_account_code, order_reference and purchase_order come from the issue. The client account code identifies the customer in the laboratory directory.",
+        "The line_type is Test, Fee, Discount or Tax. The description is the one shown on the issued invoice. Tax lines read Tax and keep the staff assessment note private. Currency is USD. Quantity is a count. Multiply quantity by the signed unit_price to obtain line_amount. Sum line_amount once per row to reconcile the invoice total. The synthetic_data column shows whether the invoice carried the synthetic demonstration notice at issue.",
+        "Map the CSV to the ledger’s accounts, items and tax treatment. Keep identifier columns as text when leading zeroes matter. Text that could start a spreadsheet formula carries a leading apostrophe. Check these values against the issued invoice when mapping them."
+      ]
+    },
+    {
       "title": "Explicit tax assessments",
       "paragraphs": [
         "Tax assessments are entered manually on an active draft through Add fee, discount or tax. Each requires a description identifying its basis or source, quantity exactly 1 and a nonnegative whole-cent USD amount. Multiple assessments may be separate lines. Tax lines have no quote, sample or requested-test source. Creation from a price list or accepted quote never creates a tax line.",
@@ -170,6 +184,7 @@
   "sources": [
     "commercial/urls.py",
     "commercial/invoice_views.py",
+    "commercial/invoice_csv.py",
     "commercial/invoice_forms.py",
     "commercial/invoices.py",
     "commercial/models.py",
@@ -190,6 +205,7 @@
     "commercial/tests/test_invoice_tax.py",
     "e2e/test_invoice_tax.py",
     "commercial/tests/test_invoice_issue_views.py",
+    "commercial/tests/test_invoice_accounting_csv.py",
     "e2e/test_invoice_issuance.py"
   ]
 }

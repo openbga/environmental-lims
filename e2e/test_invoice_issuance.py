@@ -1,8 +1,11 @@
 """Staff review, issue, download and void an invoice in the normal workflow."""
 
 import re
+from codecs import BOM_UTF8
+from csv import DictReader
 from datetime import date, timedelta
 from decimal import Decimal
+from io import StringIO
 
 import pytest
 from django.urls import reverse
@@ -88,10 +91,13 @@ def test_choose_net_terms_due_date_at_issue(
 
 
 @pytest.mark.parametrize("width,theme", [(1280, "light"), (390, "dark")])
-def test_review_issue_download_void_and_find_invoice(page: Page, manual_draft, width, theme):
+def test_review_issue_download_void_and_find_invoice(
+    page: Page, manual_draft, settings, width, theme
+):
     from commercial import invoices
 
     demo, draft = manual_draft
+    settings.REPORT_SYNTHETIC_DATA_NOTICE = True
     billing = {name: getattr(draft, name) for name in invoices.BILLING_FIELDS}
     billing["payment_terms"] = "net_30"
     draft = invoices.save_invoice_draft(
@@ -118,7 +124,11 @@ def test_review_issue_download_void_and_find_invoice(page: Page, manual_draft, w
     sign_in(page, "demo_project_manager", demo.password)
     page.evaluate("theme => localStorage.setItem('vr-theme', theme)", theme)
     detail_url = reverse("commercial:invoice-detail", args=[draft.pk])
+    csv_url = reverse("commercial:invoice-accounting-csv", args=[draft.pk])
+    csv_link = page.get_by_role("link", name="Download accounting CSV", exact=True)
     page.goto(detail_url)
+    expect(csv_link).to_have_count(0)
+    assert page.request.get(csv_url).status == 404
     page.get_by_role("link", name="Review and issue", exact=True).press("Enter")
     dialog = page.locator("#vr-form-dialog")
     expect(page.locator("#vr-form-title")).to_have_text("Issue invoice")
@@ -153,6 +163,35 @@ def test_review_issue_download_void_and_find_invoice(page: Page, manual_draft, w
     assert original.suggested_filename == f"{invoice.number}.pdf"
     assert original.path().read_bytes() == bytes(invoice.pdf)
 
+    expect(csv_link).to_have_attribute("href", csv_url)
+    with page.expect_download() as accounting_csv:
+        csv_link.press("Enter")
+    accounting_csv = accounting_csv.value
+    assert accounting_csv.suggested_filename == f"{invoice.number}-accounting.csv"
+    contents = accounting_csv.path().read_bytes()
+    assert contents.startswith(BOM_UTF8)
+    rows = list(DictReader(StringIO(contents.decode("utf-8-sig"), newline="")))
+    assert rows == [
+        {
+            "invoice_number": invoice.number,
+            "line_position": str(line.position),
+            "issue_date": invoice.snapshot["issued_date"],
+            "due_date": "2027-01-31",
+            "client_name": draft.client_name,
+            "client_account_code": draft.account_code,
+            "order_reference": draft.order_reference,
+            "purchase_order": draft.po_number,
+            "currency": "USD",
+            "line_type": "Tax" if line.kind == "tax" else "Test",
+            "description": "Tax" if line.kind == "tax" else line.description,
+            "quantity": str(line.quantity),
+            "unit_price": f"{line.unit_price:.2f}",
+            "line_amount": f"{line.amount:.2f}",
+            "synthetic_data": "true",
+        }
+        for line in draft.lines.all()
+    ]
+
     page.get_by_role("link", name="Void invoice", exact=True).press("Enter")
     dialog = page.locator("#vr-form-dialog")
     expect(page.locator("#vr-form-title")).to_have_text("Void invoice")
@@ -169,6 +208,8 @@ def test_review_issue_download_void_and_find_invoice(page: Page, manual_draft, w
     expect(
         page.get_by_text("Invoice voided. Its original PDF and history are retained.")
     ).to_be_visible()
+    expect(csv_link).to_have_count(0)
+    assert page.request.get(csv_url).status == 404
     with page.expect_download() as second:
         page.get_by_role("link", name="Download original PDF", exact=True).click()
     assert second.value.suggested_filename == original.suggested_filename
@@ -187,3 +228,4 @@ def test_review_issue_download_void_and_find_invoice(page: Page, manual_draft, w
     sign_in(page, "demo_client", demo.password)
     assert page.goto(detail_url).status == 403
     assert page.request.get(reverse("commercial:invoice-pdf", args=[draft.pk])).status == 403
+    assert page.request.get(csv_url).status == 403
