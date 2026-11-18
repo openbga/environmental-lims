@@ -140,6 +140,10 @@ The same list is shown in the application under What's new.
 
 ### Medium impact
 
+- **Added:** Choose columns and headings for result CSV downloads (2026-11-18, Reports)
+
+  On an issued report in the client portal, select Use CSV template to download results with the columns your recipient needs. The example template can be edited and reused for current or earlier versions.
+
 - **Changed:** Every form opens in the form dialog, including invoice issue and account settings (2026-11-18, Draft invoices)
 
   Review and issue on a draft invoice, the password change, adding an email address and the two-factor setup, removal and recovery-code forms now open in the same dialog as every other form, over the page you opened them from. Password in the account menu now opens a Password page that shows whether a password is set, with Change password opening the dialog; the two-factor forms have a Cancel that keeps everything as it was.

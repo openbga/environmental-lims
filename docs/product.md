@@ -299,9 +299,12 @@ system determines the required fields and which charges it accepts. [US invoice 
 checked 2026-11-18](https://quickbooks.intuit.com/learn-support/en-us/help-article/import-export-data-files/import-multiple-invoices/L7E9Xrd8l_US_en_US).
 
 A client can read the current issued result table in the portal and download a CSV for any
-issued version of its own report. Each row identifies the report version and sample and carries
+issued version of its own report. In the standard CSV each row identifies the report version and sample and carries
 the reported result text, unit, qualifiers and reporting limit from that issue. Historical
-downloads use the original issue even after an amendment. The stored PDF is the report of record.
+downloads use the original issue even after an amendment. Clients may also supply a reusable
+two-row CSV template to select result fields and set column headings and order for a single
+download. Clients keep their template locally and choose the fields their recipient needs.
+The issued result text and row order are preserved. The stored PDF is the report of record.
 
 Deliverable and reporting targets for milestones 2 to 4. All are exploratory. A recipient accepts an EDD only against its own current specification and reference values, so no format here is claimed as accepted until tested against one named recipient's spec.
 

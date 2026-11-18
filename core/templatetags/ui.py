@@ -254,7 +254,7 @@ COMPONENTS = {
     ),
     "form_page": Component(
         I + "form_page.html",
-        ("form", "formset", "formset_label", "action", "multipart", "note", "times",
+        ("form", "formset", "formset_label", "action", "multipart", "download", "note", "times",
          "no_required_note", "cancel_url", "submit_label", "destructive", "secondary",
          "no_submit", "local", "title", "method", "id", "class"),
         body="block",

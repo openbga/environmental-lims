@@ -397,7 +397,13 @@ PORTAL_NAV = (
         ),
     ),
     NavItem("portal-samples", "Samples", "portal:sample-list"),
-    NavItem("portal-reports", "Reports", "portal:report-list", "", ("portal:report-detail",)),
+    NavItem(
+        "portal-reports",
+        "Reports",
+        "portal:report-list",
+        "",
+        ("portal:report-detail", "portal:report-csv-template"),
+    ),
 )
 
 # Work destinations, not a second authorization policy. Staff may still follow related-record

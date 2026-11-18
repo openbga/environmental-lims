@@ -4,6 +4,18 @@ from django.utils import timezone
 from receipt.models import Project, Sample
 
 from .models import MAX_NARRATIVE
+from .results_csv import parse_csv_template
+
+
+class ResultCSVTemplateForm(forms.Form):
+    template_file = forms.FileField(
+        label="CSV template",
+        help_text="Choose a two-row UTF-8 CSV file, up to 16 KiB.",
+        widget=forms.FileInput(attrs={"accept": ".csv,text/csv"}),
+    )
+
+    def clean_template_file(self):
+        return parse_csv_template(self.cleaned_data["template_file"])
 
 
 class SampleChoiceField(forms.ModelMultipleChoiceField):

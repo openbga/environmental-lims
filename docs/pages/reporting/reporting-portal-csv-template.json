@@ -1,0 +1,39 @@
+{
+  "id": "reporting-portal-csv-template",
+  "routes": ["portal:report-csv-template"],
+  "title": "Use CSV template",
+  "purpose": "Download issued results with the column headings and order your recipient needs.",
+  "summary": "Choose the columns for a results CSV from one issued report version. Keep your template on your computer to reuse it for another download.",
+  "tasks": [
+    {"title": "Download results with your template", "steps": [
+      "Check the report number and version at the top of the page.",
+      "Choose your saved file under [[CSV template]].",
+      "Select [[Download custom CSV]]."
+    ]},
+    {"title": "Make a reusable template", "steps": [
+      "Select [[Download example template]].",
+      "Change the headings in row one. Keep each heading above the corresponding field key in row two.",
+      "Move or delete whole columns to match the recipient’s layout.",
+      "Save the two rows as a UTF-8, comma-delimited CSV."
+    ]}
+  ],
+  "good_to_know": [
+    "A superseded version contains the results issued at that time. Open the latest version from the report when you need current results.",
+    "Keep units, qualifiers and reporting limits when the recipient needs them to interpret a result. Include the report number and version to identify the issue after combining files.",
+    "The portal uses your template for this download. Keep a local copy for later.",
+    "The stored PDF remains the report of record."
+  ],
+  "sections": [
+    {"title": "Report and version", "items": [
+      {"label": "Current version / Superseded version", "description": "Identifies the selected issue and shows whether a later version has been released. Only an active client account can open an issued version of its own report."},
+      {"label": "Report number / Version", "description": "Identifies the issue supplying the result rows. The filename carries both identifiers even if the template omits their columns."}
+    ]},
+    {"title": "Prepare your template", "items": [
+      {"label": "Download example template", "description": "Download a reusable file with a heading and field key for each supported result column. Row one supplies the output headings. Row two selects the fields in the same order."},
+      {"label": "CSV template", "description": "Choose a UTF-8, comma-delimited file of at most 16 KiB. Use exactly two rows of equal width with at least one column. Keep the field keys exactly as shown in the example. Headings and keys must be nonempty and unique. Use plain text headings without control characters or spreadsheet formula prefixes."},
+      {"label": "Download custom CSV", "description": "Download one row per issued result, using the stored result text, units and qualifiers for the fields you selected. Unavailable values stay blank. The portal shows template errors at the field. Correct your saved file, select it again and retry."},
+      {"label": "Cancel", "description": "Close the form and return to the report. If you choose a file and cancel before downloading, the dialog asks whether to discard the selection."}
+    ]}
+  ],
+  "sources": ["reporting/portal_urls.py", "reporting/portal_views.py", "reporting/forms.py", "reporting/results_csv.py", "reporting/templates/reporting/portal/csv_template.html", "reporting/tests/test_portal_csv_template.py", "reporting/tests/test_result_csv_templates.py"]
+}

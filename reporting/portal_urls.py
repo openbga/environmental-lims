@@ -9,6 +9,16 @@ urlpatterns = [
     path("projects/", views.project_list, name="project-list"),
     path("samples/", views.sample_list, name="sample-list"),
     path("reports/", views.report_list, name="report-list"),
+    path(
+        "reports/csv-template-example.csv",
+        views.result_template_example,
+        name="csv-template-example",
+    ),
+    path(
+        "reports/<int:pk>/v<int:number>/csv-template/",
+        views.report_csv_template,
+        name="report-csv-template",
+    ),
     path("reports/<int:pk>/", views.report_detail, name="report-detail"),
     path("reports/<int:pk>/v<int:number>.pdf", views.report_pdf, name="report-pdf"),
     path(
