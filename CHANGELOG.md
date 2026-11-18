@@ -148,6 +148,10 @@ The same list is shown in the application under What's new.
 
   > Entries are files in `changelog.d/`; `uv run python manage.py changelog` generates `CHANGELOG.md` and `--check` fails when it is stale. The seen state is a per-user preference, so no migration is needed. Client portal accounts do not have What's new.
 
+- **Added:** Use net payment terms to set an invoice due date (2026-11-17, Draft invoices)
+
+  When issuing an invoice, you can accept a due date calculated from the draft’s Net 15, 30, 45 or 60 terms. An agreed date entered on the draft takes precedence, and you can still issue an invoice without a due date.
+
 - **Added:** Add fees and discounts to invoice drafts with a reason (2026-11-16, Draft invoices, [#18](https://github.com/openbga/environmental-lims/pull/18))
 
   On an active draft invoice, Add fee or discount lets staff enter a fee or discount with a description, quantity, signed USD price and a reason. These lines are marked as added manually, and an unwanted amount can be corrected to zero with a reason while the line stays in the history.

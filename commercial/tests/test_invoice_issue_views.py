@@ -1,6 +1,6 @@
 """Staff invoice pages preserve the reviewed revision and protect the original download."""
 
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -8,6 +8,7 @@ import pytest
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
+from django.utils import timezone
 
 from commercial import invoices
 from commercial.invoice_pdf import InvoiceRenderError
@@ -39,6 +40,98 @@ def invoice_url(draft, page):
 
 def issue(client, draft):
     return client.post(invoice_url(draft, "issue"), {"expected_revision": draft.revision})
+
+
+@pytest.fixture
+def net_draft(lab, draft):
+    billing = {name: getattr(draft, name) for name in invoices.BILLING_FIELDS}
+    return save(lab, draft, billing={**billing, "payment_terms": "net_15"})
+
+
+@pytest.mark.parametrize("accept", [False, True])
+def test_issue_applies_only_the_selected_proposal(
+    client, lab, net_draft, rendered_pdf, settings, accept
+):
+    settings.TIME_ZONE = "America/New_York"
+    url = invoice_url(net_draft, "issue")
+    issue_time = datetime(2028, 3, 1, 2, tzinfo=UTC)
+    proposed = date(2028, 3, 15)
+    with timezone.override(UTC), patch("commercial.invoices.timezone.now", return_value=issue_time):
+        client.force_login(lab["pm"])
+        preview = client.get(url)
+        assert preview.context["proposed_due_date"] == proposed
+        assert b'id="invoice-proposed-due-date" datetime="2028-03-15"' in preview.content
+        checkbox = preview.context["form"]["use_proposed_due_date"]
+        assert b'name="use_proposed_due_date"' in preview.content
+        assert 'form="issue-invoice-form"' in str(checkbox) and " checked" not in str(checkbox)
+        net_draft.refresh_from_db()
+        assert net_draft.due_date is None
+        submission = {
+            "expected_revision": net_draft.revision,
+            "proposed_due_date": preview.context["form"]["proposed_due_date"].value(),
+        }
+        if accept:
+            submission["use_proposed_due_date"] = "on"
+        with patch("commercial.invoices.render_pdf", side_effect=InvoiceRenderError("Retry PDF.")):
+            retry = client.post(url, submission)
+        assert b"Retry PDF." in retry.content and not retry.context["review_again"]
+        assert (" checked" in str(retry.context["form"]["use_proposed_due_date"])) == accept
+        assert not IssuedInvoice.objects.exists()
+        assert client.post(url, submission).url == invoice_url(net_draft, "detail")
+
+    net_draft.refresh_from_db()
+    assert net_draft.due_date == (proposed if accept else None)
+    assert net_draft.issued_invoice.snapshot["due_date"] == (
+        proposed.isoformat() if accept else None
+    )
+
+
+@pytest.mark.parametrize("submitted", [None, "2028-03-15", "invalid"])
+def test_issue_rejects_unreviewed_proposal_and_requests_reload(
+    client, lab, net_draft, rendered_pdf, settings, submitted
+):
+    settings.TIME_ZONE = "America/New_York"
+    url = invoice_url(net_draft, "issue")
+    issue_time = datetime(2028, 3, 1, 5, tzinfo=UTC)
+    submission = {"expected_revision": net_draft.revision, "use_proposed_due_date": "on"}
+    if submitted is not None:
+        submission["proposed_due_date"] = submitted
+    with patch("commercial.invoices.timezone.now", return_value=issue_time):
+        client.force_login(lab["pm"])
+        response = client.post(url, submission)
+        assert response.status_code == 200 and response.context["review_again"]
+        assert b"Reload preview" in response.content and b"2028-03-16" in response.content
+        assert b'name="use_proposed_due_date"' not in response.content
+        assert not IssuedInvoice.objects.exists()
+        net_draft.refresh_from_db()
+        assert net_draft.due_date is None and net_draft.status == InvoiceDraft.Status.DRAFT
+        preview = client.get(url)
+        submission["proposed_due_date"] = preview.context["form"]["proposed_due_date"].value()
+        assert client.post(url, submission).status_code == 302
+
+
+@pytest.mark.parametrize("terms, saved_date", [("net_15", date(2028, 3, 3)), ("prepaid", None)])
+def test_issue_does_not_offer_or_accept_a_date_when_ineligible(
+    client, lab, draft, rendered_pdf, terms, saved_date
+):
+    billing = {name: getattr(draft, name) for name in invoices.BILLING_FIELDS}
+    draft = save(lab, draft, billing={**billing, "payment_terms": terms}, due_date=saved_date)
+    client.force_login(lab["pm"])
+    url = invoice_url(draft, "issue")
+    preview = client.get(url)
+    assert preview.context["proposed_due_date"] is None
+    assert b'id="invoice-proposed-due-date"' not in preview.content
+    assert b'name="use_proposed_due_date"' not in preview.content
+    submitted = {
+        "expected_revision": draft.revision,
+        "use_proposed_due_date": "on",
+        "proposed_due_date": "2028-03-15",
+    }
+    assert client.post(url, submitted).context["review_again"]
+    assert not IssuedInvoice.objects.exists()
+    assert issue(client, draft).status_code == 302
+    draft.refresh_from_db()
+    assert draft.due_date == saved_date
 
 
 def test_confirm_issue_download_void_and_replace(client, lab, draft, price_list, rendered_pdf):

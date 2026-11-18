@@ -78,7 +78,7 @@
         },
         {
           "label": "Invoicing: Invoice to, Billing address, Payment terms, Purchase order",
-          "description": "Invoice to shows the invoice-to contact and invoice email, or Primary contact when neither is recorded. Billing address shows the recorded text or Same as mailing address. Payment terms shows the chosen terms or a dash. Purchase order reads Required on each chain of custody or Not required."
+          "description": "Invoice to shows the invoice-to contact and invoice email, or Primary contact when neither is recorded. Billing address shows the recorded text or Same as mailing address. Payment terms shows the chosen terms or a dash. New invoice drafts copy these terms. Net terms can suggest an optional due date when staff issue an undated draft. Purchase order reads Required on each chain of custody or Not required."
         },
         {
           "label": "Report instructions and Internal notes",
@@ -146,6 +146,7 @@
     "receipt/client_views.py",
     "templates/receipt/client_detail.html",
     "receipt/tests/test_clients.py",
+    "commercial/invoices.py",
     "commercial/models.py",
     "receipt/vocabulary.py",
     "receipt/tests/test_master_data.py",

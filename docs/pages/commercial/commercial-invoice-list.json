@@ -46,7 +46,7 @@
     {
       "title": "Access and purpose",
       "paragraphs": [
-        "Only project managers and administrators can open or change invoice records. Drafts and issued records stay in the staff workspace. Staff issue an active draft from its detail page and deliver the PDF separately. Staff enter due dates and tax amounts. The invoice workflow has no payment or accounting entry."
+        "Only project managers and administrators can open or change invoice records. Drafts and issued records stay in the staff workspace. Staff issue an active draft from its detail page and deliver the PDF separately. Staff enter tax amounts. The invoice workflow has no payment or accounting entry."
       ]
     },
     {
@@ -82,7 +82,7 @@
         },
         {
           "label": "Due date",
-          "description": "Staff-entered payment date, shown as YYYY-MM-DD or Not recorded. Staff enter it independently of payment terms. Sorting applies to the whole result set. Ascending order places undated records last and descending order places them first. Equal dates are ordered by internal record ID."
+          "description": "Recorded payment date, shown as YYYY-MM-DD or Not recorded. This includes dates staff enter on drafts and proposed dates they accept at issuance. Sorting applies to all results. Ascending order places undated records last and descending order places them first. Equal dates are ordered by internal record ID."
         },
         {
           "label": "Project / Purchase order",

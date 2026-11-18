@@ -60,9 +60,11 @@ with a reason; it is marked Manually added, with no sample, requested test or qu
 Additions use the same amount and line bounds, reject stale or cancelled drafts and retain
 attributed before/after history. Every line remains present: correct an unwanted amount to zero
 with a reason. Staff may also set, change or clear an optional due date with a reason and find
-drafts within an inclusive date range. Dates are entered explicitly, never calculated from
-payment terms, and do not establish an outstanding balance. Project managers and administrators can issue the reviewed draft and download its
-numbered PDF for manual delivery. The portal has no invoice access. One draft or issued
+drafts within an inclusive date range. When a draft has no due date and its payment terms are
+Net 15, 30, 45 or 60 days, the issue preview offers a date calculated from the invoice date.
+Select **Use proposed due date** to include it, or leave the box clear to issue without a date. An entered date always
+carries through. Project managers and administrators can issue the reviewed draft and
+download its numbered PDF for manual delivery. The portal has no invoice access. One draft or issued
 invoice can be active per order. To correct an issued invoice, void it with a reason, then
 create a fresh draft from the order. Review the new draft against the current sources.
 The original invoice number, PDF and issue history stay available after a void.

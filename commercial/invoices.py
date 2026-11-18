@@ -4,7 +4,7 @@ import hashlib
 import json
 import uuid
 from collections import Counter
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.conf import settings
@@ -38,6 +38,12 @@ MAX_PRICE = Decimal("9999999999.99")
 MAX_AMOUNT = Decimal("999999999999.99")
 CENTS = Decimal("0.01")
 _DUE_DATE_UNSET = object()
+_NET_TERM_DAYS = {
+    Client.PaymentTerms.NET_15: 15,
+    Client.PaymentTerms.NET_30: 30,
+    Client.PaymentTerms.NET_45: 45,
+    Client.PaymentTerms.NET_60: 60,
+}
 BILLING_FIELDS = (
     "client_name",
     "account_code",
@@ -543,8 +549,15 @@ def cancel_invoice_draft(*, actor, draft_id, expected_revision, reason):
     return draft
 
 
-def _issued_snapshot(draft, lines, *, number, issued_at, lab):
-    local_issued_at = timezone.localtime(issued_at, timezone.get_default_timezone())
+def proposed_invoice_due_date(draft, issue_date):
+    """Use the draft's frozen terms and leave any explicitly recorded date alone."""
+    days = _NET_TERM_DAYS.get(draft.payment_terms)
+    if draft.due_date is not None or days is None:
+        return None
+    return issue_date + timedelta(days=days)
+
+
+def _issued_snapshot(draft, lines, *, number, local_issued_at, lab):
     return {
         "number": number,
         "draft_number": draft.number,
@@ -610,7 +623,7 @@ def _lock_invoice_actor(actor):
 
 
 @transaction.atomic
-def issue_invoice(*, actor, draft_id, expected_revision):
+def issue_invoice(*, actor, draft_id, expected_revision, proposed_due_date=None):
     """Freeze one draft revision and its rendered PDF in the attributed transition."""
     actor = _lock_invoice_actor(actor)
     draft = _lock_order_and_draft(draft_id)
@@ -634,10 +647,31 @@ def issue_invoice(*, actor, draft_id, expected_revision):
     if lab is None:
         raise ValidationError("Set up the laboratory before issuing an invoice.")
     issued_at = timezone.now()
-    number = f"INV-{draft.pk:06d}"
-    content = _issued_snapshot(draft, lines, number=number, issued_at=issued_at, lab=lab)
-    pdf = render_pdf(content)
+    local_issued_at = timezone.localtime(issued_at, timezone.get_default_timezone())
+    if proposed_due_date is not None and (
+        type(proposed_due_date) is not date
+        or proposed_due_date != proposed_invoice_due_date(draft, local_issued_at.date())
+    ):
+        raise ValidationError(
+            "The proposed due date changed. Refresh and review the due date.",
+            code="stale_due_date_proposal",
+        )
+
     before = _state(draft)
+    update_fields = ["status", "revision"]
+    due_date_basis = {}
+    if proposed_due_date is not None:
+        draft.due_date = proposed_due_date
+        update_fields.append("due_date")
+        due_date_basis = {
+            "due_date_basis": {"source": "net_terms", "days": _NET_TERM_DAYS[draft.payment_terms]}
+        }
+    number = f"INV-{draft.pk:06d}"
+    content = _issued_snapshot(
+        draft, lines, number=number, local_issued_at=local_issued_at, lab=lab
+    )
+    content.update(due_date_basis)
+    pdf = render_pdf(content)
     document = IssuedInvoice.objects.create(
         draft=draft,
         number=number,
@@ -649,13 +683,13 @@ def issue_invoice(*, actor, draft_id, expected_revision):
     )
     draft.status = InvoiceDraft.Status.ISSUED
     draft.revision += 1
-    draft.save(update_fields=["status", "revision"])
+    draft.save(update_fields=update_fields)
     record_event(
         actor=actor,
         action="invoice_draft.issued",
         obj=draft,
         before=before,
-        after={**_state(draft), "issued_invoice": _document_state(document)},
+        after={**_state(draft), **due_date_basis, "issued_invoice": _document_state(document)},
     )
     return draft
 

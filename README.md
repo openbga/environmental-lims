@@ -30,11 +30,11 @@ records; it does not certify compliance or accreditation.
   accepted quote, preserve billing details and source identities, and keep reasoned edits and
   cancellations. Accepted quotes also carry their fees and discounts into the draft once, with
   their source retained. Staff can add fees and discounts with a reason and a distinct manual
-  origin. Staff can record a due date with a reason and find drafts by date; payment terms
-  never calculate it. Staff can record externally determined tax amounts as separate lines, with
-  their basis in the description. Project managers and administrators can issue a numbered invoice and download its
-  original PDF for delivery. A reasoned void preserves the original and allows a replacement
-  draft on the order. Payments, automatic tax calculation and accounting export remain planned.
+  origin. Staff can enter an agreed due date on the draft or accept a date calculated from its net
+  payment terms at issue. Staff can filter the invoice directory by due date and record externally
+  determined tax amounts as separate lines, with their basis in the description. Project managers
+  and administrators can issue a numbered invoice and download its original PDF for delivery.
+  A reasoned void preserves the original and allows a replacement draft on the order. Payments, automatic tax calculation and accounting export remain planned.
 - **Laboratory records:** materials, lots and stock movements, equipment, training,
   nonconformance, and physical sample retention and disposal.
 
