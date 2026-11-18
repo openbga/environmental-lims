@@ -42,7 +42,7 @@
     {
       "title": "Access and purpose",
       "paragraphs": [
-        "Only project managers and administrators can open or change invoice records. Drafts and issued records stay in the staff workspace. Staff issue an active draft from its detail page and deliver the PDF separately. Staff enter due dates and tax amounts. The invoice workflow has no payment or accounting entry."
+        "Only project managers and administrators can open or change invoice records. Drafts and issued records stay in the staff workspace. Staff issue an active draft from its detail page and deliver the PDF separately. Staff enter tax amounts. The invoice workflow has no payment or accounting entry."
       ]
     },
     {
@@ -87,7 +87,7 @@
         },
         {
           "label": "Payment terms",
-          "description": "Optional: Due on receipt, Net 15 days, Net 30 days, Net 45 days, Net 60 days or Prepaid. Initially the client terms. Information only; no due date or payment is calculated."
+          "description": "Optional terms copied from the client record: Due on receipt, Net 15 days, Net 30 days, Net 45 days, Net 60 days or Prepaid. Net terms can be used to propose a due date at issuance if the date is blank."
         },
         {
           "label": "Purchase order",
@@ -126,7 +126,7 @@
     {
       "title": "Preparing a due date",
       "paragraphs": [
-        "New drafts start without a due date, regardless of payment terms. After creation, use Edit on the draft record to enter a date with a reason. Issuance copies the saved date and payment terms into the invoice."
+        "New drafts start without a due date. Use Edit on the draft record to save an agreed date with a reason. If the draft has net terms and a blank date, staff can accept an optional proposed due date during issuance."
       ]
     },
     {

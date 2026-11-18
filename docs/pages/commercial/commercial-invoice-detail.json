@@ -48,14 +48,14 @@
     "Tax is entered manually. Review the assessment after any charge changes.",
     "Issuance locks the draft and stores the PDF. Download the PDF to deliver it yourself.",
     "A voided invoice keeps its invoice number and original PDF. The order can then start a new draft.",
-    "Staff set due dates independently of payment terms. The date on the draft copies to the issued PDF.",
+    "A saved due date copies to the PDF. For a draft with net terms and a blank date, you can choose a proposed date in [[Review and issue]].",
     "The draft, PDF and void history are available to project managers and administrators."
   ],
   "sections": [
     {
       "title": "Access and purpose",
       "paragraphs": [
-        "Only project managers and administrators can open or change invoice records. Drafts and issued records stay in the staff workspace. Staff issue an active draft from its detail page and deliver the PDF separately. Staff enter due dates and tax amounts. The invoice workflow has no payment or accounting entry."
+        "Only project managers and administrators can open or change invoice records. Drafts and issued records stay in the staff workspace. Staff issue an active draft from its detail page and deliver the PDF separately. Staff enter tax amounts. The invoice workflow has no payment or accounting entry."
       ]
     },
     {
@@ -75,11 +75,11 @@
         },
         {
           "label": "Payment terms",
-          "description": "Optional: Due on receipt, Net 15 days, Net 30 days, Net 45 days, Net 60 days or Prepaid. Initially the client terms. Information only; no due date or payment is calculated."
+          "description": "Optional choices are Due on receipt, Net 15 days, Net 30 days, Net 45 days, Net 60 days and Prepaid. The initial terms come from the client record. Net terms can supply an optional proposal on the issue preview when the draft has a blank due date."
         },
         {
           "label": "Due date",
-          "description": "Optional payment date entered by staff, shown as YYYY-MM-DD or Not recorded. New drafts start blank. Set, change or clear it in Edit with a reason; past calendar dates are allowed. Payment terms never calculate or replace it. Issuance copies the saved date into the PDF when present. Any recorded date is kept with cancelled and voided records."
+          "description": "Optional payment date, shown as YYYY-MM-DD or Not recorded. New drafts start blank. Set, change or clear it in Edit with a reason. Past calendar dates are allowed. Issuance freezes the saved date or an explicitly accepted proposal in the issued record and original PDF. Recorded dates are kept with cancelled and voided records."
         },
         {
           "label": "Purchase order",

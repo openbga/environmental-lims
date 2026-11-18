@@ -135,15 +135,15 @@ class InvoiceEditForm(GroupedForm, StyledForm, forms.Form):
     payment_terms = forms.ChoiceField(
         required=False,
         choices=[("", "Not recorded"), *Client.PaymentTerms.choices],
-        help_text="Recorded terms. Enter a due date separately when one is agreed.",
+        help_text="Net terms can suggest a due date when you issue the invoice.",
     )
     due_date = forms.DateField(
         required=False,
         label="Due date",
         widget=DATE,
         help_text=(
-            "Enter the date while preparing the draft. "
-            "Issuance copies the saved date. Payment terms never calculate it."
+            "Enter the agreed date to use on the issued invoice. "
+            "Leave blank if you haven’t agreed on a date."
         ),
     )
     po_number = forms.CharField(max_length=60, required=False, label="Purchase order")
@@ -299,6 +299,29 @@ class InvoiceIssueForm(StyledForm, forms.Form):
     expected_revision = forms.IntegerField(
         widget=forms.HiddenInput, min_value=1, label="Draft revision"
     )
+    proposed_due_date = forms.DateField(
+        required=False, input_formats=["%Y-%m-%d"], widget=forms.HiddenInput
+    )
+    use_proposed_due_date = forms.BooleanField(
+        required=False,
+        label="Use proposed due date",
+        widget=forms.CheckboxInput(
+            attrs={
+                "form": "issue-invoice-form",
+                "aria-describedby": "invoice-proposed-due-date id_use_proposed_due_date_helptext",
+            }
+        ),
+        help_text=(
+            "The proposal adds the term’s calendar days to the invoice date. "
+            "Leave unchecked to issue without a due date."
+        ),
+    )
+
+    def clean(self):
+        data = super().clean()
+        if data.get("use_proposed_due_date") and not data.get("proposed_due_date"):
+            raise ValidationError("Reload the preview and review the proposed due date.")
+        return data
 
 
 class InvoiceVoidForm(StyledForm, forms.Form):

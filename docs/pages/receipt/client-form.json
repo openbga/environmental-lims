@@ -123,7 +123,7 @@
         },
         {
           "label": "Payment terms",
-          "description": "Optional list: Not set, Due on receipt, Net 15 days, Net 30 days, Net 45 days, Net 60 days or Prepaid. Recorded for reference; it does not create invoices or due dates."
+          "description": "Optional choices are Not set, Due on receipt, Net 15 days, Net 30 days, Net 45 days, Net 60 days and Prepaid. New invoice drafts copy these terms. With net terms and a blank due date, staff can choose a proposed due date at issuance. Changes here apply to new drafts."
         },
         {
           "label": "Purchase order required",
@@ -204,6 +204,7 @@
     "receipt/models.py",
     "receipt/forms.py",
     "receipt/services.py",
+    "commercial/invoices.py",
     "accounts/roles.py",
     "templates/receipt/form.html",
     "tests/test_receipt_workflow.py",

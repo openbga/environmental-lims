@@ -187,7 +187,7 @@ prices with a reason. Inclusion does not establish that a test is chargeable, co
 analytically accepted. One active draft per order and a 200-line limit are product bounds.
 Creation, edits and cancellation retain attributed history and reject stale submissions;
 cancelled drafts remain available internally. Project managers and administrators handle
-issuance and manual delivery. Automatic tax and due-date calculation, payments and
+issuance and manual delivery. Automatic tax calculation, payments and
 accounting export remain roadmap work.
 
 Accepted-quote pricing, added 2026-11-16, is an explicit alternative to a price list. The quote
@@ -224,12 +224,22 @@ product choices for retained internal billing preparation, not tax or accounting
 Draft due dates, added 2026-11-17, are optional calendar dates entered by project managers or
 administrators while editing a draft. Existing and new drafts start without one. Setting,
 changing or clearing a date requires a reason and preserves the before/after values with the
-actor and revision; stale and cancelled drafts refuse changes. Payment terms never derive or
-replace this date. Past dates are permitted so staff can retain an agreed date without inventing
-a chronology rule for an unissued worksheet. The directory supports inclusive date-range
+actor and revision; stale and cancelled drafts refuse changes. An entered date takes precedence at issuance. Staff
+can enter a past date to record an earlier agreement. The directory supports inclusive date-range
 filters and date sorting. A date is preparation for billing, not evidence of an issued invoice,
-an outstanding balance, payment or delinquency. These are product choices; due-date calculation,
-business calendars, automatic tax calculation and accounting remain separate roadmap work.
+an outstanding balance, payment or delinquency.
+
+At issuance, a draft with no entered due date and Net 15, 30, 45 or 60 days in its saved billing
+details offers the issuer a proposed date. It counts calendar days from the invoice date in the
+deployment time zone, including weekends and holidays. The issuer can accept the displayed
+date or leave the invoice undated. If the issue date changes before confirmation, the issuer
+must review the new proposal before accepting it. An accepted date is retained on the billing
+record, in the issuance history and on the original invoice PDF. Due on receipt, prepaid and
+unspecified terms have no fixed interval from issue and offer no proposal.
+
+Net terms measured from the invoice date in calendar days follow established invoicing
+practice. Offering the date for staff confirmation is a product choice. [Customer payment
+terms, Microsoft Learn, checked 2026-11-17](https://learn.microsoft.com/en-us/dynamics365/finance/general-ledger/tasks/establish-customer-payment-terms).
 
 Manually recorded tax lines, added 2026-11-17, retain an externally determined tax amount
 on an internal draft. Staff choose Tax, enter the nonnegative whole-cent USD amount at quantity
@@ -253,7 +263,7 @@ Accepted quotes becoming invoice sources are an established software pattern
 
 Invoice issuance, added 2026-11-17, lets a project manager or administrator finalize a
 reviewed draft for manual delivery. The invoice has its own number. It freezes the issuing
-laboratory, billing details, explicit due date if present, itemized USD charges and total.
+laboratory, billing details, due date if present, itemized USD charges and total.
 The document labels tax amounts as Tax and keeps their assessment references internal.
 Every download returns the PDF stored at issue, including after later source edits or a
 void. An order can have one active draft or issued invoice. A reasoned void retains the

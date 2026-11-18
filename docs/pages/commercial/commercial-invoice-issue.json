@@ -14,6 +14,13 @@
       ]
     },
     {
+      "title": "Use a proposed due date",
+      "steps": [
+        "If [[Proposed due date]] appears, check the date against the saved payment terms.",
+        "Select [[Use proposed due date]], then [[Issue invoice]]. Leave the box unchecked to issue without a due date."
+      ]
+    },
+    {
       "title": "Correct the draft before issuing",
       "steps": [
         "Select [[Back to draft]].",
@@ -24,8 +31,8 @@
   ],
   "good_to_know": [
     "Test, fee and discount descriptions appear on the PDF. Tax assessments print as Tax. The assessment basis or source stays on the staff record.",
-    "The saved due date copies to the PDF. Staff enter it independently of payment terms.",
-    "If another person edits the draft before you issue it, reload the preview and review the new values.",
+    "A saved due date takes precedence. A proposed date goes on the PDF only when you select [[Use proposed due date]].",
+    "If someone edits the draft or the proposed date changes before you issue it, select [[Reload preview]] and review the current values.",
     "After issuing, download the PDF and deliver it yourself."
   ],
   "sections": [
@@ -38,11 +45,11 @@
         },
         {
           "label": "Issue invoice",
-          "description": "Assigns the invoice number, copies the saved billing and pricing details and current laboratory identity, generates and stores the original PDF and checksum, and locks the draft. The status and attributed history change together. Success opens the issued invoice. The PDF is available for staff to deliver manually."
+          "description": "Assigns the invoice number, copies the saved billing and pricing details and current laboratory identity, and uses any saved or accepted due date. Stores the original PDF and checksum and locks the draft. The status, due date and attributed history change together. Success opens the issued invoice. Staff deliver the PDF manually."
         },
         {
           "label": "Cannot issue invoice / Review again / Reload preview",
-          "description": "Issue invoice is disabled for a cancelled chain of custody or missing laboratory profile. The server also checks that the draft is current and active, has 1 to 200 lines and its saved total matches them. A stale revision requires reloading and reviewing the saved values. After a render failure, retry from this page. A refusal leaves the draft and audit history unchanged."
+          "description": "Issue invoice is disabled for a cancelled chain of custody or missing laboratory profile. The server checks that the draft is current and active, has 1 to 200 lines and its saved total matches them. If the draft or accepted proposal has changed, reload and review the preview. A reload clears the checkbox. After a PDF render failure, retry from the preview. A refusal leaves the draft and audit history unchanged."
         },
         {
           "label": "Back to draft / Draft invoices",
@@ -63,7 +70,11 @@
         },
         {
           "label": "Due date / Payment terms",
-          "description": "Any agreed date entered by staff, shown as YYYY-MM-DD or Not recorded, and saved payment terms. Each is copied independently; payment terms never calculate the date."
+          "description": "An agreed date entered on the draft appears in YYYY-MM-DD and is copied to the invoice. With no saved date, Due date shows Not recorded. The payment terms come from the draft's billing snapshot."
+        },
+        {
+          "label": "Proposed due date / Use proposed due date",
+          "description": "An undated draft with saved Net 15, Net 30, Net 45 or Net 60 terms shows a proposal. The proposal adds that many calendar days to the issue date in the deployment's configured time zone. A saved date, blank or unrecognized terms, Prepaid and Due on receipt all suppress the proposal. Check the box to save the proposal on the issued record and original PDF. The box starts unchecked and leaving it unchecked keeps the due date blank."
         },
         {
           "label": "Purchase order / Chain of custody / Project",

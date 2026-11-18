@@ -7,6 +7,7 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.http import content_disposition_header
 from django.views.decorators.http import require_http_methods, require_safe
@@ -309,9 +310,17 @@ def invoice_issue(request, pk):
     review_again = False
     if request.method == "POST" and form.is_valid():
         revision = form.cleaned_data["expected_revision"]
+        accepted_date = (
+            form.cleaned_data["proposed_due_date"]
+            if form.cleaned_data["use_proposed_due_date"]
+            else None
+        )
         try:
             draft = invoices.issue_invoice(
-                actor=request.user, draft_id=pk, expected_revision=revision
+                actor=request.user,
+                draft_id=pk,
+                expected_revision=revision,
+                proposed_due_date=accepted_date,
             )
         except ValidationError as exc:
             apply_errors(form, exc)
@@ -320,7 +329,10 @@ def invoice_issue(request, pk):
                 messages.error(request, "This draft has changed. Review its current status.")
                 return redirect("commercial:invoice-detail", pk=pk)
             blocked = _issue_blocked(draft)
-            review_again = revision != draft.revision
+            review_again = (
+                revision != draft.revision
+                or getattr(exc, "code", None) == "stale_due_date_proposal"
+            )
         except InvoiceRenderError as exc:
             form.add_error(None, str(exc))
         else:
@@ -328,6 +340,16 @@ def invoice_issue(request, pk):
             return redirect("commercial:invoice-detail", pk=pk)
     elif request.method == "POST":
         review_again = True
+    proposed_due_date = invoices.proposed_invoice_due_date(
+        draft, timezone.localdate(timezone=timezone.get_default_timezone())
+    )
+    if form.is_bound:
+        # A retry must display the same proposal that its form would submit.
+        review_again = (
+            review_again or form.cleaned_data.get("proposed_due_date") != proposed_due_date
+        )
+    else:
+        form.initial["proposed_due_date"] = proposed_due_date
     return render(
         request,
         "commercial/invoice_issue.html",
@@ -338,6 +360,7 @@ def invoice_issue(request, pk):
             "blocked": blocked,
             "form": form,
             "review_again": review_again,
+            "proposed_due_date": proposed_due_date,
         },
     )
 

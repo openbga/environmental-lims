@@ -114,7 +114,7 @@
     {
       "title": "Due dates",
       "paragraphs": [
-        "Adding a line preserves the draft’s optional staff-entered due date. To set, change or clear that date, use Edit on the draft record and give a reason. Payment terms do not calculate it."
+        "Adding a line preserves the draft’s optional due date. To set, change or clear the date, use Edit on the draft record and give a reason. If the draft has net terms and a blank due date, staff can review and accept a proposed date at issuance."
       ]
     },
     {

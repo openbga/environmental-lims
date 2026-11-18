@@ -5,7 +5,7 @@ import os
 import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from threading import Barrier, Event
 from unittest.mock import patch
@@ -21,7 +21,7 @@ from commercial import invoices
 from commercial.invoice_pdf import InvoiceRenderError, render_html
 from commercial.models import InvoiceDraft, InvoiceDraftLine, IssuedInvoice
 from core.models import AuditEvent, Lab
-from receipt.models import Order, Sample
+from receipt.models import Client, Order, Sample
 from reporting.tests.test_release_serialization import assert_waiting, worker
 
 from .test_invoice_manual import add
@@ -51,6 +51,14 @@ def issuer_lab(db):
 @pytest.fixture
 def stub_pdf(monkeypatch):
     monkeypatch.setattr(invoices, "render_pdf", lambda content: PDF)
+
+
+@pytest.fixture
+def net_draft(lab, received, price_list):
+    client = lab["a"]["client"]
+    client.payment_terms = Client.PaymentTerms.NET_15
+    client.save(update_fields=["payment_terms"])
+    return create(lab, received, price_list)
 
 
 def issue(lab, draft, **overrides):
@@ -116,6 +124,7 @@ def test_issue_preserves_quoted_amounts_bill_to_and_issuer(
     )
     assert content["currency"] == "USD" and content["total"] == "2.78"
     assert content["due_date"] == "2026-10-01"
+    assert "due_date_basis" not in content
     assert content["order_reference"] == received.order.coc_reference
     assert content["lab"]["name"] == "Synthetic Environmental Laboratory"
     assert content["lab"]["address"] == ["5 Synthetic Way", "Example City, MA 01001"]
@@ -140,6 +149,108 @@ def test_issue_preserves_quoted_amounts_bill_to_and_issuer(
     assert event.after["status"] == "issued" and event.after["lines"] == before["lines"]
     assert event.after["issued_invoice"]["number"] == document.number
     assert event.after["issued_invoice"]["sha256"] == document.sha256
+
+
+@pytest.mark.parametrize(
+    ("terms", "issue_date", "expected"),
+    [
+        ("net_15", date(2028, 2, 14), date(2028, 2, 29)),
+        ("net_30", date(2028, 2, 14), date(2028, 3, 15)),
+        ("net_45", date(2028, 2, 14), date(2028, 3, 30)),
+        ("net_60", date(2028, 2, 14), date(2028, 4, 14)),
+        ("net_15", date(2026, 12, 31), date(2027, 1, 15)),
+        ("due_on_receipt", date(2028, 2, 14), None),
+        ("prepaid", date(2028, 2, 14), None),
+        ("", date(2028, 2, 14), None),
+        ("unknown", date(2028, 2, 14), None),
+    ],
+)
+def test_proposed_due_date_uses_calendar_days_only_for_net_terms(terms, issue_date, expected):
+    draft = InvoiceDraft(payment_terms=terms)
+    assert invoices.proposed_invoice_due_date(draft, issue_date) == expected
+    draft.due_date = date(2028, 2, 20)
+    assert invoices.proposed_invoice_due_date(draft, issue_date) is None
+
+
+def test_issue_freezes_accepted_due_date_using_deployment_timezone(
+    lab, net_draft, issuer_lab, stub_pdf, settings
+):
+    client = lab["a"]["client"]
+    client.payment_terms = Client.PaymentTerms.NET_60
+    client.save(update_fields=["payment_terms"])
+    settings.TIME_ZONE = "America/New_York"
+    now = datetime(2028, 3, 1, 0, 30, tzinfo=UTC)
+    proposal = date(2028, 3, 15)
+
+    with (
+        timezone.override("Asia/Tokyo"),
+        patch("commercial.invoices.timezone.now", return_value=now),
+    ):
+        issued = issue(lab, net_draft, proposed_due_date=proposal)
+
+    issued.refresh_from_db()
+    document = issued.issued_invoice
+    content = document.snapshot
+    assert issued.due_date == proposal and issued.revision == net_draft.revision + 1
+    assert document.issued_at == now
+    assert content["issued_at"] == "2028-02-29T19:30:00-05:00"
+    assert content["issued_date"] == "2028-02-29"
+    assert content["billing"]["payment_terms"] == "net_15"
+    assert content["due_date"] == "2028-03-15"
+    assert content["due_date_basis"] == {"source": "net_terms", "days": 15}
+    assert "Due 2028-03-15" in render_html(content)
+    event = AuditEvent.objects.get(action="invoice_draft.issued", object_id=str(issued.pk))
+    assert event.actor == lab["pm"]
+    assert event.before["due_date"] is None
+    assert event.after["due_date"] == content["due_date"]
+    assert event.after["due_date_basis"] == content["due_date_basis"]
+
+
+def test_issue_requires_refresh_after_deployment_date_changes(
+    lab, net_draft, issuer_lab, stub_pdf, settings
+):
+    settings.TIME_ZONE = "America/New_York"
+    proposal = invoices.proposed_invoice_due_date(net_draft, date(2028, 2, 29))
+    now = datetime(2028, 3, 1, 5, tzinfo=UTC)
+    with (
+        patch("commercial.invoices.timezone.now", return_value=now),
+        pytest.raises(ValidationError, match="Refresh and review") as exc,
+    ):
+        issue(lab, net_draft, proposed_due_date=proposal)
+    assert exc.value.code == "stale_due_date_proposal"
+    assert not IssuedInvoice.objects.exists()
+    assert not AuditEvent.objects.filter(action="invoice_draft.issued").exists()
+    state = InvoiceDraft.objects.get(pk=net_draft.pk)
+    assert state.status == "draft" and state.due_date is None
+    assert state.revision == net_draft.revision
+
+
+@pytest.mark.parametrize(
+    ("terms", "manual_date"), [("net_15", date(2028, 3, 15)), ("prepaid", None)]
+)
+def test_issue_refuses_proposal_for_existing_due_date_or_ineligible_terms(
+    lab, net_draft, issuer_lab, stub_pdf, settings, terms, manual_date
+):
+    draft = save(
+        lab,
+        net_draft,
+        due_date=manual_date,
+        billing={
+            **{name: getattr(net_draft, name) for name in invoices.BILLING_FIELDS},
+            "payment_terms": terms,
+        },
+    )
+    settings.TIME_ZONE = "America/New_York"
+    now = datetime(2028, 2, 29, 12, tzinfo=UTC)
+    with (
+        patch("commercial.invoices.timezone.now", return_value=now),
+        pytest.raises(ValidationError, match="Refresh and review") as exc,
+    ):
+        issue(lab, draft, proposed_due_date=date(2028, 3, 15))
+    assert exc.value.code == "stale_due_date_proposal"
+    draft.refresh_from_db()
+    assert draft.status == "draft" and draft.due_date == manual_date
+    assert not IssuedInvoice.objects.exists()
 
 
 def test_void_preserves_original_document_and_unlocks_replacement(
@@ -177,9 +288,13 @@ def test_void_preserves_original_document_and_unlocks_replacement(
     assert event.actor == lab["admin"] and event.reason == voided.cancel_reason
     assert event.before["status"] == "issued" and event.after["status"] == "voided"
     assert event.before["issued_invoice"] == event.after["issued_invoice"]
+    client = lab["a"]["client"]
+    client.payment_terms = Client.PaymentTerms.NET_30
+    client.save(update_fields=["payment_terms"])
     replacement = issue(lab, create(lab, received, price_list), actor=lab["admin"])
     assert replacement.issued_invoice.number != document.number
     assert replacement.issued_invoice.snapshot["due_date"] is None
+    assert "due_date_basis" not in replacement.issued_invoice.snapshot
 
 
 @pytest.mark.parametrize("role", ["a", "b", "analyst", "custodian"])
@@ -250,25 +365,31 @@ def test_issuance_and_void_refuse_stale_or_unavailable_states(
 
 
 def test_render_and_audit_failures_leave_transition_retryable(
-    lab, received, price_list, issuer_lab, stub_pdf
+    lab, net_draft, issuer_lab, stub_pdf, monkeypatch
 ):
-    draft = create(lab, received, price_list)
+    draft = net_draft
+    now = timezone.now()
+    monkeypatch.setattr(invoices.timezone, "now", lambda: now)
+    proposal = invoices.proposed_invoice_due_date(
+        draft, timezone.localdate(now, timezone.get_default_timezone())
+    )
     before = invoices._state(draft)
     with (
         patch("commercial.invoices.render_pdf", side_effect=InvoiceRenderError("PDF unavailable")),
         pytest.raises(InvoiceRenderError),
     ):
-        issue(lab, draft)
+        issue(lab, draft, proposed_due_date=proposal)
     with (
         patch("commercial.invoices.record_event", side_effect=RuntimeError("audit unavailable")),
         pytest.raises(RuntimeError),
     ):
-        issue(lab, draft)
+        issue(lab, draft, proposed_due_date=proposal)
     draft.refresh_from_db()
     assert invoices._state(draft) == before
     assert not IssuedInvoice.objects.exists()
     assert not AuditEvent.objects.filter(action="invoice_draft.issued").exists()
-    issued = issue(lab, draft)
+    issued = issue(lab, draft, proposed_due_date=proposal)
+    assert issued.due_date == proposal
     issued_state = invoices._state(issued)
     with (
         patch("commercial.invoices.record_event", side_effect=RuntimeError("audit unavailable")),
@@ -375,7 +496,7 @@ def test_revocation_waits_for_invoice_render_and_commit(
 
 
 def test_real_pdf_is_letter_sized_multipage_and_displays_only_billing_facts(
-    lab, received, price_list, issuer_lab, tmp_path, settings
+    lab, net_draft, issuer_lab, tmp_path, settings
 ):
     try:
         import weasyprint  # noqa: F401
@@ -384,7 +505,8 @@ def test_real_pdf_is_letter_sized_multipage_and_displays_only_billing_facts(
             raise
         pytest.skip("WeasyPrint native libraries are unavailable.")
     settings.REPORT_SYNTHETIC_DATA_NOTICE = True
-    draft = create(lab, received, price_list)
+    settings.TIME_ZONE = "America/New_York"
+    draft = net_draft
     draft = save(
         lab,
         draft,
@@ -419,12 +541,16 @@ def test_real_pdf_is_letter_sized_multipage_and_displays_only_billing_facts(
     total = draft.total + sum(line.amount for line in lines)
     assert total == Decimal("999999999999.30")
     InvoiceDraft.objects.filter(pk=draft.pk).update(total=total)
-    document = issue(lab, draft).issued_invoice
+    with patch(
+        "commercial.invoices.timezone.now", return_value=datetime(2028, 2, 29, 12, tzinfo=UTC)
+    ):
+        document = issue(lab, draft, proposed_due_date=date(2028, 3, 15)).issued_invoice
     pdf = bytes(document.pdf)
     assert pdf.startswith(b"%PDF-") and document.sha256 == hashlib.sha256(pdf).hexdigest()
     html = render_html(document.snapshot)
     assert "&lt;img" in html and "<img" not in html and "SYN-PRIVATE-TAX-BASIS" not in html
     assert "SYN-PRIVATE-CERTIFICATE-NOTE" not in html
+    assert "Due 2028-03-15" in html
     path = tmp_path / "invoice.pdf"
     path.write_bytes(pdf)
     if shutil.which("pdftotext") and shutil.which("pdfinfo"):
@@ -437,6 +563,7 @@ def test_real_pdf_is_letter_sized_multipage_and_displays_only_billing_facts(
         assert all("Unit price (USD)" in page for page in pages)
         assert "SYN-PRIVATE-TAX-BASIS" not in text and "SYN-PRIVATE-CERTIFICATE-NOTE" not in text
         assert "Tax" in pages[0] and "-0.10" in pages[0]
+        assert "Due 2028-03-15" in pages[0]
         assert "Synthetic charge 200" in pages[-1]
         assert "Total (USD)" in pages[-1] and str(total) in pages[-1]
         boxes = subprocess.check_output(["pdftotext", "-bbox", str(path), "-"])

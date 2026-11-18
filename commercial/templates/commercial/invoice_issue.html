@@ -6,21 +6,23 @@
 {% url 'commercial:invoice-issue' draft.pk as issue_url %}
 <a class="btn btn-outline-secondary" href="{% url 'commercial:invoice-detail' draft.pk %}">Back to draft</a>
 {% if review_again %}<a class="btn btn-outline-secondary" href="{{ issue_url }}">Reload preview</a>{% endif %}
-{% if blocked or review_again %}<button class="btn btn-primary" type="button" aria-describedby="{% if blocked %}issue-unavailable{% else %}issue-review-again{% endif %}" disabled>Issue invoice</button>{% else %}{% post_button action=issue_url label="Issue invoice" variant="primary" fields=form %}{% endif %}
+{% if blocked or review_again %}<button class="btn btn-primary" type="button" aria-describedby="{% if blocked %}issue-unavailable{% else %}issue-review-again{% endif %}" disabled>Issue invoice</button>{% else %}{% post_button action=issue_url label="Issue invoice" variant="primary" fields=form.hidden_fields id="issue-invoice-form" %}{% endif %}
 {% endblock %}
 {% block content %}
 {% if blocked %}{% notice tone="warning" label="Cannot issue invoice" id="issue-unavailable" blocking=True %}{{ blocked }}{% endnotice %}{% endif %}
 {% form_errors form=form %}
-{% if review_again %}{% notice tone="warning" label="Review again" id="issue-review-again" %}Reload this preview and review the saved values before you issue the invoice.{% endnotice %}{% endif %}
+{% if review_again %}{% notice tone="warning" label="Review again" id="issue-review-again" %}Reload this preview and review the billing details and any proposed due date before you issue the invoice.{% endnotice %}{% endif %}
 {% notice tone="neutral" label="Before you issue" %}Review the billing details and charges below. Issuing assigns an invoice number, locks the draft and stores a PDF. Download the PDF to deliver it to the client.{% endnotice %}
 {% panel title="Billing details" class="mb-3" %}<dl class="vr-facts">
 {% fact label="Client name" value=draft.client_name %}{% fact label="Account code" value=draft.account_code %}
 {% fact label="Invoice-to contact" value=draft.billing_contact_name %}{% fact label="Invoice email" value=draft.billing_email %}
 {% fact label="Billing address" value=draft.billing_address|linebreaksbr wide=True %}
 {% fact label="Due date" %}{% if draft.due_date %}<time datetime="{{ draft.due_date|date:'Y-m-d' }}">{{ draft.due_date|date:"Y-m-d" }}</time>{% else %}Not recorded{% endif %}{% endfact %}
-{% fact label="Payment terms" value=draft.get_payment_terms_display %}{% fact label="Purchase order" value=draft.po_number %}
+{% fact label="Payment terms" value=draft.get_payment_terms_display %}
+{% fact label="Purchase order" value=draft.po_number %}
 {% fact label="Chain of custody" value=draft.order_reference %}{% fact label="Project" value=draft.project_name %}
-</dl>{% endpanel %}
+{% if proposed_due_date %}{% fact label="Proposed due date" wide=True %}<time id="invoice-proposed-due-date" datetime="{{ proposed_due_date|date:'Y-m-d' }}">{{ proposed_due_date|date:"Y-m-d" }}</time>{% endfact %}{% endif %}
+</dl>{% if proposed_due_date and not blocked and not review_again %}{% field field=form.use_proposed_due_date %}{% endif %}{% endpanel %}
 {% notice tone="warning" label="Review descriptions and tax" %}Test, fee and discount descriptions appear on the invoice PDF. Tax amounts appear under Tax. The basis or source of each tax assessment stays on the staff record. Review tax after any change to charges.{% endnotice %}
 {% panel title="Invoice lines" heading_id="invoice-preview-lines" table=True count=lines|length %}
 <div class="vr-table-wrap"><table class="table vr-table" aria-labelledby="invoice-preview-lines"><thead><tr>

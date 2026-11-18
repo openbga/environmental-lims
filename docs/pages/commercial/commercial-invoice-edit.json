@@ -34,13 +34,13 @@
     "Enter whole cents. Test, fee and tax prices are nonnegative; discounts are zero or negative. Tax quantity stays 1; review its amount after changing charges.",
     "Tax never recalculates. Describe its basis or source; a missing tax line makes no tax determination. Zero retains an explicit assessment.",
     "If someone changes, issues or cancels the draft, reload to review its current state.",
-    "The due date is entered by staff, never calculated from payment terms. It does not establish a balance due."
+    "A saved due date goes on the invoice. If you leave the date blank and save net terms, you can choose a proposed date at issuance."
   ],
   "sections": [
     {
       "title": "Access and purpose",
       "paragraphs": [
-        "Only project managers and administrators can open or change invoice records. Drafts and issued records stay in the staff workspace. Staff issue an active draft from its detail page and deliver the PDF separately. Staff enter due dates and tax amounts. The invoice workflow has no payment or accounting entry."
+        "Only project managers and administrators can open or change invoice records. Drafts and issued records stay in the staff workspace. Staff issue an active draft from its detail page and deliver the PDF separately. Staff enter tax amounts. The invoice workflow has no payment or accounting entry."
       ]
     },
     {
@@ -60,11 +60,11 @@
         },
         {
           "label": "Payment terms",
-          "description": "Optional: Due on receipt, Net 15 days, Net 30 days, Net 45 days, Net 60 days or Prepaid. Initially the client terms. Information only; no due date or payment is calculated."
+          "description": "Optional choices are Due on receipt, Net 15 days, Net 30 days, Net 45 days, Net 60 days and Prepaid. The initial terms come from the client record. Net terms can supply an optional proposal at issuance if the date is blank."
         },
         {
           "label": "Due date",
-          "description": "Optional payment date entered by staff, shown as YYYY-MM-DD or Not recorded. New drafts start blank. Set, change or clear it in Edit with a reason; past calendar dates are allowed. Payment terms never calculate or replace it. Issuance copies the saved date into the PDF when present. Any recorded date is kept with cancelled and voided records."
+          "description": "Optional agreed payment date. Enter, change or clear it with a reason. Past calendar dates are allowed. A saved date takes precedence and copies into the original PDF at issuance. A blank date stays blank at issuance unless you choose the net-terms proposal offered on the issue preview."
         },
         {
           "label": "Purchase order",
