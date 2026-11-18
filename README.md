@@ -147,6 +147,10 @@ passwords, existing roles and revoked permissions. `--update-lab` explicitly ren
 for new input and new reports; changing it does not reinterpret stored timestamps or issued reports.
 Keep demo seeding separate from a real laboratory database.
 
+The project's CI rehearses upgrades from a populated `main` installation and checks that
+synthetic laboratory history and issued PDFs survive the migration. The application check on
+each pull request lists the two revisions it tested.
+
 After installing, and after each upgrade, run
 `python manage.py run_acceptance --operator "Your Name" --output /path/to/new-directory` and keep
 the evidence package it writes. It checks the first journey on synthetic records in a separate

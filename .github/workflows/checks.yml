@@ -37,7 +37,7 @@ jobs:
         run: printf '%s\n' 'Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/80-retries
       - name: Install PDF runtime libraries
         run: sudo apt-get update && sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core
-      - run: uv sync --frozen
+      - run: uv sync --locked
       - run: uv run ruff check . && uv run ruff format --check .
       - run: uv run python manage.py check
       - run: uv run python manage.py makemigrations --check --dry-run
@@ -47,6 +47,34 @@ jobs:
       - name: Collect static assets for template-serving tests
         run: uv run python manage.py collectstatic --noinput
       - run: uv run pytest
+      - name: Check out the installation to upgrade
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # For promotion PRs and pushes to main, use main as it stood before promotion.
+          ref: ${{ (github.ref == 'refs/heads/main' && github.event.before) || (github.base_ref == 'main' && github.event.pull_request.base.sha) || 'refs/heads/main' }}
+          path: .upgrade-baseline
+          persist-credentials: false
+      - name: Create an empty database for the upgrade rehearsal
+        run: createdb --maintenance-db="$DATABASE_URL" roots_upgrade
+      - name: Populate the previous installation and migrate it with the candidate
+        env:
+          DATABASE_URL: postgresql://roots:roots@127.0.0.1:5432/roots_upgrade
+          DEMO_PASSWORD: disposable-ci-only-upgrade
+          UPGRADE_EVIDENCE_PATH: ${{ runner.temp }}/upgrade-evidence.json
+        run: |
+          echo "Upgrade from $(git -C .upgrade-baseline rev-parse HEAD) to $(git rev-parse HEAD)"
+          evidence="$PWD/scripts/ci/upgrade_evidence.py"
+          (
+            cd .upgrade-baseline
+            uv sync --frozen --no-dev
+            .venv/bin/python manage.py migrate --noinput
+            .venv/bin/python manage.py seed_demo --full
+            UPGRADE_EVIDENCE_MODE=prepare .venv/bin/python manage.py shell --no-imports < "$evidence"
+            UPGRADE_EVIDENCE_MODE=capture .venv/bin/python manage.py shell --no-imports < "$evidence"
+          )
+          .venv/bin/python manage.py migrate --noinput
+          .venv/bin/python manage.py migrate --check
+          UPGRADE_EVIDENCE_MODE=verify .venv/bin/python manage.py shell --no-imports < "$evidence"
 
   browser:
     runs-on: ubuntu-latest
