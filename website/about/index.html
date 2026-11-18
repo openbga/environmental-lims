@@ -21,6 +21,21 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
   <link rel="preload" href="assets/overpass-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "OpenBGA Environmental LIMS",
+    "description": "OpenBGA Environmental LIMS is a free, open-source LIMS for US environmental laboratories testing water, wastewater and soil, from sample custody through analytical work, independent review and versioned reports.",
+    "url": "https://openbga.github.io/environmental-lims/",
+    "applicationCategory": "BusinessApplication",
+    "isAccessibleForFree": true,
+    "offers": {"@type": "Offer", "price": 0, "priceCurrency": "USD"},
+    "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+    "sameAs": ["https://github.com/openbga/environmental-lims"],
+    "publisher": {"@type": "Organization", "name": "BGASoft", "url": "https://bgasoft.com/"}
+  }
+  </script>
   <script src="assets/theme-init.js"></script>
   <link rel="stylesheet" href="assets/site.css">
   <script src="assets/site.js" defer></script>
@@ -224,8 +239,10 @@ docker compose --profile app exec -e DEMO_PASSWORD web \
         <div>
           <h2 id="project-title">Meet the project.</h2>
           <p>OpenBGA Environmental LIMS is maintained in <a href="https://github.com/openbga/environmental-lims">OpenBGA/environmental-lims</a>. It uses Django and PostgreSQL, with a browser-based workspace for laboratory staff and clients.</p>
+          <p>There is no licence fee and no per-user or per-module pricing. The source is published under AGPL-3.0-only, so anyone may use, study, change and share it under that licence. BGASoft offers optional paid hosting, support, implementation and validation through <a href="https://bgasoft.com/services/open-source-support/">open-source support</a>.</p>
           <p>Release validation is in progress. Use synthetic data while evaluating the software. OpenBGA Environmental LIMS supports laboratory records and quality systems; it does not certify compliance or accreditation.</p>
           <p class="links">
+            <a class="text-link" href="https://bgasoft.com/openbga/">More OpenBGA projects</a>
             <a class="text-link" href="roadmap/">See the roadmap</a>
             <a class="text-link" href="https://github.com/openbga/environmental-lims/blob/main/README.md">Read the documentation</a>
             <a class="text-link" href="https://github.com/openbga/environmental-lims/blob/main/CONTRIBUTING.md">Contribute</a>

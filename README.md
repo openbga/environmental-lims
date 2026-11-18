@@ -259,9 +259,9 @@ coding agents.
 
 OpenBGA Environmental LIMS is part of [OpenBGA](https://github.com/openbga) and an open-source project of [BGASoft](https://bgasoft.com), a laboratory software company.
 
-**Community use.** The software is free under the AGPL-3.0-only licence and is provided as is. The project does not include a support commitment: issues and pull requests are welcome and are answered on a best-effort basis.
+**Community use.** The software is free: there is no licence fee and no per-user or per-module pricing. The source is published under the AGPL-3.0-only licence, so anyone may use, study, change and share it under that licence. It is provided as is, and the project does not include a support commitment: issues and pull requests are welcome and are answered on a best-effort basis.
 
-**Enterprise support.** BGASoft offers paid support and services for organizations that run this software. Are you looking for support? Contact [bgasoft.com](https://bgasoft.com). Please do not use GitHub issues for support requests of that kind.
+**Enterprise support.** BGASoft offers optional paid hosting, support, implementation and validation services for organizations that run this software; see [OpenBGA at BGASoft](https://bgasoft.com/openbga/) and [open-source support](https://bgasoft.com/services/open-source-support/). Are you looking for support? Contact [bgasoft.com](https://bgasoft.com). Please do not use GitHub issues for support requests of that kind.
 
 ## Licence
 
