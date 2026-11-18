@@ -27,7 +27,7 @@
     }
   ],
   "good_to_know": [
-    "The original PDF stays available to staff for reference.",
+    "Voiding closes the accounting CSV download. If you already posted the charges, reconcile the void in your ledger. The original PDF stays available.",
     "A void records who took the action, when and why.",
     "The action requires a current issued invoice. Reload the record if its status has changed."
   ],
@@ -48,7 +48,7 @@
         },
         {
           "label": "Void invoice",
-          "description": "Rechecks the invoice's state and revision before recording a void. The attributed history event and state change are saved together. The order is then available for a fresh draft, subject to draft eligibility."
+          "description": "Rechecks the invoice's state and revision before recording a void. The attributed history event and state change are saved together. The order is then available for a fresh draft, subject to draft eligibility. The accounting CSV closes. Staff handle any correction to previously exported charges in the ledger."
         },
         {
           "label": "Field and form errors",

@@ -43,6 +43,7 @@ NON_PAGE_ROUTES = {
     "receipt:sample-labels": "PDF labels from sample detail",
     "receipt:order-cancel": "POST action on order detail",
     "receipt:order-reinstate": "POST action on order detail",
+    "commercial:invoice-accounting-csv": "Issued invoice line download from invoice detail",
     "commercial:invoice-pdf": "Private stored PDF download from issued invoice detail",
     "commercial:quote-issue": "POST action on quote detail",
     "commercial:quote-revise": "POST action on quote detail",

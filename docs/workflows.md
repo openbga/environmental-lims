@@ -64,8 +64,10 @@ drafts within an inclusive date range. When a draft has no due date and its paym
 Net 15, 30, 45 or 60 days, the issue preview offers a date calculated from the invoice date.
 Select **Use proposed due date** to include it, or leave the box clear to issue without a date. An entered date always
 carries through. Project managers and administrators can issue the reviewed draft and
-download its numbered PDF for manual delivery. The portal has no invoice access. One draft or issued
-invoice can be active per order. To correct an issued invoice, void it with a reason, then
+download its numbered PDF for manual delivery. On an issued invoice, **Download accounting CSV**
+exports the saved charges for mapping into the ledger. Check the invoice number before importing a file
+again. If an exported invoice is later voided, reconcile the void in the ledger. The portal has
+no invoice access. One draft or issued invoice can be active per order. To correct an issued invoice, void it with a reason, then
 create a fresh draft from the order. Review the new draft against the current sources.
 The original invoice number, PDF and issue history stay available after a void.
 

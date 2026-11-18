@@ -13,7 +13,8 @@
 <a class="btn btn-outline-secondary" href="{% url 'commercial:invoice-edit' draft.pk %}">Edit</a>
 {% if issue_blocked %}<button class="btn btn-primary" type="button" aria-describedby="invoice-issue-blocked" disabled>Review and issue</button>{% else %}<a class="btn btn-primary" href="{% url 'commercial:invoice-issue' draft.pk %}">Review and issue</a>{% endif %}
 {% elif issued %}
-{% if draft.status == "issued" %}<a class="btn btn-outline-danger" href="{% url 'commercial:invoice-void' draft.pk %}">Void invoice</a>{% endif %}
+{% if draft.status == "issued" %}<a class="btn btn-outline-danger" href="{% url 'commercial:invoice-void' draft.pk %}">Void invoice</a>
+<a class="btn btn-outline-secondary" href="{% url 'commercial:invoice-accounting-csv' draft.pk %}">{% icon name="download" %}Download accounting CSV</a>{% endif %}
 <a class="btn {% if draft.status == "voided" %}btn-outline-secondary{% else %}btn-primary{% endif %}" href="{% url 'commercial:invoice-pdf' draft.pk %}">{% icon name="download" %}{% if draft.status == "voided" %}Download original PDF{% else %}Download invoice PDF{% endif %}</a>
 {% endif %}
 {% endblock %}

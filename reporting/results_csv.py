@@ -2,12 +2,12 @@
 
 import csv
 import io
-import unicodedata
 from decimal import InvalidOperation
 
 from django.core.exceptions import ValidationError
 
 from analytical.parsing import parse_decimal
+from core.csv_cells import spreadsheet_text
 
 from .content import basis_label
 
@@ -36,27 +36,17 @@ COLUMNS = (
     "subcontract_sample_id",
 )
 NUMERIC_COLUMNS = {"result", "reporting_limit", "percent_solids"}
-FORMULA_PREFIXES = ("=", "+", "-", "@", "＝", "＋", "－", "＠")
 
 
 def _spreadsheet_cell(value, *, numeric):
-    if not isinstance(value, str):
-        return value
-    leading = value.lstrip()
-    if not leading.startswith(FORMULA_PREFIXES) and not any(
-        unicodedata.category(char) in {"Cc", "Cf"}
-        for char in value[: len(value) - len(leading) + 1]
-    ):
-        return value
-    if numeric and value == leading and value.startswith(("+", "-")):
+    if numeric and isinstance(value, str) and value.startswith(("+", "-")):
         try:
             parse_decimal(value)
         except ValidationError, InvalidOperation:
             pass
         else:
             return value
-    # A frozen text cell cannot be corrected in place. Escape it in the spreadsheet only.
-    return "'" + value
+    return spreadsheet_text(value)
 
 
 def export_results_csv(snapshot):

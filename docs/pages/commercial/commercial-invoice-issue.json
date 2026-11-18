@@ -47,7 +47,7 @@
         },
         {
           "label": "Issue invoice",
-          "description": "The last button of the dialog's action row. Assigns the invoice number, copies the saved billing and pricing details and current laboratory identity, and uses any saved or accepted due date. Stores the original PDF and checksum and locks the draft. The status, due date and attributed history change together. Success closes the dialog and shows the issued invoice. Staff deliver the PDF manually."
+          "description": "The last button of the dialog's action row. Assigns the invoice number, copies the saved billing and pricing details and current laboratory identity, and uses any saved or accepted due date. Stores the original PDF and checksum and locks the draft. The status, due date and attributed history change together. Success closes the dialog and shows the issued invoice. Staff deliver the PDF manually. The issued record also offers Download accounting CSV for the saved charges."
         },
         {
           "label": "Cannot issue invoice / Review again / Reload preview",
