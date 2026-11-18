@@ -6,9 +6,13 @@ What was added or changed in OpenBGA Environmental LIMS, newest first. Changes a
 grouped by the calendar month they were merged in and ranked from high to low impact.
 The same list is shown in the application under What's new.
 
-## November 2026 (2026-11-11 to 2026-11-17)
+## November 2026 (2026-11-11 to 2026-11-18)
 
 ### High impact
+
+- **Added:** Download issued results as a CSV (2026-11-18, Client portal)
+
+  Clients can download the results from an issued report as a CSV. Version history includes a download for each earlier issue, so clients can retrieve the values the laboratory reported before an amendment.
 
 - **Added:** Issue a numbered invoice and download its PDF (2026-11-17, Draft invoices)
 

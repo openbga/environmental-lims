@@ -276,6 +276,11 @@ Finalization and voiding follow an established invoice workflow. The roles, iden
 document contents and replacement procedure above are product choices. [Invoice lifecycle,
 checked 2026-11-17](https://docs.stripe.com/invoicing/overview).
 
+A client can read the current issued result table in the portal and download a CSV for any
+issued version of its own report. Each row identifies the report version and sample and carries
+the reported result text, unit, qualifiers and reporting limit from that issue. Historical
+downloads use the original issue even after an amendment. The stored PDF is the report of record.
+
 Deliverable and reporting targets for milestones 2 to 4. All are exploratory. A recipient accepts an EDD only against its own current specification and reference values, so no format here is claimed as accepted until tested against one named recipient's spec.
 
 | Target | What it is | Notes |

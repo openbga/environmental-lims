@@ -11,6 +11,7 @@
 {% endpage_meta %}{% endblock %}
 {% block page_intro %}<p class="vr-page-intro">This summary is taken from issued version {{ current.number }}; the PDF is the report of record, and ND means not detected at or above the reporting limit.</p>{% endblock %}
 {% block page_actions %}
+<a class="btn btn-outline-secondary" href="{% url 'portal:report-results-csv' report.pk current.number %}">{% icon name="download" %}Download results (CSV)</a>
 <a class="btn btn-primary" href="{% url 'portal:report-pdf' report.pk current.number %}">{% icon name="download" %}Download version {{ current.number }} (PDF)</a>
 {% endblock %}
 {% block content %}

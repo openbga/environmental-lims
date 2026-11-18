@@ -71,6 +71,7 @@ NON_PAGE_ROUTES = {
     "reporting:version-pdf": "Stored PDF from report detail",
     "reporting:edd-download": "Stored ZIP from EDD preview",
     "portal:report-pdf": "Client-scoped stored PDF from report detail",
+    "portal:report-results-csv": "Client-scoped issued results CSV from report detail",
     "portal:edd-download": "Client-scoped stored EDD ZIP from report detail",
     "dataimport:template": "CSV template download from spreadsheet import pages",
     "dataimport:starter": "Starter CSV download from the spreadsheet import overview",

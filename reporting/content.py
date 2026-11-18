@@ -54,6 +54,20 @@ def number_text(value):
     return text
 
 
+def basis_label(row, matrix):
+    """Display the frozen reporting basis. Older internal soil results may have no basis."""
+    if row.get("source") == "external":
+        return ""
+    basis = row.get("result_basis")
+    if basis == "wet":
+        return "Wet weight"
+    if basis == "dry":
+        return "Dry weight"
+    if basis == "na":
+        return ""
+    return "Basis not recorded" if str(matrix).lower() == "soil" else ""
+
+
 def fingerprint(content):
     data = json.dumps(content, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(data.encode()).hexdigest()
