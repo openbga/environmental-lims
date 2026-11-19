@@ -31,6 +31,7 @@ urlpatterns = [
         name="location-comparison",
     ),
     path("reports/<int:pk>/v<int:number>.pdf", views.report_pdf, name="report-pdf"),
+    path("reports/<int:pk>/v<int:number>/package.zip", views.report_package, name="report-package"),
     path(
         "reports/<int:pk>/v<int:number>/results.csv",
         views.report_results_download,

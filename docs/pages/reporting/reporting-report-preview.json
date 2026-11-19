@@ -12,6 +12,7 @@
       "title": "Release a report",
       "steps": [
         "Review the results and select [[Open PDF preview]] to read the PDF.",
+        "Check [[Quality control summary]] to see how many samples will be covered in the report package.",
         "For an amendment, explain why it replaces the previous issue in [[Amendment reason]].",
         "Check [[I authorize release of exactly the content previewed above.]] and select the Release version button."
       ]
@@ -73,6 +74,10 @@
           "description": "Amendment comparison includes additions/removals, result and preparation/preservation evidence, QC, narrative, client/project identity and laboratory identity (name, address, contact details, logo, certificates and certificate statement) changes. Identical content cannot be amended. In versions released from this update on, a changed result or a changed single-line identity value (laboratory name, time zone, phone, email or website; report title; client name, contact or email; project name or program) shows the earlier value struck through, then the new value. Earlier versions show their changes as they were recorded."
         },
         {
+          "label": "Quality control summary",
+          "description": "Shows how many samples in the new issue have an order that requests the QC summary text file in the report package. If only some orders in the report request it, the summary covers just their included samples. Change the request in the order details, then reload this preview. An amendment names each continuing sample whose request was added or withdrawn. This change alone can support an amendment with a reason. The PDF has its usual batch quality control section."
+        },
+        {
           "label": "Ready to release",
           "description": "First issue has no blockers; still inspect results and PDF."
         },
@@ -104,6 +109,10 @@
         "Headers show lab/client IDs, result count, location or Location not recorded, matrix, collection and receipt times. Up to ten samples open expanded; above ten, open each collapsed sample. No approved results and no samples are stated explicitly."
       ],
       "items": [
+        {
+          "label": "QC summary requested",
+          "description": "Marks a sample in its header when its order requests the QC summary in the report package. The summary uses the released batch QC evidence for the marked samples."
+        },
         {
           "label": "Analyte",
           "description": "The reported substance or parameter. Staff preview also shows internal revision/batch or external source revision/report reference."
@@ -191,7 +200,7 @@
         },
         {
           "label": "Batch quality control summary",
-          "description": "Analytical and independent preparation batch identities, method/matrix and per-analyte field-sample/physical-aliquot counts, including cancelled aliquots when present. QC sample, Type, Observed/unit, Evaluation and Detail are shown with issue/disposition notes. QC from samples outside this report withholds identities, values and sensitive notes while retaining type, outcome and disposition."
+          "description": "Analytical and independent preparation batch identities, method/matrix and per-analyte field-sample/physical-aliquot counts, including cancelled aliquots when present. QC sample, Type, Observed/unit, Evaluation and Detail are shown with issue/disposition notes. The summary withholds identities, values and sensitive notes for QC from another client's samples or from sample-based controls with no recorded source sample. It retains type, outcome and disposition."
         },
         {
           "label": "Subcontracted analyses",
@@ -218,7 +227,8 @@
         "Internal work needs a current approved revision, independent technical review and no newer unapproved correction. Release rechecks current QC measurements, limits, requirements and dispositions, stored holding-time evaluation, preparation consistency and current receipt preservation evidence. Earlier approval alone does not guarantee release. Every test is checked again for an amendment, including unchanged results.",
         "The releasing person needs explicit release permission and cannot have entered or submitted any internal result in this report, or entered an external result in it. A technical reviewer can also release when explicitly authorized. Actor-specific independence checks run in the preview for a releasing user and on submission; another staff member may see different readiness. Account status, client assignment and release permission are checked again after PDF rendering; a deactivated or client-linked account cannot complete release. The final check locks the account and the permission grants it relies on until release commits. A concurrent removal of direct permission, group permission or group membership, or account deactivation, either completes first and prevents release or waits until release finishes.",
         "The PDF prints the laboratory identity recorded in Setup → Laboratory profile when the content is assembled: name, address, phone, email, website, logo, and the certificates marked Print on reports whose recorded validity (both ends inclusive; a date not recorded is no bound) covers the issue date, followed by the certificate statement. Only recorded details are printed. The issued version freezes them: later profile changes, a new logo or a removed certificate never change an issued PDF. A profile change after the preview changes the content fingerprint, so release asks you to review the refreshed preview. An amendment lists laboratory address, phone, email, website, logo, certificate list and certificate statement changes, and a change of laboratory identity alone is a valid reason for an amendment.",
-        "The fingerprint must still match the preview. Relevant laboratory identity, ownership, sample, requested-test, result, batch, method-policy and source records are locked and rechecked after PDF rendering. Changed records or a concurrent release require reviewing the refreshed preview and confirming again. No partial release is stored. The retry page reloads the current issued version, including amendment requirements when another release completed first.",
+        "The fingerprint must still match the preview. Relevant laboratory identity, ownership, order, sample, requested-test, result, batch, method-policy and source records are locked and rechecked after PDF rendering. Changed records or a concurrent release require reviewing the refreshed preview and confirming again. No partial release is stored. The retry page reloads the current issued version, including amendment requirements when another release completed first.",
+        "The new issue saves the QC summary request with each affected sample. Changing the request for an included sample requires a fresh preview and confirmation, even when the results are the same.",
         "PDF bytes, frozen snapshot, version links, hashes, actor, release time and audit event commit together. Rendering failure or a PDF above 10 MiB leaves nothing released. Correct the reported issue and retry from the preview. Release does not send email."
       ]
     },
@@ -261,6 +271,7 @@
     "analytical/services.py",
     "reporting/tests/test_release.py",
     "reporting/tests/test_release_serialization.py",
+    "reporting/tests/test_qc_isolation.py",
     "reporting/tests/test_preservation_release.py",
     "reporting/tests/test_preparation_release.py",
     "reporting/tests/test_soil_basis.py",

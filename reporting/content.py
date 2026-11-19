@@ -123,6 +123,15 @@ def _report_samples(report):
     )
 
 
+def qc_test_key(item, analyte):
+    """Link issued result rows and QC groups by test definition, even after an analyte rename.
+
+    Snapshots issued without a definition reference can only match by analyte name.
+    """
+    definition = item.get("test_definition_id")
+    return ("test", definition) if definition is not None else ("name", analyte)
+
+
 OTHER_SAMPLE = "Sample not in this report"
 
 
@@ -441,6 +450,8 @@ def assemble(report, *, actor=None):
                 "lab_id": sample.lab_id,
                 "client_sample_id": sample.client_sample_id,
                 "coc_reference": sample.order.coc_reference,
+                # Without a request, keep the snapshot shape of issues predating this option.
+                **({"include_qc_summary": True} if sample.order.include_qc_summary else {}),
                 "matrix": sample.get_matrix_display(),
                 # Present only when recorded, so content for samples received before these
                 # fields existed is unchanged and amendments of older reports show no noise.
@@ -711,9 +722,19 @@ def describe_changes(old, new):
         add(f"Sample {lab_id} added.")
     for lab_id in sorted(old_samples.keys() & new_samples.keys()):
         before, after = old_samples[lab_id], new_samples[lab_id]
+        previously_requested = before.get("include_qc_summary") is True
+        requested = after.get("include_qc_summary") is True
+        if previously_requested != requested:
+            if requested:
+                add(f"QC summary requested for sample {lab_id}.")
+            else:
+                add(f"QC summary request removed for sample {lab_id}.")
         # A field absent from an older snapshot (added to the schema later) counts as blank.
         fields = sorted(
-            k for k in after if k != "results" and (before.get(k) or None) != (after[k] or None)
+            k
+            for k in after
+            if k not in {"results", "include_qc_summary"}
+            and (before.get(k) or None) != (after[k] or None)
         )
         if fields:
             add(f"Sample {lab_id}: {', '.join(f.replace('_', ' ') for f in fields)} changed.")

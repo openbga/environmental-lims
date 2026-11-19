@@ -125,6 +125,7 @@ def test_order_takes_project_po_and_detail_edits_are_reasoned_and_audited(intake
         cooler_count=2,
     )
     assert inherited.po_number == "PO-STANDING" and inherited.priority == "standard"
+    assert inherited.include_qc_summary is False
     assert own.po_number == "PO-OWN" and own.is_rush
     with pytest.raises(ValidationError, match="Unknown chain of custody details"):
         create_order(actor=custodian, project=project, coc_reference="COC-MD-3", due_on="x")
@@ -184,6 +185,47 @@ def test_order_edit_page_requires_intake_role_and_refuses_cancelled_orders(clien
         cancelled_at=order.created_at, cancelled_by=intake["actor"], cancel_reason="Never arrived"
     )
     assert client.get(url).status_code == 302  # back to the order with an explanation
+
+
+def test_order_report_package_preference_can_be_set_and_cleared(client, intake):
+    actor = intake["actor"]
+    client.force_login(actor)
+    new_url = reverse("receipt:order-create")
+    response = client.post(
+        new_url,
+        {
+            "project": intake["project"].pk,
+            "coc_reference": "COC-QC-SUMMARY",
+            "include_qc_summary": "on",
+        },
+    )
+    order = Order.objects.get(coc_reference="COC-QC-SUMMARY")
+    detail_url = reverse("receipt:order-detail", args=[order.pk])
+    assert response.url == detail_url
+    assert order.include_qc_summary is True
+    created = AuditEvent.objects.get(action="order.created", object_id=str(order.pk))
+    assert created.after["include_qc_summary"] is True
+    detail = client.get(detail_url)
+    assert b"<dt>Include QC summary in report package</dt><dd>Yes</dd>" in detail.content
+
+    edit_url = reverse("receipt:order-edit", args=[order.pk])
+    assert client.get(edit_url).context["form"]["include_qc_summary"].value() is True
+    data = {"expected_revision": order.revision, "reason": "Client changed delivery instructions"}
+    client.force_login(intake["user"]("qc_pref_reviewer", "reviewer"))
+    assert client.post(edit_url, data).status_code == 403
+
+    client.force_login(actor)
+    assert client.post(edit_url, data).url == detail_url
+    order.refresh_from_db()
+    assert order.include_qc_summary is False
+    changed = AuditEvent.objects.get(action="order.details_updated", object_id=str(order.pk))
+    assert changed.actor == actor and changed.reason == data["reason"]
+    assert changed.before["include_qc_summary"] is True
+    assert changed.after["include_qc_summary"] is False
+    assert changed.before["revision"] == data["expected_revision"]
+    assert changed.after["revision"] == order.revision == data["expected_revision"] + 1
+    detail = client.get(detail_url)
+    assert b"<dt>Include QC summary in report package</dt><dd>No</dd>" in detail.content
 
 
 def test_sample_source_must_belong_to_matrix_at_receipt_and_in_corrections(intake):

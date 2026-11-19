@@ -26,6 +26,12 @@
       "steps": [
         "Write them in [[Special instructions]]. They appear above the receipt form for every sample on this order."
       ]
+    },
+    {
+      "title": "Request a QC summary",
+      "steps": [
+        "Select [[Include QC summary in report package]] before creating the chain of custody."
+      ]
     }
   ],
   "good_to_know": [
@@ -96,9 +102,18 @@
       ]
     },
     {
+      "title": "Report package",
+      "items": [
+        {
+          "label": "Include QC summary in report package",
+          "description": "Optional and clear by default. Select it to request a QC summary text file for this order’s samples in future report packages."
+        }
+      ]
+    },
+    {
       "title": "Actions and rules",
       "paragraphs": [
-        "The active client/project eligibility is checked again during submission. Errors remain on the form for correction. Receive first sample on the new order records actual receipt. Change the purchase order, turnaround, shipment details or instructions later with Edit details on the order; the reference and delivery target change through their own reasoned corrections."
+        "The active client/project eligibility is checked again during submission. Errors remain on the form for correction. Receive first sample on the new order records actual receipt. Use Edit details on the order to change the purchase order, turnaround, shipment details, instructions or QC summary preference. The reference and delivery target change through their own reasoned corrections."
       ],
       "items": [
         {
@@ -118,6 +133,7 @@
     "receipt/forms.py",
     "receipt/models.py",
     "receipt/services.py",
+    "reporting/services.py",
     "accounts/roles.py",
     "templates/receipt/order_form.html",
     "receipt/tests/test_scheduling.py",

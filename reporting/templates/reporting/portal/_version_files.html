@@ -1,6 +1,7 @@
 {% comment %}Files of one issued report version, inside a history item (includes/history_item.html wraps it in its meta line). Context: version, report (client portal).{% endcomment %}
 {% if version.amends and version.changes %}<ul class="ps-3 mb-1">{% for change in version.changes %}<li>{% include "reporting/_change.html" %}</li>{% endfor %}</ul>{% endif %}
 <div><a href="{% url 'portal:report-pdf' report.pk version.number %}">Download PDF<span class="visually-hidden"> version {{ version.number }}</span></a> ({{ version.pdf_size|filesizeformat }})</div>
+<div><a href="{% url 'portal:report-package' report.pk version.number %}">Download report package (ZIP)<span class="visually-hidden"> for version {{ version.number }}</span></a></div>
 <div><a href="{% url 'portal:report-results-csv' report.pk version.number %}">Download results CSV<span class="visually-hidden"> for version {{ version.number }}</span></a></div>
 <div><a href="{% url 'portal:report-results-xlsx' report.pk version.number %}">Download Excel workbook<span class="visually-hidden"> for version {{ version.number }}</span></a></div>
 <div><a href="{% url 'portal:report-csv-template' report.pk version.number %}">Use CSV template<span class="visually-hidden"> for version {{ version.number }}</span></a></div>

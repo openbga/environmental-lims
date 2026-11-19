@@ -5,7 +5,7 @@
   ],
   "title": "Issued report",
   "purpose": "Read the latest issued result summary and retrieve all retained report versions and generated export files.",
-  "summary": "Read the latest issued results. Download the report of record as a PDF or download the data as a CSV or Excel workbook. Earlier versions are also available.",
+  "summary": "Read the latest issued results. Download a report package, the PDF report of record, or the results as a CSV or Excel workbook. Earlier versions are also available.",
   "tasks": [
     {
       "title": "Download the report of record",
@@ -27,9 +27,10 @@
       ]
     },
     {
-      "title": "Get an earlier version",
+      "title": "Get a report package or an earlier version",
       "steps": [
-        "In [[Version history]], select [[Download PDF]], [[Download results CSV]] or [[Download Excel workbook]] for the version you need."
+        "In [[Version history]], select [[Download report package (ZIP)]] for the version you need.",
+        "For a single file, select [[Download PDF]], [[Download results CSV]] or [[Download Excel workbook]]."
       ]
     },
     {
@@ -41,7 +42,7 @@
   ],
   "good_to_know": [
     "Everything here comes from the issued version. Later changes appear only after a further release.",
-    "CSV and Excel downloads both use the selected version, including when that version has been superseded.",
+    "Packages, CSV files and Excel workbooks use the selected version, including superseded versions.",
     "ND means not detected at or above the reporting limit, not zero.",
     "NYSDEC export files are exploratory and not validated by EQuIS EDP.",
     "Ask the laboratory about errors or needed amendments. You can't change results here."
@@ -199,7 +200,7 @@
     {
       "title": "Version history",
       "paragraphs": [
-        "Clients cannot generate EDDs, edit context/mappings, approve results or release reports here. Ask the laboratory about errors or required amendments. ZIP integrity failure refuses the file and asks you to contact the laboratory. Both report ownership and export-to-report/version linkage are checked before download."
+        "Clients cannot generate EDDs, edit context/mappings, approve results or release reports here. Ask the laboratory about errors or required amendments. If a stored EDD ZIP fails its integrity check, contact the laboratory. The portal checks report ownership and that each export belongs to the requested report and version."
       ],
       "items": [
         {
@@ -209,6 +210,10 @@
         {
           "label": "Download PDF",
           "description": "Retrieve that version’s unchanged stored bytes and see its file size. Previous versions remain retrievable after amendments."
+        },
+        {
+          "label": "Download report package (ZIP)",
+          "description": "Download the original issued PDF and the standard results CSV together. If the laboratory selected Include QC summary in report package on a sample's order before release, the package also contains a text summary for the selected samples. Earlier issues without a recorded selection contain the PDF and CSV. The ZIP uses the issued data even if the receipt selection changes later. If the stored PDF fails its integrity check, contact the laboratory."
         },
         {
           "label": "Download results CSV",
@@ -233,11 +238,13 @@
     "reporting/content.py",
     "reporting/results_csv.py",
     "reporting/results_xlsx.py",
+    "reporting/packages.py",
     "reporting/templates/reporting/portal/notice.html",
     "templates/layouts/portal.html",
     "reporting/tests/test_portal.py",
     "reporting/tests/test_portal_results_csv.py",
     "reporting/tests/test_portal_csv_template.py",
+    "reporting/tests/test_portal_packages.py",
     "reporting/tests/test_grids.py",
     "reporting/templates/reporting/portal/report_detail.html",
     "reporting/templates/reporting/portal/_version_files.html",
