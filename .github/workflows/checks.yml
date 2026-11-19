@@ -72,9 +72,16 @@ jobs:
             UPGRADE_EVIDENCE_MODE=prepare .venv/bin/python manage.py shell --no-imports < "$evidence"
             UPGRADE_EVIDENCE_MODE=capture .venv/bin/python manage.py shell --no-imports < "$evidence"
           )
+          .venv/bin/python manage.py shell --no-imports < scripts/ci/upgrade_plan.py > "$RUNNER_TEMP/upgrade-plan.json"
           .venv/bin/python manage.py migrate --noinput
           .venv/bin/python manage.py migrate --check
           UPGRADE_EVIDENCE_MODE=verify .venv/bin/python manage.py shell --no-imports < "$evidence"
+
+      - name: Publish notes for the rehearsed upgrade
+        run: |
+          .venv/bin/python scripts/ci/upgrade_notes.py --baseline .upgrade-baseline --candidate . \
+            --repository "$GITHUB_REPOSITORY" --plan "$RUNNER_TEMP/upgrade-plan.json" >> "$GITHUB_STEP_SUMMARY"
+          cat "$GITHUB_STEP_SUMMARY"
 
   browser:
     runs-on: ubuntu-latest

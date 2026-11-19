@@ -121,7 +121,10 @@ For the first stable release, CI rehearses the upgrade of a synthetic installati
 `main` (added 2026-11-18). The candidate must preserve custody and audit events, result
 revisions and worksheet readings, the prepared invoice draft and its charges, and issued
 report snapshots and files. A client must be able to download the same original and amended
-PDFs after the upgrade. Versioned releases and release-specific upgrade notes remain.
+PDFs after the upgrade. Since 2026-11-19, the successful rehearsal provides upgrade notes for
+the two commits it tested. Deployers can inspect the migrations, changes to locked package
+versions, and recovery instructions for that candidate. Publishing the first tagged release
+and its maintainer-reviewed notes remains on the roadmap.
 
 Instrument-file support uses explicit long/wide CSV/TSV mappings and, from 2026-11-15,
 plain XLSX worksheets. An analyst names the visible worksheet for each upload and previews

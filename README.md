@@ -155,8 +155,10 @@ for new input and new reports; changing it does not reinterpret stored timestamp
 Keep demo seeding separate from a real laboratory database.
 
 The project's CI rehearses upgrades from a populated `main` installation and checks that
-synthetic laboratory history and issued PDFs survive the migration. The application check on
-each pull request lists the two revisions it tested.
+synthetic laboratory history and issued PDFs survive the migration. Open the successful GitHub Actions
+`checks` run and read the application job summary for the two tested commits, the database
+migrations, and changes to locked package versions. Follow the recovery and acceptance links
+there for the candidate you intend to deploy.
 
 After installing, and after each upgrade, run
 `python manage.py run_acceptance --operator "Your Name" --output /path/to/new-directory` and keep

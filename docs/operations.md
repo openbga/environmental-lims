@@ -221,6 +221,17 @@ a code rollback so order preferences survive. Older workers can still insert ord
 QC summary requests when issuing or amending reports, even for an order already marked for a
 summary. Use upgraded workers to issue or amend any report that needs the summary.
 
+## Check the rehearsed upgrade
+
+Open the GitHub Actions `checks` run for the revision you plan to deploy. Its application
+job summary gives the starting and candidate commits. Compare the starting commit with
+your installation. For a pull request, the candidate is the merge commit GitHub tested.
+
+Use the migration list and changes to locked package versions to plan the upgrade. Follow
+the recovery link in the summary for rollback considerations at that revision. The rehearsal
+checks a populated synthetic installation. Run acceptance on your own installation after
+applying the migrations.
+
 ## Acceptance run after installation and upgrade
 
 `run_acceptance` runs scripted checks of the first journey and the controls it rests on (role
