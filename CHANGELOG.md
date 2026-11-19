@@ -156,6 +156,10 @@ The same list is shown in the application under What's new.
 
 ### Medium impact
 
+- **Added:** Read upgrade notes for the revisions tested in CI (2026-11-19)
+
+  Open the GitHub Actions checks run for a candidate to see which migrations the upgrade rehearsed and which locked package versions changed. The application job summary links to both tested commits and the candidate’s recovery and acceptance instructions.
+
 - **Added:** Choose columns and headings for result CSV downloads (2026-11-18, Reports)
 
   On an issued report in the client portal, select Use CSV template to download results with the columns your recipient needs. The example template can be edited and reused for current or earlier versions.
