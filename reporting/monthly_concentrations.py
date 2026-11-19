@@ -2,18 +2,22 @@
 
 import json
 from collections import Counter, defaultdict
+from collections.abc import Mapping
 from datetime import date, datetime
 from decimal import Context, Decimal, Inexact, localcontext
 from fractions import Fraction
+from hashlib import sha256
 
 from django.db import connection
 
 from analytical.parsing import MAX_TEXT_LENGTH
 
-from .daily_load import issued_concentration_mg_l
+from .daily_load import FLOW_DECIMAL_PLACES, FLOW_MAX_DIGITS, issued_concentration_mg_l
 from .models import Report
 
 MAX_MONTHLY_ROWS = 1000
+# Leave space in Django's 1,000-field POST limit for the series token and CSRF field.
+MAX_MONTHLY_FLOWS = 998
 
 # New issues store local ISO datetimes with offsets. Compare their calendar month as
 # issued, even at a UTC month boundary. Unusable endpoints leave the interval open.
@@ -74,12 +78,14 @@ _MONTH_SQL = """
         LIMIT %(row_limit)s
     ), by_version AS (
         SELECT report_id, version_id, report_version, report_number, synthetic_notice,
-               jsonb_agg(jsonb_build_array(sample_data, result_data, within_month)
+               jsonb_agg(jsonb_build_array(sample_data, result_data, within_month,
+                                           sample_position, result_position)
                          ORDER BY sample_position, result_position) AS sources
         FROM matches GROUP BY report_id, version_id, report_version, report_number, synthetic_notice
     )
-    SELECT rows.report_id, rows.report_number, rows.report_version, rows.synthetic_notice,
-           rows.sources::text, (file.snapshot #> '{{content,batches}}')::text,
+    SELECT rows.report_id, rows.report_number, rows.report_version, rows.version_id,
+           rows.synthetic_notice, rows.sources::text,
+           (file.snapshot #> '{{content,batches}}')::text,
            file.version_id IS NOT NULL AS pdf_available
     FROM by_version AS rows
     LEFT JOIN reporting_reportfile AS file ON file.version_id = rows.version_id
@@ -154,6 +160,7 @@ def _source_row(sample, result, within_month, content):
         "unit": result.get("unit"),
         "method_code": result.get("method_code"),
         "method_version": result.get("method_version"),
+        "flow_key": None,
         "reason": reason,
     }, value
 
@@ -171,8 +178,89 @@ def _mean(values):
             return str(Fraction(total) / len(values))
 
 
+def _exact_text(value):
+    if isinstance(value, Decimal):
+        return format(value, "f")
+    # A terminating rational needs fewer decimal digits than the total number of
+    # binary digits in its numerator and denominator.
+    precision = value.numerator.bit_length() + value.denominator.bit_length()
+    with localcontext(Context(prec=precision)) as context:
+        context.traps[Inexact] = True
+        try:
+            return format(Decimal(value.numerator) / Decimal(value.denominator), "f")
+        except Inexact:
+            return str(value)
+
+
+def _summarize_sources(summary, sources):
+    rows = summary["rows"]
+    if not rows:
+        summary["reason"] = "No matching issued results were found for this month."
+        return summary
+
+    sample_counts = Counter(row["lab_sample_id"] for row in rows if row["lab_sample_id"])
+    by_day = defaultdict(list)
+    for row, concentration, collection_type, identity in sources:
+        if sample_counts[row["lab_sample_id"]] > 1:
+            row["reason"] = " ".join(
+                filter(None, (row["reason"], "The same lab sample ID appears more than once."))
+            )
+        if row["day"] is not None:
+            by_day[row["day"]].append((row, concentration, collection_type, identity))
+    summary["days"] = len(by_day)
+
+    multi_result_days = [entries for entries in by_day.values() if len(entries) > 1]
+    for entries in multi_result_days:
+        for row, _, kind, _ in entries:
+            if (
+                not row["reason"]
+                and kind == "Grab"
+                and datetime.fromisoformat(row["collected_at"]).tzinfo is None
+            ):
+                row["reason"] = (
+                    "An issued collection time with a time zone offset is required to match "
+                    "this grab to its flow."
+                )
+        if any(row["reason"] or kind != "Grab" for row, _, kind, _ in entries):
+            for row, *_ in entries:
+                row["reason"] = " ".join(
+                    filter(
+                        None,
+                        (
+                            row["reason"],
+                            "Multiple issued results on this sampling day require distinct "
+                            "eligible grab samples.",
+                        ),
+                    )
+                )
+
+    if any(row["reason"] for row in rows):
+        summary["reason"] = "Check the status on each issued source result."
+    elif not multi_result_days:
+        values = [concentration for _, concentration, _, _ in sources]
+        summary["mean"] = _mean(values)
+        summary["maximum"] = format(max(values), "f")
+    elif sum(map(len, multi_result_days)) > MAX_MONTHLY_FLOWS:
+        summary["reason"] = f"The worksheet exceeds the {MAX_MONTHLY_FLOWS:,} grab flow limit."
+    else:
+        summary["reason"] = (
+            "Enter the flow measured at each listed grab sample to calculate the monthly figures."
+        )
+        summary["_daily_sources"] = daily_sources = {}
+        for day, entries in sorted(by_day.items()):
+            daily_sources[day] = []
+            for row, concentration, _, identity in entries:
+                key = None
+                if len(entries) > 1:
+                    key = "flow_" + "_".join(map(str, identity))
+                    summary["flow_keys"][key] = f"{row['lab_sample_id']} ({row['collected_at']})"
+                    row["flow_key"] = key
+                daily_sources[day].append((key, concentration))
+    return summary
+
+
 def monthly_concentrations(*, client_id, project_id, location, analyte, matrix, month):
-    """Calculate only when each represented day has exactly one eligible issued result."""
+    """Summarize eligible issued concentrations, collecting per-grab flows where needed."""
     if type(month) is not date or month.day != 1:
         raise ValueError("Supply the first calendar day of the collection month.")
     summary = {
@@ -180,6 +268,9 @@ def monthly_concentrations(*, client_id, project_id, location, analyte, matrix, 
         "rows": [],
         "mean": None,
         "maximum": None,
+        "daily_values": [],
+        "flow_keys": {},
+        "series_token": "",
         "reason": "",
         "synthetic_notice": False,
     }
@@ -204,21 +295,28 @@ def monthly_concentrations(*, client_id, project_id, location, analyte, matrix, 
         )
         versions = cursor.fetchall()
 
-    rows = summary["rows"]
-    values = []
-    for report_id, number, version, synthetic, sources, batches, pdf_available in versions:
+    sources = []
+    for (
+        report_id,
+        number,
+        version,
+        version_id,
+        synthetic,
+        payload,
+        batches,
+        pdf_available,
+    ) in versions:
         summary["synthetic_notice"] |= synthetic
-        sources = json.loads(sources)
-        if len(rows) + len(sources) > MAX_MONTHLY_ROWS:
+        issued_sources = json.loads(payload)
+        if len(sources) + len(issued_sources) > MAX_MONTHLY_ROWS:
             return summary | {
-                "rows": [],
                 "days": None,
                 "reason": f"The worksheet exceeds the {MAX_MONTHLY_ROWS:,} source result limit.",
             }
         content = {"batches": json.loads(batches) if batches else None}
         if not number or not number.strip():
             number = Report(pk=report_id).number
-        for sample, result, within_month in sources:
+        for sample, result, within_month, sample_position, result_position in issued_sources:
             row, value = _source_row(sample, result, within_month, content)
             row.update(
                 report_id=report_id,
@@ -226,32 +324,47 @@ def monthly_concentrations(*, client_id, project_id, location, analyte, matrix, 
                 report_version=version,
                 pdf_available=pdf_available,
             )
-            rows.append(row)
-            if value is not None:
-                values.append(value)
+            identity = (report_id, version_id, sample_position, result_position)
+            sources.append((row, value, (sample or {}).get("collection_type"), identity))
 
-    rows.sort(key=lambda row: (row["day"] is None, row["day"]))
-    counts = Counter()
-    sample_days = defaultdict(set)
-    for row in rows:
-        if row["day"] is not None:
-            counts[row["day"]] += 1
-            if row["lab_sample_id"] is not None:
-                sample_days[row["lab_sample_id"]].add(row["day"])
-    summary["days"] = len(counts)
-    for row in rows:
-        reasons = [row["reason"]]
-        if counts[row["day"]] > 1:
-            reasons.append("Multiple issued results on this sampling day.")
-        if len(sample_days[row["lab_sample_id"]]) > 1:
-            reasons.append("The same lab sample ID appears on different sampling days.")
-        row["reason"] = " ".join(filter(None, reasons))
+    if sources:
+        identities = json.dumps([identity for _, _, _, identity in sources], separators=(",", ":"))
+        summary["series_token"] = sha256(identities.encode()).hexdigest()
+    summary["rows"] = sorted(
+        (row for row, *_ in sources), key=lambda row: (row["day"] is None, row["day"])
+    )
+    return _summarize_sources(summary, sources)
 
-    if not rows:
-        summary["reason"] = "No matching issued results were found for this month."
-    elif any(row["reason"] for row in rows):
-        summary["reason"] = "Check the status on each issued source result."
-    else:
-        summary["mean"] = _mean(values)
-        summary["maximum"] = format(max(values), "f")
-    return summary
+
+def apply_grab_flows(summary, flows):
+    """Calculate daily and monthly concentrations using every required measured flow."""
+    expected = summary["flow_keys"]
+    if not expected or not isinstance(flows, Mapping) or flows.keys() != expected.keys():
+        raise ValueError("Supply one flow for each listed grab sample.")
+    for flow in flows.values():
+        if not isinstance(flow, Decimal) or not flow.is_finite() or flow <= 0:
+            raise ValueError("Each flow must be a positive decimal number.")
+        if (
+            flow.as_tuple().exponent < -FLOW_DECIMAL_PLACES
+            or flow.adjusted() >= FLOW_MAX_DIGITS - FLOW_DECIMAL_PLACES
+        ):
+            raise ValueError("Flow can have at most 14 whole digits and 10 decimal places.")
+
+    daily = {}
+    for day, entries in summary["_daily_sources"].items():
+        if len(entries) == 1:
+            daily[day] = entries[0][1]
+            continue
+        weighted_total = flow_total = Fraction(0)
+        for key, concentration in entries:
+            flow = Fraction(flows[key])
+            weighted_total += Fraction(concentration) * flow
+            flow_total += flow
+        daily[day] = weighted_total / flow_total
+    average = sum(Fraction(value) for value in daily.values()) / len(daily)
+    return summary | {
+        "mean": _exact_text(average),
+        "maximum": _exact_text(max(daily.values(), key=Fraction)),
+        "daily_values": [{"day": day, "value": _exact_text(value)} for day, value in daily.items()],
+        "reason": "",
+    }

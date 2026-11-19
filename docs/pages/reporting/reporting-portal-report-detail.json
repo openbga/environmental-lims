@@ -156,7 +156,7 @@
         },
         {
           "label": "Monthly concentrations",
-          "description": "Open the worksheet from a named analyte in mg/L or micrograms per liter on a water or wastewater sample with a recorded location. It uses the issued project, location, matrix, analyte and collection month and explains any result or day that prevents calculation."
+          "description": "Open the worksheet from a named analyte in mg/L or micrograms per liter on a water or wastewater sample with a recorded location. It uses the issued project, location, matrix, analyte and collection month. When a day has several eligible grabs, the worksheet can use the measured flows you enter. It explains any result or day that prevents calculation."
         },
         {
           "label": "Unit",

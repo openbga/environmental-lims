@@ -36,11 +36,11 @@ from receipt.models import Project, RequestedTest, Sample
 
 from .content import synthetic_notice
 from .daily_load import calculate_daily_load, daily_load_input, daily_load_supported
-from .forms import DailyLoadForm, ResultCSVTemplateForm
+from .forms import DailyLoadForm, GrabFlowForm, ResultCSVTemplateForm
 from .location_history import comparison_context
 from .location_history import location_history as issued_location_history
 from .models import Report, ReportFile, ReportVersion
-from .monthly_concentrations import issued_collection_date
+from .monthly_concentrations import apply_grab_flows, issued_collection_date
 from .monthly_concentrations import monthly_concentrations as issued_monthly_concentrations
 from .packages import export_report_package
 from .queries import (
@@ -574,7 +574,7 @@ def daily_load(request, pk, number, position, result_position):
 
 
 @client_required
-@require_GET
+@require_http_methods(["GET", "POST"])
 @never_cache
 def monthly_concentrations(request, pk, number, position, result_position):
     version, content, sample, result = _issued_result(
@@ -593,6 +593,8 @@ def monthly_concentrations(request, pk, number, position, result_position):
     project_name = project.get("name") if isinstance(project, dict) else None
     current = number == version.report.latest_version
     summary, reason = None, ""
+    form, series_changed = None, False
+    submitted = request.method == "POST"
     if current and period:
         summary = issued_monthly_concentrations(
             client_id=request.user.client_id,
@@ -610,9 +612,27 @@ def monthly_concentrations(request, pk, number, position, result_position):
         if not current:
             summary = None
         else:
-            reason = summary["reason"]
+            flow_keys, token = summary["flow_keys"], summary["series_token"]
+            series_changed = submitted and (
+                not flow_keys or not token or request.POST.getlist("series_token") != [token]
+            )
+            if series_changed:
+                summary = summary | {"mean": None, "maximum": None}
+            if flow_keys:
+                form = GrabFlowForm(
+                    flow_keys,
+                    token,
+                    data=request.POST if submitted and not series_changed else None,
+                )
+                if form.is_bound and form.is_valid():
+                    summary = apply_grab_flows(
+                        summary, {key: form.cleaned_data[key] for key in flow_keys}
+                    )
+            else:
+                reason = summary["reason"]
     elif current:
         reason = "The issued sample has no usable collection date for selecting a calendar month."
+        series_changed = submitted
 
     return render(
         request,
@@ -628,6 +648,8 @@ def monthly_concentrations(request, pk, number, position, result_position):
             matrix=matrix,
             period=period,
             summary=summary,
+            form=form,
+            series_changed=series_changed,
             reason=reason,
             synthetic_notice=(
                 content.get("synthetic_notice") is True
