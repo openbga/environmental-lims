@@ -407,6 +407,7 @@ PORTAL_NAV = (
             "portal:report-csv-template",
             "portal:location-history",
             "portal:location-comparison",
+            "portal:daily-load",
         ),
     ),
 )

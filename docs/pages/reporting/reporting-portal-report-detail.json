@@ -150,6 +150,10 @@
           "description": "Exact issued text; ND means not detected at or above the reporting limit, not zero. Soil basis is Wet weight, Dry weight or Basis not recorded; saved percent solids/reference appears when present. No conversion or report rounding is performed."
         },
         {
+          "label": "Daily load",
+          "description": "Open a worksheet for this issued water or wastewater concentration in mg/L or micrograms per liter. It pairs an eligible result with the flow you enter for the sampling day and explains when a calculation is unavailable."
+        },
+        {
           "label": "Unit",
           "description": "Frozen unit for this reported quantity."
         },
@@ -236,6 +240,8 @@
     "reporting/queries.py",
     "reporting/models.py",
     "reporting/content.py",
+    "reporting/daily_load.py",
+    "reporting/tests/test_portal_daily_load.py",
     "reporting/results_csv.py",
     "reporting/results_xlsx.py",
     "reporting/packages.py",

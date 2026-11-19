@@ -4,10 +4,12 @@ from django import template
 
 from analytical.models import QCType
 from reporting.content import basis_label
+from reporting.daily_load import daily_load_supported
 from reporting.pdf import logo_url as snapshot_logo_url
 
 register = template.Library()
 register.filter(basis_label)
+register.filter(daily_load_supported)
 
 
 @register.filter
