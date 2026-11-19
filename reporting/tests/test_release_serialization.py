@@ -14,6 +14,7 @@ from catalog.models import Analyte, TestDefinition
 from core import lab_profile
 from core.models import Lab
 from receipt.corrections import change_requested_tests, correct_order_reference, correct_sample
+from receipt.services import update_order_details
 from reporting import services
 from reporting.content import assemble
 from reporting.models import ReportVersion
@@ -21,6 +22,7 @@ from reporting.models import ReportVersion
 from .conftest import make_user
 
 pytestmark = pytest.mark.django_db(transaction=True)
+MUTATIONS = ["policy", "order", "qc_summary", "sample", "tests", "lab", "profile"]
 
 
 def mutation(case, world):
@@ -52,6 +54,14 @@ def mutation(case, world):
                 expected_revision=sample.order.revision,
                 coc_reference="Corrected synthetic COC",
                 reason="Correct transcription",
+            )
+        elif case == "qc_summary":
+            update_order_details(
+                actor=actor,
+                order_id=sample.order_id,
+                expected_revision=sample.order.revision,
+                reason="Client requested a QC summary",
+                include_qc_summary=True,
             )
         elif case == "sample":
             correct_sample(
@@ -109,7 +119,7 @@ def assert_waiting(pid):
     pytest.fail("The competing transaction did not wait on the release's locks.")
 
 
-@pytest.mark.parametrize("case", ["policy", "order", "sample", "tests", "lab", "profile"])
+@pytest.mark.parametrize("case", MUTATIONS)
 def test_release_first_holds_policy_and_receipt_until_commit(world, people, monkeypatch, case):
     change = mutation(case, world)
     report = world["report_a"]
@@ -155,14 +165,14 @@ def test_release_first_holds_policy_and_receipt_until_commit(world, people, monk
         )
     else:
         assert not isinstance(changes[0], Exception), changes
-        if case in {"lab", "profile"}:
+        if case in {"lab", "profile", "qc_summary"}:
             assert assemble(report).fingerprint != content.fingerprint
         else:
             assert assemble(report, actor=people["approver"]).blockers
     assert ReportVersion.objects.get(pk=issued.pk).file.snapshot["content"] == content.content
 
 
-@pytest.mark.parametrize("case", ["policy", "order", "sample", "tests", "lab", "profile"])
+@pytest.mark.parametrize("case", MUTATIONS)
 def test_edit_first_invalidates_release_preview(world, people, monkeypatch, case):
     change = mutation(case, world)
     report = world["report_a"]
@@ -195,4 +205,6 @@ def test_edit_first_invalidates_release_preview(world, people, monkeypatch, case
         thread.join(15)
     assert not thread.is_alive()
     assert len(outcomes) == 1 and isinstance(outcomes[0], ValidationError), outcomes
+    if case == "qc_summary":
+        assert isinstance(outcomes[0], services.StaleReport)
     assert not ReportVersion.objects.filter(report=report).exists()

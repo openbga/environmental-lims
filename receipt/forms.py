@@ -441,6 +441,7 @@ ORDER_DETAIL_LAYOUT = (
         ),
     ),
     ("Instructions", (("instructions", "col-12"),)),
+    ("Report package", (("include_qc_summary", "col-12"),)),
 )
 ORDER_DETAIL_HELP = {
     "po_number": "Left blank on a new chain of custody, the project's standing PO is used.",
@@ -467,6 +468,7 @@ class OrderForm(GroupedForm, StyledForm, forms.ModelForm):
             "carrier_tracking",
             "cooler_count",
             "instructions",
+            "include_qc_summary",
         ]
         labels = {"coc_reference": "Chain of custody reference", "due_at": "Delivery target"}
         help_texts = ORDER_DETAIL_HELP
@@ -494,7 +496,7 @@ class OrderForm(GroupedForm, StyledForm, forms.ModelForm):
 
 
 class OrderDetailsForm(GroupedForm, StyledForm, forms.ModelForm):
-    """Purchase order, turnaround, shipment and instructions of an existing chain of custody.
+    """Shipment, billing, instructions and report package details of a chain of custody.
     Its reference and delivery target change through their own reasoned corrections."""
 
     expected_revision = forms.IntegerField(widget=forms.HiddenInput)
@@ -512,6 +514,7 @@ class OrderDetailsForm(GroupedForm, StyledForm, forms.ModelForm):
             "carrier_tracking",
             "cooler_count",
             "instructions",
+            "include_qc_summary",
         ]
         help_texts = {k: v for k, v in ORDER_DETAIL_HELP.items() if k != "po_number"}
         widgets = {

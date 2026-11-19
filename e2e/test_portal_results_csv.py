@@ -3,6 +3,7 @@
 import csv
 import io
 import re
+from zipfile import ZipFile
 
 import pytest
 from conftest import DESKTOP, NARROW
@@ -22,7 +23,7 @@ def result_row(data):
 
 def test_portal_downloads_exact_results_for_each_issued_version(page: Page, sign_in_as, tmp_path):
     sign_in_as("client")
-    report, _, sample, revision = released_water_report(
+    report, original_version, sample, revision = released_water_report(
         "E2E-RESULTS-CSV", title="Synthetic client results export"
     )
     page.get_by_role("link", name="Reports", exact=True).first.click()
@@ -44,7 +45,9 @@ def test_portal_downloads_exact_results_for_each_issued_version(page: Page, sign
 
     reason = "Synthetic correction of the transcribed Lead result"
     correct_and_approve(revision, supplied_text="5.600", reason=reason)
-    release_version(report, User.objects.get(username="demo_approver"), reason=reason)
+    amended_version = release_version(
+        report, User.objects.get(username="demo_approver"), reason=reason
+    )
     assert page.reload().ok
     expect(page.get_by_text(reason, exact=False).first).to_be_visible()
     expect(page.get_by_role("link", name="Download version 2 (PDF)", exact=True)).to_be_visible()
@@ -52,7 +55,8 @@ def test_portal_downloads_exact_results_for_each_issued_version(page: Page, sign
     with page.expect_download() as download:
         current_link.press("Enter")
     assert download.value.suggested_filename == f"{report.number}-v2-results.csv"
-    amended = result_row(download.value.path().read_bytes())
+    amended_csv = download.value.path().read_bytes()
+    amended = result_row(amended_csv)
     assert amended["report_version"] == "2"
     assert amended["result"] == "5.600"
     assert amended["lab_sample_id"] == row["lab_sample_id"]
@@ -69,6 +73,26 @@ def test_portal_downloads_exact_results_for_each_issued_version(page: Page, sign
         table = read_workbook(workbook.value.path().read_bytes(), worksheet="Results")
         assert table.rows == [list(expected), list(expected.values())]
         assert not table.numeric_cells
+
+    history = page.get_by_role("region", name="Version history", exact=True)
+    for issued, expected_csv in ((original_version, original), (amended_version, amended_csv)):
+        stem = f"{report.number}-v{issued.number}"
+        package_link = history.get_by_role(
+            "link", name=f"Download report package (ZIP) for version {issued.number}", exact=True
+        )
+        with page.expect_download() as package:
+            package_link.press("Enter")
+        assert package.value.suggested_filename == f"{stem}-package.zip"
+        with ZipFile(package.value.path()) as archive:
+            assert set(archive.namelist()) == {f"{stem}.pdf", f"{stem}.csv"}
+            assert archive.read(f"{stem}.pdf") == bytes(issued.file.pdf)
+            assert archive.read(f"{stem}.csv") == expected_csv
+
+    page.get_by_role("button", name="Help", exact=True).click()
+    help_drawer = page.locator("#vr-documentation")
+    expect(
+        help_drawer.get_by_role("heading", name="Get a report package or an earlier version")
+    ).to_be_visible()
     assert page.console_errors == []
 
 

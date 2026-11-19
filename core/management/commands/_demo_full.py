@@ -259,7 +259,15 @@ class Week:
 
     # ------------------------------------------------------------------ receipt
 
-    def order(self, project, received_at, *, priority="standard", delivery="lab_courier"):
+    def order(
+        self,
+        project,
+        received_at,
+        *,
+        priority="standard",
+        delivery="lab_courier",
+        include_qc_summary=False,
+    ):
         self._coc += 1
         days = 3 if priority == "rush" else project.turnaround_days
         due_day = timezone.localdate(received_at) + timedelta(days=days)
@@ -270,6 +278,7 @@ class Week:
             due_at=timezone.make_aware(datetime.combine(due_day, time(17, 0))),
             priority=priority,
             delivery_method=delivery,
+            include_qc_summary=include_qc_summary,
             cooler_count=1,
             instructions="Synthetic shipment for the demonstration laboratory.",
         )
@@ -724,8 +733,10 @@ class Week:
             )
             river.append(sample)
 
-        def outfall(days, idents, **batch):
-            order = self.order(self.outfall, self.at(days, 10))
+        def outfall(days, idents, *, include_qc_summary=False, **batch):
+            order = self.order(
+                self.outfall, self.at(days, 10), include_qc_summary=include_qc_summary
+            )
             samples = []
             for minute, ident in enumerate(idents):
                 samples.append(
@@ -750,7 +761,9 @@ class Week:
             )
             return samples
 
-        weekly = outfall(7, ["OF001-W01", "OF001-W02", "OF001-W03"], stage="approved")
+        weekly = outfall(
+            7, ["OF001-W01", "OF001-W02", "OF001-W03"], include_qc_summary=True, stage="approved"
+        )
 
         # Plant 2 wastewater, reviewed and waiting for its report.
         order = self.order(self.plant, self.at(5, 9))

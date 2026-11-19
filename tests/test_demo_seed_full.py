@@ -157,6 +157,7 @@ def test_full_seed_builds_a_working_week_once(password, monkeypatch):
     amendment = ReportVersion.objects.get(number=2)
     assert amendment.amends.number == 1 and amendment.amendment_reason.startswith("Synthetic")
     assert bytes(amendment.file.pdf).startswith(b"%PDF")
+    assert all(s["include_qc_summary"] for s in amendment.file.snapshot["content"]["samples"])
     approver = User.objects.get(username="demo_approver")
     assert set(ReportVersion.objects.values_list("released_by", flat=True)) == {approver.pk}
     client = User.objects.get(username="demo_client").client

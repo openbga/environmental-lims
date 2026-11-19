@@ -263,6 +263,12 @@ class Order(models.Model):
         db_default="",
         help_text="Rush approval, hazards, report or invoicing instructions for this shipment.",
     )
+    include_qc_summary = models.BooleanField(
+        "Include QC summary in report package",
+        default=False,
+        db_default=False,
+        help_text="Request a QC summary text file in report packages for this order.",
+    )
     revision = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)

@@ -14,6 +14,14 @@ The same list is shown in the application under What's new.
 
   From a sampling location’s result history, clients can enter an upper limit in the issued unit and see which comparable results fall above, at or below it. Each row links to its issued PDF and explains when a comparison cannot be made.
 
+- **Added:** Download an issued report package with the QC summary requested at receipt (2026-11-19, Reports)
+
+  Clients can download the stored PDF and results CSV together from the report’s version history. Staff can request a QC summary on a chain of custody and check which samples it covers before release. Each issued version keeps its own selection.
+
+  Technical notes:
+
+  > Receipt migration 0014 adds an order preference that defaults to off for existing and new orders. Packages for versions issued before the migration contain the original PDF and standard results CSV.
+
 - **Added:** Download issued invoice lines for accounting (2026-11-18, Draft invoices)
 
   Project managers and administrators can download an accounting CSV from an issued invoice. It includes one row per charge with the original billing references, quantities and signed USD amounts. Voiding the invoice closes the download.

@@ -308,6 +308,14 @@ The Excel worksheet stores values as text so sample IDs retain leading zeros and
 the precision and qualifiers the laboratory reported. If a selected value cannot be written
 exactly in the workbook, clients can download that version as CSV. The stored PDF is the report of record.
 
+Each issued version also has a ZIP package containing its stored PDF and standard results CSV.
+Receipt staff can request a separate QC summary on a chain of custody. The release preview
+identifies the selected samples, and the issue freezes that choice. For a report spanning
+multiple orders, the text summary covers the analytical and preparation batch tests linked to
+the selected samples. It uses the same client-scoped evidence and withholding as the issued
+report. An order edit can affect a later issue. Earlier versions keep their original selection,
+and versions issued before this option have a PDF and CSV package.
+
 Clients can open the result history for a sampling location from an issued report. Within the
 client’s project, the history matches the location text exactly as issued and shows the latest
 issue of each report, ordered by sample collection time. If two distinct reports include the

@@ -339,6 +339,9 @@ def _preview(request, report, *, posted=None, errors=(), status=200):
             "next_version": report.latest_version + 1,
             "report_blockers": assembly.report_blockers,
             "expand_samples": len(assembly.content["samples"]) <= PREVIEW_EXPANDED_SAMPLES,
+            "qc_summary_sample_count": sum(
+                sample.get("include_qc_summary") is True for sample in assembly.content["samples"]
+            ),
             "can_release": can_release,
             "toc": toc,
             **_certificate_notice(request, assembly),

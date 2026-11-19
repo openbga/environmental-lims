@@ -58,6 +58,7 @@ ORDER_DETAIL_FIELDS = (
     "carrier_tracking",
     "cooler_count",
     "instructions",
+    "include_qc_summary",
 )
 
 
@@ -201,7 +202,7 @@ def create_order(*, actor, project, coc_reference, due_at=None, **details):
 
 @transaction.atomic
 def update_order_details(*, actor, order_id, expected_revision, reason, **details):
-    """Change the purchase order, turnaround, shipment and instruction details. The reference
+    """Change order details, including the report package preference. The reference
     and the delivery target have their own reasoned corrections; nothing here touches custody."""
     require_role(actor, *RECEIPT_ROLES)
     reason = _reason(reason)

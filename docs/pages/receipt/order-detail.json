@@ -23,7 +23,7 @@
     {
       "title": "Fix the details",
       "steps": [
-        "Select [[Edit details]] for the turnaround, purchase order, shipment or instructions.",
+        "Select [[Edit details]] for the turnaround, purchase order, shipment, instructions or QC summary request.",
         "Use [[Change delivery target]] or [[Correct reference]] in the More menu for those two. Each asks for a reason."
       ]
     },
@@ -86,7 +86,7 @@
     {
       "title": "Order details",
       "paragraphs": [
-        "A card on the order with the shipment and billing details that were entered on the order or carried over from an accepted client submission."
+        "Shows the shipment and billing details entered on the order or carried over from an accepted client submission, along with the order’s current report package preference."
       ],
       "items": [
         {
@@ -110,6 +110,10 @@
           "description": "Declared number in the shipment, or a dash."
         },
         {
+          "label": "Include QC summary in report package",
+          "description": "Yes requests a QC summary text file for this order’s samples in future report packages. No leaves the request off. Each issued report version keeps the preference recorded at release."
+        },
+        {
           "label": "Special instructions",
           "description": "Instructions entered for this chain of custody, or a dash."
         },
@@ -129,7 +133,7 @@
         },
         {
           "label": "Edit details",
-          "description": "Custodians, project managers and administrators open the reasoned edit form for turnaround, purchase order, delivery method, carrier/tracking, coolers/packages and special instructions. Shown only while the order is not cancelled."
+          "description": "Custodians, project managers and administrators open the reasoned edit form for turnaround, purchase order, delivery method, carrier/tracking, coolers/packages, special instructions and the QC summary request. Shown only while the order is not cancelled."
         },
         {
           "label": "Change delivery target",
@@ -254,6 +258,7 @@
     "receipt/forms.py",
     "receipt/models.py",
     "receipt/services.py",
+    "reporting/services.py",
     "accounts/roles.py",
     "templates/receipt/order_detail.html",
     "templates/receipt/labels_menu.html",

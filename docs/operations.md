@@ -215,6 +215,12 @@ current one.
 A migration that must be reverted needs a deliberately written reverse or a staged fix, not a
 blind restore. Take a backup before each deploy that adds migrations.
 
+Receipt migration `0014_order_report_package` adds an order preference with a database default
+of false. Earlier report versions keep their original PDF and results. Keep the column during
+a code rollback so order preferences survive. Older workers can still insert orders, but omit
+QC summary requests when issuing or amending reports, even for an order already marked for a
+summary. Use upgraded workers to issue or amend any report that needs the summary.
+
 ## Acceptance run after installation and upgrade
 
 `run_acceptance` runs scripted checks of the first journey and the controls it rests on (role

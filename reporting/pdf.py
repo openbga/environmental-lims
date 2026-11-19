@@ -20,6 +20,7 @@ from django.utils.safestring import mark_safe
 
 from core.lab_profile import logo_image
 
+from .content import qc_test_key
 from .models import MAX_PDF_BYTES
 
 LAYOUT = "reporting/pdf/report.html"
@@ -51,14 +52,6 @@ def _receipt_note(row):
     return mark_safe(render_to_string(NOTE, {"r": row}).strip())  # escaped by the template
 
 
-def _test_key(item, analyte):
-    """What links a result row to its batch QC: the test definition both record, or, in
-    snapshots issued before it was recorded, the analyte name (the only link they have).
-    The name can differ after an analyte is renamed; the definition reference cannot."""
-    definition = item.get("test_definition_id")
-    return ("test", definition) if definition is not None else ("name", analyte)
-
-
 def layout(content):
     """Reading aids derived from a snapshot only: which results need attention and why, and
     whether a sample's receipt note is the same for all of its results (then printed once).
@@ -67,13 +60,13 @@ def layout(content):
     a recorded QC issue for its test in its analytical or preparation batch. That is the
     relation release itself uses (analytical.services.approval_findings: the batch's
     BatchQC.issues(definition) for the result's test). Results and batch QC are matched by
-    batch number and test definition (see _test_key). Nothing is judged here; the flags repeat
+    batch number and test definition (see qc_test_key). Nothing is judged here; the flags repeat
     recorded facts."""
     meanings = {q["code"]: q["description"] for q in content.get("qualifiers", [])}
     issues = {}
     for b in content.get("batches", []):
         for analyte, qc in b["qc"].items():
-            issues[(b["number"], _test_key(qc, analyte))] = qc.get("issues", [])
+            issues[(b["number"], qc_test_key(qc, analyte))] = qc.get("issues", [])
     samples, attention = [], []
     for s in content["samples"]:
         results = []
@@ -82,7 +75,7 @@ def layout(content):
             qc_issues = [
                 {"batch": number, **issue}
                 for number in dict.fromkeys(b for b in batches if b)
-                for issue in issues.get((number, _test_key(r, r["analyte"])), [])
+                for issue in issues.get((number, qc_test_key(r, r["analyte"])), [])
             ]
             holding = r.get("holding_status") if r.get("holding_status") in HOLDING_FLAGS else ""
             entry = {
@@ -112,7 +105,8 @@ def layout(content):
         for r in s["results"]:
             for number in (r.get("batch"), (r.get("preparation") or {}).get("batch")):
                 if number:
-                    lab_ids.setdefault((number, _test_key(r, r["analyte"])), []).append(s["lab_id"])
+                    key = (number, qc_test_key(r, r["analyte"]))
+                    lab_ids.setdefault(key, []).append(s["lab_id"])
     batches = [
         {
             "b": b,
@@ -121,7 +115,7 @@ def layout(content):
                     "analyte": analyte,
                     "qc": qc,
                     "lab_ids": list(
-                        dict.fromkeys(lab_ids.get((b["number"], _test_key(qc, analyte)), []))
+                        dict.fromkeys(lab_ids.get((b["number"], qc_test_key(qc, analyte)), []))
                     ),
                 }
                 for analyte, qc in sorted(b["qc"].items())  # the results' order

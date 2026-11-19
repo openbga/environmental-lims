@@ -4,8 +4,8 @@
     "receipt:order-edit"
   ],
   "title": "Edit chain of custody details",
-  "purpose": "Change the turnaround, purchase order, shipment details and special instructions of an existing chain of custody, with an attributed reason. The reference and delivery target are changed on their own pages.",
-  "summary": "Change a chain of custody's turnaround, purchase order, shipment details and special instructions, with a reason.",
+  "purpose": "Change the turnaround, purchase order, shipment details, special instructions or QC summary preference of an existing chain of custody, with an attributed reason.",
+  "summary": "Change a chain of custody's turnaround, purchase order, shipment details, special instructions or QC summary preference, with a reason.",
   "tasks": [
     {
       "title": "Add a missing purchase order",
@@ -19,13 +19,21 @@
         "Change [[Turnaround]], [[Delivery method]], [[Carrier / tracking number]] or [[Coolers / packages]].",
         "Give the [[Reason for change]] and select [[Save changes]]. The change is listed under Detail changes."
       ]
+    },
+    {
+      "title": "Change the QC summary request",
+      "steps": [
+        "Select or clear [[Include QC summary in report package]].",
+        "Give the [[Reason for change]] and select [[Save changes]]."
+      ]
     }
   ],
   "good_to_know": [
     "The reference and the delivery target are changed with their own actions on the chain of custody, not here.",
     "Nothing here changes samples, containers or custody.",
     "A cancelled chain of custody must be reinstated before it can be edited.",
-    "If someone saved a change after you opened the page, yours is refused. Reload and enter your change again."
+    "If someone saved a change after you opened the page, yours is refused. Reload and enter your change again.",
+    "Each issued report version keeps the QC summary preference recorded at release."
   ],
   "sections": [
     {
@@ -67,6 +75,10 @@
           "description": "Optional multi-line text such as rush approval, hazards, report or invoicing instructions. Shown above the receipt form for each sample on this order and on the order record."
         },
         {
+          "label": "Include QC summary in report package",
+          "description": "Select to request a QC summary text file for this order’s samples in future report packages. Clear it to withdraw the request from future versions."
+        },
+        {
           "label": "Reason for change",
           "description": "Required explanation, kept with the change in the record’s history."
         }
@@ -100,6 +112,7 @@
     "receipt/forms.py",
     "receipt/models.py",
     "receipt/services.py",
+    "reporting/services.py",
     "accounts/roles.py",
     "core/form_surfaces.py",
     "templates/receipt/order_edit.html",

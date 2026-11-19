@@ -26,6 +26,8 @@ records; it does not certify compliance or accreditation.
   laboratory's address, logo and certificate numbers, amendments and a client portal where each
   client can read its issued results and download them as CSV or Excel for the current or an earlier
   report version. Both formats accept the same CSV template for choosing columns, headings and order.
+  A report package combines that version’s stored PDF and results CSV. When staff request a QC
+  summary on a chain of custody, the package also contains the batch QC for its reported samples.
   From a reported sampling location, clients can follow results over time within the same project
   and open the issued PDF behind each result. They can enter an upper limit to compare
   unqualified numeric results for the same analyte, unit, matrix and reporting basis.

@@ -38,6 +38,7 @@ from .forms import ResultCSVTemplateForm
 from .location_history import comparison_context
 from .location_history import location_history as issued_location_history
 from .models import Report, ReportFile, ReportVersion
+from .packages import export_report_package
 from .queries import (
     approved_tests,
     count_subquery,
@@ -516,6 +517,27 @@ def report_pdf(request, pk, number):
         client_versions(request.user).select_related("report"), report_id=pk, number=number
     )
     return pdf_response(version)
+
+
+@client_required
+@require_GET
+def report_package(request, pk, number):
+    version = get_object_or_404(
+        client_versions(request.user)
+        .filter(file__isnull=False)
+        .select_related("report", "file")
+        .defer("file__pdf"),
+        report_id=pk,
+        number=number,
+    )
+    pdf = pdf_response(version)
+    if pdf.status_code != 200:
+        return pdf
+    return _download(
+        export_report_package(version.file.snapshot, pdf.content),
+        f"{version.report.number}-v{version.number}-package.zip",
+        content_type="application/zip",
+    )
 
 
 @client_required

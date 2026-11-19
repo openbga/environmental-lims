@@ -63,6 +63,7 @@ their errors return as messages on this page.
       {% fact label="Program" wide=True %}{{ order.project.get_regulatory_program_display|default:"—" }}{% if order.project.program %} <span class="vr-muted small">{{ order.project.program }}</span>{% endif %}{% endfact %}
       {% fact label="Delivery" %}{{ order.get_delivery_method_display|default:"—" }}{% if order.carrier_tracking %}<div class="small vr-muted">{{ order.carrier_tracking }}</div>{% endif %}{% endfact %}
       {% fact label="Coolers / packages" value=order.cooler_count %}
+      {% fact label="Include QC summary in report package" value=order.include_qc_summary|yesno:"Yes,No" %}
       {% fact label="Special instructions" wide=True value=order.instructions|linebreaksbr %}
       {% if order.project.instructions %}{% fact label="Project standing instructions" wide=True value=order.project.instructions|linebreaksbr %}{% endif %}
     </dl>

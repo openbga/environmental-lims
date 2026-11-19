@@ -47,6 +47,15 @@
   {% endfill %}
   {% fill aside %}
     {% panel title=release_title heading_id="release-heading" id="release" %}
+        {% if c.samples %}
+        <p><strong>Quality control summary</strong>.
+          {% if qc_summary_sample_count %}
+          Requested for {{ qc_summary_sample_count }} of {{ c.samples|length }} sample{{ c.samples|length|pluralize }}. The report package will include a summary for the samples marked below.
+          {% else %}
+          No orders in this issue requested a QC summary.
+          {% endif %}
+        </p>
+        {% endif %}
         {% if not can_release %}
         <p>Release needs the report release permission. Ask an authorized person to review this preview.</p>
         {% elif not assembly.releasable %}
@@ -71,7 +80,7 @@
 {% with n=forloop.counter|stringformat:"s" %}{% with sample_heading="sample-"|add:n %}
 {% panel title=s.lab_id heading_id=sample_heading table=True collapsible=True open=expand_samples class="mb-3" %}
   {% fill title %}<span class="vr-id">{{ s.lab_id }}</span> · {{ s.client_sample_id }}{% endfill %}
-  {% fill count %}{{ s.results|length }} result{{ s.results|length|pluralize }} · {{ s.collection_location|default:"Location not recorded" }} · {{ s.matrix }} · collected {{ s.collected_at|iso_time }} · received {{ s.received_at|iso_time }}{% endfill %}
+  {% fill count %}{% if s.include_qc_summary %}QC summary requested · {% endif %}{{ s.results|length }} result{{ s.results|length|pluralize }} · {{ s.collection_location|default:"Location not recorded" }} · {{ s.matrix }} · collected {{ s.collected_at|iso_time }} · received {{ s.received_at|iso_time }}{% endfill %}
       {% list_results items=s.results empty_title="No approved results" empty_body="This sample has no approved results to report yet." %}
       <div class="vr-table-wrap">
         <table class="table vr-table">

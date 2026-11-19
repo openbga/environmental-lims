@@ -6,12 +6,14 @@ from zoneinfo import ZoneInfo
 import pytest
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import DatabaseError, connection, transaction
+from django.urls import reverse
 from django.utils import timezone
 
 from analytical import services as analytical
 from analytical.models import Result
 from core.models import AuditEvent
 from receipt.models import Sample
+from receipt.services import update_order_details
 from reporting import services
 from reporting.content import assemble
 from reporting.models import Report, ReportFile, ReportVersion
@@ -192,6 +194,72 @@ def test_amendment_preserves_original_and_records_changes(world, people, client)
 
     with pytest.raises(ValidationError, match="Nothing changed"):
         release(report, people["approver"], reason="Reissue")
+
+
+def test_qc_summary_request_is_previewed_and_frozen_per_sample(world, people, client):
+    report = world["report_a"]
+    sample = world["sample_a"]
+    other = make_sample(world["project_a"], "VR-A2", [world["definition"]], people["custodian"])
+    approve(other, people)
+    update_report(
+        actor=people["pm"],
+        report_id=report.pk,
+        expected_revision=report.revision,
+        title=report.title,
+        samples=[sample, other],
+    )
+    actor = people["approver"]
+    original = release(report, actor)
+    original_pdf = bytes(original.file.pdf)
+    original_samples = original.file.snapshot["content"]["samples"]
+    assert all("include_qc_summary" not in row for row in original_samples)
+    with pytest.raises(ValidationError, match="Nothing changed"):
+        release(report, actor, reason="Reissue")
+
+    order = update_order_details(
+        actor=people["custodian"],
+        order_id=sample.order_id,
+        expected_revision=sample.order.revision,
+        reason="Client requested a QC summary",
+        include_qc_summary=True,
+    )
+    client.force_login(actor)
+    response = client.post(
+        reverse("reporting:report-release", args=[report.pk]),
+        {
+            "fingerprint": original.content_sha256,
+            "confirm": "on",
+            "reason": "Include the requested QC summary",
+        },
+    )
+    assert response.status_code == 409
+    assert b"The report content changed after your preview" in response.content
+    assert b"Requested for 1 of 2 samples" in response.content
+    assert response.content.decode().count("QC summary requested ·") == 1
+    assert ReportVersion.objects.filter(report=report).count() == 1
+    changes = [f"QC summary requested for sample {sample.lab_id}."]
+    assert texts(response.context["changes"]) == changes
+
+    included = release(report, actor, reason="Include the requested QC summary")
+    assert texts(included.changes) == changes
+    assert included.file.snapshot["content"]["samples"] == [
+        {**original_samples[0], "include_qc_summary": True},
+        original_samples[1],
+    ]
+
+    update_order_details(
+        actor=people["custodian"],
+        order_id=order.pk,
+        expected_revision=order.revision,
+        reason="Client withdrew the QC summary request",
+        include_qc_summary=False,
+    )
+    removed = release(report, actor, reason="Remove the requested QC summary")
+    assert texts(removed.changes) == [f"QC summary request removed for sample {sample.lab_id}."]
+    assert removed.file.snapshot["content"]["samples"] == original_samples
+    original.refresh_from_db()
+    assert original.file.snapshot["content"]["samples"] == original_samples
+    assert bytes(original.file.pdf) == original_pdf
 
 
 def test_issued_versions_are_immutable(world, people):
