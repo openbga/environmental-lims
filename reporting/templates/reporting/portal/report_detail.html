@@ -26,7 +26,8 @@
 {% with n=forloop.counter|stringformat:"s" %}{% with sample_heading="sample-"|add:n %}
 {% panel title=s.client_sample_id heading_id=sample_heading table=True flush=True class="mb-3" %}
   {% fill title %}<span class="vr-id">{{ s.client_sample_id }}</span> · lab ID <span class="vr-id">{{ s.lab_id }}</span>{% endfill %}
-  {% fill count %}{{ s.collection_location|default:"Location not recorded" }} · {{ s.matrix }} · collected {{ s.collected_at|iso_time }}{% endfill %}
+  {% fill count %}{% if s.collection_location.strip %}{{ s.collection_location }}{% else %}Location not recorded{% endif %} · {{ s.matrix }} · collected {{ s.collected_at|iso_time }}{% endfill %}
+  {% fill actions %}{% if s.collection_location.strip %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'portal:location-history' report.pk current.number forloop.counter %}">Location history<span class="visually-hidden"> for {{ s.client_sample_id }}</span></a>{% endif %}{% endfill %}
   <div class="vr-table-wrap">
     <table class="table vr-table">
       <caption class="visually-hidden">Results in version {{ current.number }} for sample {{ s.client_sample_id }}</caption>

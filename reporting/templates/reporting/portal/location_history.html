@@ -1,0 +1,45 @@
+{% extends "layouts/portal.html" %}
+{% load tz ui %}
+{% block page_meta %}{% page_meta %}
+  <li><strong>Project</strong> {{ project_name }}</li>
+  <li><strong>Location</strong> {{ location }}</li>
+{% endpage_meta %}{% endblock %}
+{% block page_intro %}<p class="vr-page-intro">Check the matrix, unit, basis, qualifiers, reporting limit and method before comparing results.</p>{% endblock %}
+{% block content %}
+{% include "reporting/portal/notice.html" %}
+{% panel title="Issued results" heading_id="location-history-heading" table=True hidden_title=True %}
+  {% grid_toolbar label="Filter location history" no_search=True clear_url=clear_url grid="portal.location-history" %}
+  {% list_results items=page_obj noun="results" filtered=filtered invalid=filter_form.errors clear_url=clear_url no_results_title="No results match this analyte" no_results_body="Check the analyte name or clear the filter." empty_title="No issued results at this location" empty_body="Results appear here when a current issued report for this project includes this collection location." %}
+  <div class="vr-table-wrap" role="region" aria-labelledby="location-history-heading" tabindex="0">
+    <table class="table table-hover vr-table" data-vr-grid="portal.location-history" data-vr-grid-version="1" aria-labelledby="location-history-heading">
+      <thead>
+        <tr>
+          <th scope="col" data-vr-col="report" data-vr-col-label="Issued report" data-vr-col-locked>Issued report</th>
+          {% sort_header label="Collected" asc="collected_at" desc="-collected_at" col="collected" %}
+          <th scope="col" data-vr-col="sample" data-vr-col-label="Sample">Sample</th>
+          <th scope="col" data-vr-col="analyte" data-vr-col-label="Analyte">Analyte</th>
+          <th scope="col" class="text-end" data-vr-col="result" data-vr-col-label="Result">Result</th>
+          <th scope="col" data-vr-col="qualifiers" data-vr-col-label="Qualifiers">Qualifiers</th>
+          <th scope="col" class="text-end" data-vr-col="reporting_limit" data-vr-col-label="Reporting limit">Reporting limit</th>
+          <th scope="col" data-vr-col="method" data-vr-col-label="Method">Method</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in page_obj %}
+        <tr>
+          <th scope="row"><a class="vr-row-link vr-id" href="{% url 'portal:report-pdf' row.report_id row.report_version %}">{{ row.report_number }} v{{ row.report_version }}<span class="visually-hidden"> (PDF)</span></a>{% if row.synthetic_notice %}<span class="vr-sub">Synthetic data</span>{% endif %}</th>
+          <td>{% if row.collected_at %}{% localtime off %}<time datetime="{{ row.collected_at|date:'c' }}"><span class="vr-nowrap">{{ row.collected_at|date:"Y-m-d" }}</span> <span class="vr-nowrap">{{ row.collected_at|date:"H:i O" }}</span></time>{% endlocaltime %}{% else %}—{% endif %}</td>
+          <td><span class="vr-id">{{ row.client_sample_id }}</span><div class="vr-sub"><span class="vr-id">{{ row.lab_sample_id }}</span>{% if row.matrix %} · {% matrix_tag matrix=row.matrix|lower name=row.matrix size="sm" %}{% endif %}</div></td>
+          <td>{{ row.analyte }}</td>
+          <td class="text-end"><strong>{{ row.result }}</strong>{% if row.unit %} {{ row.unit }}{% endif %}{% if row.result_basis %}<div class="vr-sub">{{ row.result_basis }}</div>{% endif %}</td>
+          <td>{{ row.qualifiers|default:"—" }}</td>
+          <td class="text-end">{% if row.reporting_limit %}{{ row.reporting_limit }}{% if row.unit %} {{ row.unit }}{% endif %}{% else %}—{% endif %}</td>
+          <td>{{ row.method_code|default:"—" }}{% if row.method_version %} v{{ row.method_version }}{% endif %}{% if row.source == "external" %}<div class="vr-sub">{% if row.subcontract_lab %}Subcontracted to {{ row.subcontract_lab }}{% else %}Subcontracted{% endif %}</div>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endlist_results %}
+{% endpanel %}
+{% endblock %}
