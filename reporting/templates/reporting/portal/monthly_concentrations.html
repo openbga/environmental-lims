@@ -14,8 +14,13 @@
 {% include "reporting/portal/notice.html" %}
 {% if not current %}
   {% notice tone="warning" label="Superseded version" blocking=True class="flex-wrap" %}A newer version has been issued. Select the result again in the <a href="{% url 'portal:report-detail' version.report_id %}">current report</a>.{% endnotice %}
-{% elif reason %}
-  {% notice tone="warning" label="Calculation blocked" blocking=True class="flex-wrap" %}{{ reason }}{% endnotice %}
+{% else %}
+  {% if series_changed %}
+    {% notice tone="warning" label="Issued source results changed" blocking=True class="flex-wrap" %}Review the current issued results. {% if form %}Enter the flows again for the samples listed below.{% elif not reason %}<a href="{{ request.path }}">Reload worksheet</a> to see the current summary.{% endif %}{% endnotice %}
+  {% endif %}
+  {% if reason %}
+    {% notice tone="warning" label="Calculation blocked" blocking=True class="flex-wrap" %}{{ reason }}{% endnotice %}
+  {% endif %}
 {% endif %}
 {% record_layout %}
   {% fill lead %}
@@ -26,16 +31,44 @@
         {% fact label="Arithmetic mean" %}
           {% if summary.mean is not None %}
             {{ summary.mean }} mg/L{% if "/" in summary.mean %} <span class="vr-muted small">(exact fraction)</span>{% endif %}
+          {% elif form %}<a href="#grab-flow-fields">Enter grab flows</a>
           {% else %}—{% endif %}
         {% endfact %}
-        {% fact label="Highest daily concentration" %}{% if summary.maximum is not None %}{{ summary.maximum }} mg/L{% else %}—{% endif %}{% endfact %}
+        {% fact label="Highest daily concentration" %}
+          {% if summary.maximum is not None %}
+            {{ summary.maximum }} mg/L{% if "/" in summary.maximum %} <span class="vr-muted small">(exact fraction)</span>{% endif %}
+          {% else %}—{% endif %}
+        {% endfact %}
         {% fact label="Project" value=project_name wide=True %}
         {% fact label="Matrix" %}{% matrix_tag matrix=matrix|lower name=matrix size="sm" %}{% endfact %}
       </dl>
-      <p>This worksheet covers sampled days in the current issued reports for this project, exact collection location, matrix and analyte. It uses one eligible concentration per day.</p>
+      <p>This worksheet uses one concentration per sampled day in the current issued reports for this project, exact collection location, matrix and analyte. Each sampled day has equal weight in the monthly mean.</p>
       <p>The permittee checks coverage across all required data sources, confirms sample representativeness and applicable permit rules, and applies any required rounding before filing.</p>
     {% endpanel %}
   {% endfill %}
+  {% if form %}
+    {% panel title="Grab sample flows" heading_id="grab-sample-flows-heading" %}
+      <p id="grab-flow-fields" tabindex="-1">Enter the measured flow that corresponds to each listed grab, in million US gallons per day (MGD). The worksheet weights the concentrations within each day with multiple grabs. Your entries are used only for this calculation.</p>
+      {% form_page form=form action=request.path submit_label="Calculate concentrations" %}{% endform_page %}
+    {% endpanel %}
+  {% endif %}
+  {% if summary.daily_values %}
+    {% panel title="Daily concentrations" heading_id="daily-concentrations-heading" table=True %}
+      <div class="vr-table-wrap">
+        <table class="table vr-table" aria-labelledby="daily-concentrations-heading">
+          <thead><tr><th scope="col">Collection day</th><th scope="col" class="text-end">Daily concentration (mg/L)</th></tr></thead>
+          <tbody>
+            {% for daily in summary.daily_values %}
+              <tr>
+                <th scope="row"><time datetime="{{ daily.day|date:'Y-m-d' }}">{{ daily.day|date:"Y-m-d" }}</time></th>
+                <td class="text-end text-wrap text-break">{{ daily.value }}{% if "/" in daily.value %} <span class="vr-muted small">(exact fraction)</span>{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endpanel %}
+  {% endif %}
   {% if summary.rows %}
     {% panel title="Issued source results" heading_id="issued-source-results-heading" table=True %}
       <div class="vr-table-wrap">
@@ -76,7 +109,7 @@
               <td class="text-end">{{ row.reported|default:"—" }}</td>
               <td>{{ row.unit|default:"—" }}</td>
               <td>{{ row.method_code|default:"—" }}{% if row.method_version %} v{{ row.method_version }}{% endif %}</td>
-              <td>{{ row.reason|default:"Eligible concentration" }}</td>
+              <td>{% if row.reason %}{{ row.reason }}{% elif row.flow_key %}{% if summary.daily_values %}Flow entered{% else %}Flow required{% endif %}{% else %}Eligible concentration{% endif %}</td>
             </tr>
             {% endfor %}
           </tbody>

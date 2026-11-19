@@ -11,22 +11,49 @@ from .models import MAX_NARRATIVE
 from .results_csv import parse_csv_template
 
 
+class FlowInputField(forms.RegexField):
+    def __init__(self, *, positive=False, **kwargs):
+        self.positive = positive
+        amount = "a positive decimal" if positive else "zero or a positive decimal"
+        super().__init__(
+            regex=r"\A\+?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)\Z",
+            max_length=60,
+            widget=forms.NumberInput(attrs={"unit": "MGD", "inputmode": "decimal"}),
+            error_messages={"invalid": f"Enter {amount} without units or an exponent."},
+            **kwargs,
+        )
+
+    def clean(self, value):
+        flow = Decimal(super().clean(value))
+        DecimalValidator(FLOW_MAX_DIGITS, FLOW_DECIMAL_PLACES)(flow)
+        if self.positive and flow == 0:
+            raise forms.ValidationError("Enter a flow greater than zero.")
+        return flow
+
+
 class DailyLoadForm(forms.Form):
-    flow_mgd = forms.RegexField(
+    flow_mgd = FlowInputField(
         label="Sampling-day flow",
-        regex=r"\A\+?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)\Z",
-        max_length=60,
-        widget=forms.NumberInput(attrs={"unit": "MGD", "inputmode": "decimal"}),
         help_text="Enter the corresponding daily flow in million US gallons per day.",
-        error_messages={
-            "invalid": "Enter zero or a positive decimal without units or an exponent."
-        },
     )
 
-    def clean_flow_mgd(self):
-        flow = Decimal(self.cleaned_data["flow_mgd"])
-        DecimalValidator(FLOW_MAX_DIGITS, FLOW_DECIMAL_PLACES)(flow)
-        return flow
+
+class GrabFlowForm(forms.Form):
+    series_token = forms.CharField(widget=forms.HiddenInput, max_length=64)
+
+    def __init__(self, flow_keys, series_token, *, data=None):
+        super().__init__(data=data, initial={"series_token": series_token})
+        for name, label in flow_keys.items():
+            self.fields[name] = FlowInputField(label=label, positive=True)
+
+    def clean(self):
+        cleaned = super().clean()
+        if self.data.keys() - self.fields.keys() - {"csrfmiddlewaretoken"}:
+            self.add_error(None, "Submit flows only for the listed grab samples.")
+        for field in self.visible_fields():
+            if len(self.data.getlist(field.name)) > 1:
+                self.add_error(field.name, "Submit exactly one flow for this grab sample.")
+        return cleaned
 
 
 class ResultCSVTemplateForm(forms.Form):

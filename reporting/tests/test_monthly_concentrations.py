@@ -1,5 +1,5 @@
 from datetime import date
-from decimal import localcontext
+from decimal import Decimal, localcontext
 
 import pytest
 
@@ -120,6 +120,173 @@ def test_multiple_results_across_reports_block_the_whole_series(project, issue):
     assert "Multiple" in first["reason"] and "Multiple" in second["reason"]
     assert "Non-detect" in second["reason"]
     assert other_day["reason"] == ""
+    assert not sheet["flow_keys"] and all(row["flow_key"] is None for row in sheet["rows"])
+
+
+def test_weighted_grabs_across_reports_use_only_one_value_per_sampled_day(project, issue):
+    second_day = date(2026, 11, 2)
+    issue(
+        project,
+        sample(
+            "composite",
+            end="2026-11-02T19:00:00-05:00",
+            reported="1.00",
+            collection_type="Composite",
+            collection_started_at="2026-11-02T09:00:00-05:00",
+        ),
+        batches=BATCHES,
+    )
+    issue(project, sample("first", reported="1.00"), batches=BATCHES)
+    issue(project, sample("second", reported="4000.0", unit="µg/L"), batches=BATCHES)
+
+    sheet = worksheet(project)
+    first, second, composite = sheet["rows"]
+    assert sheet["days"] == 2 and sheet["mean"] is sheet["maximum"] is None
+    assert "Enter the flow" in sheet["reason"]
+    assert sheet["flow_keys"] == {
+        first["flow_key"]: "first (2026-11-01T23:50:00-05:00)",
+        second["flow_key"]: "second (2026-11-01T23:50:00-05:00)",
+    }
+    assert first["flow_key"] != second["flow_key"]
+    assert composite["flow_key"] is None
+    assert sheet["series_token"] == worksheet(project)["series_token"]
+
+    with localcontext(prec=1):
+        calculated = monthly.apply_grab_flows(
+            sheet, {first["flow_key"]: Decimal(".5"), second["flow_key"]: Decimal("1.5")}
+        )
+    assert calculated["reason"] == ""
+    assert calculated["mean"] == "2.125"
+    assert calculated["maximum"] == "3.25"
+    assert calculated["daily_values"] == [
+        {"day": MONTH, "value": "3.25"},
+        {"day": second_day, "value": "1.00"},
+    ]
+    assert sheet["mean"] is sheet["maximum"] is None and not sheet["daily_values"]
+
+
+def test_weighted_values_are_compared_and_averaged_as_exact_fractions(project, issue):
+    second_day = date(2026, 11, 2)
+    issue(
+        project,
+        sample("1", reported="0"),
+        sample("2", reported="1"),
+        sample("3", end="2026-11-02T10:52:00-05:00", reported="0"),
+        sample("4", end="2026-11-02T13:02:00-05:00", reported="1"),
+        batches=BATCHES,
+    )
+    sheet = worksheet(project)
+    inputs = map(Decimal, ("1", "2", "99999999999999.9999999999", "99999999999999.9999999999"))
+    calculated = monthly.apply_grab_flows(sheet, dict(zip(sheet["flow_keys"], inputs, strict=True)))
+    assert calculated["daily_values"] == [
+        {"day": MONTH, "value": "2/3"},
+        {"day": second_day, "value": "0.5"},
+    ]
+    assert calculated["mean"] == "7/12"
+    assert calculated["maximum"] == "2/3"
+
+
+def test_flow_application_requires_every_key_and_positive_bounded_decimal(project, issue):
+    issue(project, sample("first"), sample("second"), batches=BATCHES)
+    sheet = worksheet(project)
+    first, second = sheet["flow_keys"]
+
+    for flows in ({first: Decimal("1")}, {first: Decimal("1"), "unexpected": Decimal("2")}):
+        with pytest.raises(ValueError, match="one flow for each"):
+            monthly.apply_grab_flows(sheet, flows)
+    for value in ("1", 1.0, Decimal("0"), Decimal("-1"), Decimal("Infinity"), Decimal("sNaN")):
+        with pytest.raises(ValueError, match="positive decimal"):
+            monthly.apply_grab_flows(sheet, {first: value, second: Decimal("1")})
+    for value in (Decimal("1E14"), Decimal("0.00000000001")):
+        with pytest.raises(ValueError, match="14 whole digits and 10 decimal places"):
+            monthly.apply_grab_flows(sheet, {first: value, second: Decimal("1")})
+    with pytest.raises(ValueError, match="one flow for each"):
+        monthly.apply_grab_flows(
+            sheet, {first: Decimal("1"), second: Decimal("1"), "unexpected": Decimal("1")}
+        )
+
+
+def test_flow_series_token_includes_the_single_observation_days(project, issue):
+    original = issue(project, sample("one day", end="2026-11-02", reported="2.00"), batches=BATCHES)
+    issue(project, sample("first"), sample("second"), batches=BATCHES)
+    sheet = worksheet(project)
+    issue(project, sample("elsewhere", collection_location="Other location"), batches=BATCHES)
+    assert worksheet(project)["series_token"] == sheet["series_token"]
+
+    issue(
+        project,
+        sample("one day", end="2026-11-02", reported="2.00"),
+        amends=original,
+        batches=BATCHES,
+    )
+    amended = worksheet(project)
+    assert amended["flow_keys"] == sheet["flow_keys"]
+    assert amended["series_token"] != sheet["series_token"]
+
+
+@pytest.mark.parametrize("first_kind", ["Grab", "Composite"])
+def test_multiple_composites_or_mixed_samples_block_weighting(project, issue, first_kind):
+    start = {"collection_started_at": "2026-11-01T00:00:00-05:00"}
+    issue(
+        project,
+        sample("first", collection_type=first_kind, **(start if first_kind == "Composite" else {})),
+        sample("second", collection_type="Composite", **start),
+        batches=BATCHES,
+    )
+    sheet = worksheet(project)
+    assert sheet["days"] == 1 and sheet["mean"] is sheet["maximum"] is None
+    assert not sheet["flow_keys"] and all(
+        "eligible grab samples" in row["reason"] for row in sheet["rows"]
+    )
+
+
+@pytest.mark.parametrize("collected", ["2026-11-01", "2026-11-01T20:00:00"])
+def test_grab_that_needs_flow_requires_issued_time_and_offset(project, issue, collected):
+    issue(project, sample("no exact instant", end=collected), batches=BATCHES)
+    assert worksheet(project)["mean"] == "1.00"
+
+    issue(project, sample("second"), batches=BATCHES)
+    sheet = worksheet(project)
+    assert sheet["mean"] is sheet["maximum"] is None and not sheet["flow_keys"]
+    assert "time zone offset" in sheet["rows"][0]["reason"]
+
+
+def test_incomplete_other_day_blocks_an_otherwise_eligible_multi_grab_day(project, issue):
+    issue(
+        project,
+        sample("first"),
+        sample("second"),
+        sample("unusable", end="2026-11-02", results=[]),
+        batches=BATCHES,
+    )
+    sheet = worksheet(project)
+    assert sheet["mean"] is sheet["maximum"] is None
+    assert not sheet["flow_keys"] and all(row["flow_key"] is None for row in sheet["rows"])
+
+
+def test_repeated_result_on_same_sample_blocks_the_whole_series(project, issue):
+    repeated = sample("repeated")
+    repeated["results"].append(repeated["results"][0].copy())
+    issue(project, repeated, batches=BATCHES)
+    sheet = worksheet(project)
+    assert sheet["mean"] is sheet["maximum"] is None and not sheet["flow_keys"]
+    assert all("same lab sample ID" in row["reason"] for row in sheet["rows"])
+
+
+def test_worksheet_does_not_offer_more_flows_than_can_be_submitted(project, issue, monkeypatch):
+    monkeypatch.setattr(monthly, "MAX_MONTHLY_FLOWS", 2)
+    issue(project, sample("1"), sample("2"), sample("3"), batches=BATCHES)
+    sheet = worksheet(project)
+    assert len(sheet["rows"]) == 3 and sheet["days"] == 1
+    assert sheet["mean"] is sheet["maximum"] is None and not sheet["flow_keys"]
+    assert "2 grab flow limit" in sheet["reason"]
+
+
+def test_equal_maximum_preserves_first_issued_precision(project, issue):
+    issue(project, sample("second day", end="2026-11-02", reported="1.00"), batches=BATCHES)
+    issue(project, sample("first day", end="2026-11-01", reported="1.0"), batches=BATCHES)
+    sheet = worksheet(project)
+    assert sheet["mean"] == sheet["maximum"] == "1.00"
 
 
 def test_ineligible_units_qualifications_qc_and_field_designations_remain_visible(project, issue):

@@ -168,6 +168,10 @@ The same list is shown in the application under What's new.
 
   Open the GitHub Actions checks run for a candidate to see which migrations the upgrade rehearsed and which locked package versions changed. The application job summary links to both tested commits and the candidate’s recovery and acceptance instructions.
 
+- **Added:** Weight same-day grab samples by flow (2026-11-19, Reports)
+
+  On the monthly concentration worksheet, enter the flow at collection for each grab when several eligible samples represent the same day. Use the daily concentrations to check the monthly mean and the highest day against the issued reports.
+
 - **Added:** Choose columns and headings for result CSV downloads (2026-11-18, Reports)
 
   On an issued report in the client portal, select Use CSV template to download results with the columns your recipient needs. The example template can be edited and reused for current or earlier versions.

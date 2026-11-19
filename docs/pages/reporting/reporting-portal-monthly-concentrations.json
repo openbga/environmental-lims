@@ -3,13 +3,21 @@
   "routes": ["portal:monthly-concentrations"],
   "title": "Monthly concentrations",
   "purpose": "Review the sampled-day mean and highest daily concentration for one location and analyte, with every issued source result.",
-  "summary": "Review an analyte's sampled-day mean and highest daily concentration for one location and collection month. Open the issued PDFs to check the source results.",
+  "summary": "Review an analyte's sampled-day mean and highest daily concentration for one location and month. Enter corresponding flows when a day has several eligible grab samples.",
   "tasks": [
     {
       "title": "Review a collection month",
       "steps": [
         "From your current report, select [[Monthly concentrations]] beside the result for the location, analyte and month you need.",
         "Check the [[Reporting period]] and [[Sampled days]]. Review the [[Arithmetic mean]] and [[Highest daily concentration]] when available."
+      ]
+    },
+    {
+      "title": "Calculate a month with several grabs on a day",
+      "steps": [
+        "Select [[Enter grab flows]] in the [[Monthly summary]] to go to the required fields.",
+        "Under [[Grab sample flows]], match each listed lab sample ID and collection time to its measured flow. Enter each flow in MGD.",
+        "Select [[Calculate concentrations]]. Check the values by day under [[Daily concentrations]] and review the [[Monthly summary]]."
       ]
     },
     {
@@ -22,8 +30,9 @@
   ],
   "good_to_know": [
     "Only current issued results for the selected project, exact location, matrix and analyte contribute to the worksheet.",
-    "The calculation needs one eligible concentration per sampled day, including when the same result appears on multiple current reports.",
-    "Both concentrations use mg/L. A repeating arithmetic mean appears as an exact fraction.",
+    "The worksheet gives each sampled day equal weight in the monthly mean. Only days with several eligible grabs use the entered flows.",
+    "Flow entries are used for one calculation. If an issued source changes before you submit, check the current sources and re-enter flows if requested.",
+    "Concentrations use mg/L. Repeating values appear as exact fractions.",
     "The permittee checks representativeness, all required data sources, sampling coverage, permit rules and rounding before filing."
   ],
   "sections": [
@@ -41,15 +50,28 @@
     {
       "title": "Monthly summary",
       "paragraphs": [
-        "This read-only worksheet covers results available in the current issued reports for the matching project, location, matrix and analyte. The permittee checks the coverage of required data sources and sampling days, determines representativeness and which permit rules apply, and applies any rounding before filing."
+        "This worksheet covers results available in the current issued reports for the matching project, location, matrix and analyte. The permittee checks the coverage of required data sources and sampling days, determines representativeness and which permit rules apply, and applies any rounding before filing."
       ],
       "items": [
         {"label": "Reporting period", "description": "Calendar month of the selected sample's recorded collection date. For a composite, the recorded end selects the month. The worksheet uses the date recorded in the issued timestamp, including its original local day."},
         {"label": "Sampled days", "description": "Count of distinct assigned collection dates among the matching issued results, including dates with blocked results. Unassigned dates leave the count unchanged."},
-        {"label": "Arithmetic mean", "description": "Sum of the eligible daily concentrations in mg/L divided by the number of sampled days. Micrograms per liter are divided by 1,000. The worksheet shows an exact decimal or an exact fraction when the decimal would repeat."},
+        {"label": "Arithmetic mean", "description": "Sum of the eligible daily concentrations in mg/L divided by the number of sampled days. Each day has equal weight after any weighting of the grabs within that day. Micrograms per liter are divided by 1,000. The worksheet shows an exact decimal or an exact fraction when the decimal would repeat."},
+        {"label": "Enter grab flows", "description": "Go to the flow entry instructions and fields. This link appears under Arithmetic mean while the worksheet can calculate the month after you enter the flows."},
         {"label": "Highest daily concentration", "description": "Largest eligible daily concentration in mg/L among the sampled days, using the same unit conversion and one-value-per-day rule as the mean."},
         {"label": "Project / Matrix", "description": "The project named in the selected issue and the issued sample's matrix, Water or Wastewater. The owning project and matrix scope the series."},
-        {"label": "Calculation blocked", "description": "The worksheet gives the reason and leaves both concentrations blank. A missing or unusable collection date on the selected sample prevents the worksheet from selecting a month. If the series exceeds 1,000 matching rows, the full count and source rows are also unavailable."}
+        {"label": "Calculation blocked", "description": "The worksheet gives the reason and leaves both concentrations blank. A missing or unusable collection date on the selected sample prevents the worksheet from selecting a month. If the series exceeds 1,000 matching rows, the full count and source rows are also unavailable."},
+        {"label": "Issued source results changed", "description": "The worksheet discards any submitted flows when the current issued series differs from the one you opened. Review the current sources, then re-enter the flows if prompted or select Reload worksheet if the current series can be calculated with one result per day."}
+      ]
+    },
+    {
+      "title": "Grab sample flows and daily concentrations",
+      "paragraphs": [
+        "A day with one eligible concentration uses that value. A day with multiple results can use flow weighting when all of them come from distinct, eligible grabs with issued collection times and time zone offsets. The entire issued series must qualify, and the worksheet accepts up to 998 flow entries."
+      ],
+      "items": [
+        {"label": "Grab sample flows", "description": "Each required field shows its issued lab sample ID, collection date, time and time zone offset. Enter the corresponding measured flow in million US gallons per day (MGD) as a positive decimal, up to 14 whole digits and 10 decimal places, without units or an exponent."},
+        {"label": "Calculate concentrations", "description": "For each day with multiple grabs, multiply each concentration by its corresponding flow, add the products, then divide by the sum of those flows. With any missing or invalid entry, both monthly concentrations stay blank and the worksheet keeps your entries for correction. Submitted flows are used for the displayed calculation only and are never saved to reports or sample records."},
+        {"label": "Daily concentrations", "description": "After a successful flow calculation, Collection day lists each sampled date and Daily concentration (mg/L) shows the exact value used in the summary. Repeating values appear as exact fractions."}
       ]
     },
     {
@@ -64,7 +86,7 @@
         {"label": "Sample source", "description": "The issued description of where the sample came from, when recorded. The issued field designation is shown for samples such as field duplicates or blanks. Check the source and collection location against your permit."},
         {"label": "Issued result / Unit", "description": "Original reported text and unit from the issued PDF, including the issued representation of a non-detect and any trailing zeroes. The summary converts eligible concentrations to mg/L."},
         {"label": "Method", "description": "Issued method code and version where available. The PDF has further details including method attribution for outsourced analyses."},
-        {"label": "Worksheet status", "description": "Eligible concentration or the reason this issued result or date prevents calculation. Multiple rows on one day, the same lab sample ID on different days, or unreadable issued records can leave both concentrations unavailable. Multiple rows include separate current reports that carry the same result. An unassignable collection interval, field QC sample, non-detect, qualification, unrecognized unit or basis, negative value, missing evidence, or unusable receipt, preservation or QC records can also block the calculation."}
+        {"label": "Worksheet status", "description": "Eligible concentration, Flow required, Flow entered, or the reason this result or date prevents calculation. A day with multiple results including a composite, a repeated lab sample ID (including across reports or days), a grab missing an issued time or offset when flow is needed, or an unreadable issued record blocks the calculation. An unassignable collection interval, field QC sample, non-detect, qualification, unrecognized unit or basis, negative value, missing evidence, or unusable receipt, preservation or QC records can also block it."}
       ]
     }
   ],
@@ -74,6 +96,7 @@
     "reporting/portal_views.py",
     "reporting/monthly_concentrations.py",
     "reporting/daily_load.py",
+    "reporting/forms.py",
     "reporting/content.py",
     "reporting/models.py",
     "reporting/templates/reporting/portal/monthly_concentrations.html",

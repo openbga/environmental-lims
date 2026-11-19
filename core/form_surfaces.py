@@ -160,6 +160,8 @@ NOT_FORM_PAGES = {
     "page (form_page local=)",
     "portal:daily-load": "a worksheet displaying the calculated load beside its issued source "
     "and the flow used in the calculation",
+    "portal:monthly-concentrations": "a worksheet displaying the summary and issued sources "
+    "with the grab sample flow inputs used in the calculation",
     "reporting:edd-preview": "a record; its only form is the one-button Generate export",
     "analytical:review-batch": "a review queue; the decision applies to the results ticked in "
     "the list itself",
