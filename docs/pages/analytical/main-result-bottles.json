@@ -173,7 +173,7 @@
     {
       "title": "Calibration links",
       "paragraphs": [
-        "This bottle worksheet does not record or carry calibration evidence links. It saves the bottle observations and calculated result under the existing BOD workflow; curve fitting and calibration acceptance are not performed. An earlier result revision keeps any evidence it already has."
+        "The bottle worksheet saves the bottle observations and calculated result. Each revision saved here has empty calibration links. Earlier revisions retain any evidence they recorded."
       ]
     }
   ],

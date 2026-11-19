@@ -162,15 +162,27 @@ and new report snapshots; issued versions remain unchanged. A superseded selecte
 requires a new result revision, and people who recorded the selected curve or check cannot review
 or release that result. Existing configured QC checks still apply.
 
-This records evidence, not method acceptance: it does not fit curves, evaluate fit quality,
-choose standards, determine independent sources or check run sequence and verification bracketing.
-EPA 200.7 Rev. 4.4 (1994), sections 9.3.4 and 11.4.4, and SW-846 6010D Rev. 5 (July 2018),
-sections 10.7–10.8, describe different calibration and verification arrangements. Their rules
-cannot be reduced to a universal point count or recovery limit. The 50-point record limit and
-one optional check per result revision are product bounds, not laboratory requirements; negative
-instrument responses are allowed. Source references remain the laboratory's responsibility.
-US method sources checked 2026-11-15: [EPA 200.7 Rev. 4.4](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P10177CN.txt)
-and [EPA 6010D Rev. 5](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P1017DDQ.txt).
+From 2026-11-19, staff can compare the recorded standards with a straight-line fit on the
+calibration detail page. The worksheet fits response against concentration with a free intercept.
+Staff choose equal weights, inverse concentration (1/x) or inverse concentration squared (1/x²)
+according to their method and SOP. Each recorded point contributes separately, including
+replicates. The line requires two distinct concentrations. Both inverse options require positive
+concentrations throughout. The worksheet uses exact arithmetic and displays the slope, intercept,
+predicted responses and signed residuals (observed minus predicted) to at most 12 significant digits.
+The fit is a read-only calculation. The instrument's model remains the evidence linked to results.
+
+For US methods, EPA SW-846 6010D Rev. 5 (July 2018), section 10.7, recommends inverse weighting
+for multipoint ICP-OES calibration. EPA SW-846 8000D Rev. 5 (March 2018), section 11.5.2,
+describes all three weighting options for linear regression in chromatography and excludes
+zero-concentration calibration points for that procedure. The laboratory checks its own method's
+point count, standard sources, model and acceptance criteria. [US EPA Method 8000D](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P1016J8Z.txt)
+and [US EPA Method 6010D](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P1017DDQ.txt), checked 2026-11-19.
+
+Run sequencing and verification bracketing remain with the laboratory. EPA 200.7 Rev. 4.4
+(1994), sections 9.3.4 and 11.4.4, and SW-846 6010D, sections 10.7–10.8, describe different
+verification arrangements. The 50-point record limit and one optional check per result revision
+are product bounds. The record accepts negative instrument responses and retains the supplied
+standard references. [US EPA Method 200.7 Rev. 4.4, checked 2026-11-15](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P10177CN.txt).
 
 Analysts share a dashboard queue for results returned from technical review. The time waiting
 starts when the reviewer returns the current revision. Analysts can open the oldest return

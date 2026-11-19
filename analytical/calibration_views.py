@@ -3,14 +3,14 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.http import Http404
+from django.http import Http404, HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 
 from core.models import AuditEvent
 
-from . import calibration, services
-from .calibration_forms import CalibrationForm
+from . import calibration, calibration_fit, services
+from .calibration_forms import CalibrationFitForm, CalibrationForm
 from .forms import add_service_errors
 from .models import Batch, RunCalibration
 from .views import _grid, _paginate, _render, _staff
@@ -54,9 +54,9 @@ def calibration_create(request, pk):
             ],
             "cancel_url": batch_url,
             "submit_label": "Record calibration",
-            "config_note": "Record instrument-reported evidence. The application does not fit the "
-            "curve or evaluate method acceptance. To correct it, "
-            "record a new calibration reference.",
+            "config_note": "Record the evidence supplied by the instrument. After recording it, "
+            "you can inspect the points in the read-only linear fit worksheet. "
+            "To correct the evidence, record a new calibration reference.",
         },
     )
 
@@ -64,6 +64,8 @@ def calibration_create(request, pk):
 @login_required
 def calibration_detail(request, pk):
     _staff(request)
+    if request.method not in ("GET", "HEAD"):
+        return HttpResponseNotAllowed(["GET", "HEAD"])
     curve = get_object_or_404(RunCalibration.objects.select_related("batch", "created_by"), pk=pk)
     revisions = curve.revisions.select_related("result__requested_test__sample").order_by(
         "-entered_at", "-pk"
@@ -72,12 +74,29 @@ def calibration_detail(request, pk):
     events = AuditEvent.objects.filter(
         object_type="analytical.runcalibration", object_id=str(curve.pk)
     ).select_related("actor")
+    fit_form = CalibrationFitForm(request.GET if "weighting" in request.GET else None)
+    fit = None
+    fit_weighting_label = None
+    fit_errors = []
+    if fit_form.is_bound and fit_form.is_valid():
+        weighting = fit_form.cleaned_data["weighting"]
+        try:
+            fit = calibration_fit.calculate_fit(curve.points, weighting)
+        except ValidationError as exc:
+            fit_errors = exc.messages
+        else:
+            fit_weighting_label = dict(fit_form.fields["weighting"].choices)[weighting]
     return _render(
         request,
         "calibration_detail.html",
         {
             "page_title": curve.reference,
             "curve": curve,
+            "fit_form": fit_form,
+            "fit": fit,
+            "fit_errors": fit_errors,
+            "fit_weighting_label": fit_weighting_label,
+            "points": fit["rows"] if fit else curve.points,
             "page_obj": page,
             "events": events,
         },
