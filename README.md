@@ -31,6 +31,8 @@ records; it does not certify compliance or accreditation.
   From a reported sampling location, clients can follow results over time within the same project
   and open the issued PDF behind each result. They can enter an upper limit to compare
   unqualified numeric results for the same analyte, unit, matrix and reporting basis.
+  For an eligible water or wastewater result on the current report, clients can enter the
+  sampling-day flow and calculate daily mass loading in pounds per day.
 - **Operations:** price lists and versioned quotes, client-submitted COCs, delivery scheduling,
   labels, subcontracted results and staff account-hold notices at receipt and report release.
   Internal draft invoices take received tests and an explicitly selected price list or matching

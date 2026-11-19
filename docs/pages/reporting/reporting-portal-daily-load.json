@@ -1,0 +1,67 @@
+{
+  "id": "reporting-portal-daily-load",
+  "routes": ["portal:daily-load"],
+  "title": "Daily load",
+  "purpose": "Estimate a sampling day's mass load from an issued concentration and the corresponding daily flow.",
+  "summary": "Use an eligible result from your current issued report and the corresponding sampling-day flow to calculate a daily load in pounds per day. Check how your permit defines the sample, flow, factor and rounding.",
+  "tasks": [
+    {
+      "title": "Calculate a daily load",
+      "steps": [
+        "Check the [[Issued result]] against the sample and collection period that your permit specifies.",
+        "Enter the corresponding flow in [[Sampling-day flow]].",
+        "Select [[Calculate load]] to see the inputs and the daily load in pounds per day."
+      ]
+    },
+    {
+      "title": "Check the source report",
+      "steps": [
+        "Select [[Download issued PDF]] to read the report version that supplied the concentration.",
+        "If this version has been superseded, select [[current report]] and choose the result again."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The worksheet uses the conversion factor 8.34. Confirm that this calculation applies to your discharge and permit.",
+    "Non-detects, qualified results and field QC samples cannot supply a concentration here.",
+    "The worksheet keeps the issued digits and shows the product before permit-specific rounding.",
+    "The flow and calculated load are temporary. The worksheet does not add them to a report or submit a discharge monitoring report."
+  ],
+  "sections": [
+    {
+      "title": "Issued result",
+      "items": [
+        {"label": "Report number, version and sample IDs", "description": "The header identifies the issued report, version, client sample ID and laboratory sample ID. The report number in the breadcrumb returns you to the current issue."},
+        {"label": "Current version / Superseded version", "description": "Only the current issued version of your own client's report can supply a calculation. If an amendment is issued while the worksheet is open, submitting the earlier version gives a notice. Select the result again in the current report."},
+        {"label": "Analyte / Reported concentration", "description": "The substance, reported value and original unit from this result. An unqualified, nonnegative detected concentration is required."},
+        {"label": "Matrix / Sample source / Field designation", "description": "The matrix must be Water or Wastewater. The sampling source and any field designation appear when recorded. Only field samples can supply a load. Use the source and location to identify the discharge your permit covers."},
+        {"label": "Collection type / Collected / Composite start / Composite end", "description": "Read the collection type and issued collection time with its recorded offset. When a composite start is recorded, both ends of the collection interval are shown. Check which daily flow corresponds to the sample."},
+        {"label": "Collection location", "description": "The place recorded for the sample at issue. An empty location appears as Not recorded."},
+        {"label": "Concentration in mg/L", "description": "For micrograms per liter (ug/L, µg/L or μg/L), the worksheet divides the issued concentration by 1,000. An issued mg/L result already has the calculation unit."},
+        {"label": "Download issued PDF", "description": "Retrieve the stored PDF of this exact version, including a superseded version. It is the report of record."}
+      ]
+    },
+    {
+      "title": "Flow and calculation",
+      "items": [
+        {"label": "Sampling-day flow", "description": "Enter the daily flow corresponding to the concentration, in million US gallons per day (MGD). Use a nonnegative decimal with up to 14 whole digits and 10 decimal places. Omit units, separators and exponents. Invalid input stays in the form for correction."},
+        {"label": "Calculate load / Calculated daily load", "description": "Multiply the concentration in mg/L by the entered flow in MGD and by 8.34. The result and its units appear with the inputs. Zero flow gives a zero product. The permittee decides whether the calculation, flow, rounding and reporting treatment apply."},
+        {"label": "Daily load unavailable", "description": "Read the reason shown for the selected result. A field QC designation, missing collection date, unusable basis, missing evidence, non-detect, negative or qualified result can withhold the calculation. The worksheet requires a Proceed receipt disposition. It checks the issued result, preservation and applicable analytical and preparation batch QC for qualifications, including reported subcontract qualifiers."},
+        {"label": "Demonstration", "description": "This notice identifies synthetic data. Use these records to try the workflow only."}
+      ],
+      "paragraphs": ["Changing the flow recalculates the worksheet for the same issued result. Calculations are temporary and leave the original observations and report unchanged."]
+    }
+  ],
+  "sources": [
+    "reporting/portal_urls.py",
+    "reporting/portal_views.py",
+    "reporting/daily_load.py",
+    "reporting/forms.py",
+    "reporting/content.py",
+    "reporting/templates/reporting/portal/daily_load.html",
+    "reporting/templates/reporting/portal/notice.html",
+    "reporting/templates/reporting/portal/report_detail.html",
+    "reporting/templatetags/reporting.py",
+    "reporting/tests/test_portal_daily_load.py"
+  ]
+}

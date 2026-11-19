@@ -1,0 +1,45 @@
+{% extends "layouts/portal.html" %}
+{% load reporting ui %}
+{% block breadcrumbs %}{% url 'portal:report-list' as list_url %}{% url 'portal:report-detail' version.report_id as report_url %}{% breadcrumbs section="Reports" section_url=list_url record=version.report.number record_url=report_url current="Daily load" %}{% endblock %}
+{% block page_meta %}{% page_meta %}
+  <li>{% if current %}{% status label="Current version" tone="success" %}{% else %}{% status label="Superseded version" tone="neutral" %}{% endif %}</li>
+  <li>{{ version.report.number }} · Version {{ version.number }}</li>
+  <li>{{ sample.client_sample_id }} · {{ sample.lab_id }}</li>
+{% endpage_meta %}{% endblock %}
+{% block page_intro %}<p class="vr-page-intro">Check that your permit uses the 8.34 factor and that this sample represents the discharge paired with your daily flow. Apply the rounding your permit requires before reporting.</p>{% endblock %}
+{% block page_actions %}<a class="btn btn-outline-secondary" href="{% url 'portal:report-pdf' version.report_id version.number %}">{% icon name="download" %}Download issued PDF</a>{% endblock %}
+{% block content %}
+{% include "reporting/portal/notice.html" %}
+{% if not current %}
+  {% notice tone="warning" label="Superseded version" blocking=True %}A newer version has been issued. Select the result again in the <a href="{% url 'portal:report-detail' version.report_id %}">current report</a>.{% endnotice %}
+{% elif reason %}
+  {% notice tone="warning" label="Daily load unavailable" blocking=True %}{{ reason }}{% endnotice %}
+{% endif %}
+{% record_layout aside_label="Calculate load" %}
+  {% fill lead %}{% panel title="Issued result" heading_id="issued-result-heading" %}
+    <dl class="vr-facts">
+      {% fact label="Analyte" value=result.analyte %}
+      {% fact label="Reported concentration" %}{{ result.reported|default:"—" }} {{ result.unit }}{% endfact %}
+      {% fact label="Matrix" %}{% matrix_tag matrix=sample.matrix|lower name=sample.matrix size="sm" %}{% endfact %}
+      {% if sample.source %}{% fact label="Sample source" value=sample.source %}{% endif %}
+      {% if sample.sample_type %}{% fact label="Field designation" value=sample.sample_type %}{% endif %}
+      {% fact label="Collection type" value=sample.collection_type empty="Not recorded" %}
+      {% if sample.collection_started_at %}
+        {% fact label="Composite start" value=sample.collection_started_at|iso_time %}
+        {% fact label="Composite end" value=sample.collected_at|iso_time %}
+      {% else %}
+        {% fact label="Collected" value=sample.collected_at|iso_time %}
+      {% endif %}
+      {% fact label="Collection location" value=sample.collection_location empty="Not recorded" wide=True %}
+      {% if concentration is not None and result.unit != "mg/L" %}{% fact label="Concentration in mg/L" %}{{ concentration }} mg/L{% endfact %}{% endif %}
+    </dl>
+  {% endpanel %}{% endfill %}
+  {% fill aside %}{% if form %}{% panel title="Calculate load" heading_id="calculate-load-heading" %}
+    <p>Concentration (mg/L) × flow (MGD) × 8.34 gives the daily load in lb/day.</p>
+    {% form_page form=form submit_label="Calculate load" %}{% endform_page %}
+    {% if load is not None %}
+      {% notice tone="success" label="Calculated daily load" %}<strong>{{ load }} lb/day</strong><br>{{ concentration }} mg/L × {{ form.flow_mgd.value }} MGD × 8.34{% endnotice %}
+    {% endif %}
+  {% endpanel %}{% endif %}{% endfill %}
+{% endrecord_layout %}
+{% endblock %}

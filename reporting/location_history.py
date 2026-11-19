@@ -146,20 +146,19 @@ def comparison_context(result, matrix):
     }
 
 
-def _compare_result(result, basis, upper_limit, report_qualified):
-    if basis == ResultBasis.UNKNOWN:
-        return "Not compared · Reporting basis unavailable"
+def issued_numeric_result(result, *, report_qualified=False):
+    """Return the exact unqualified number in an issued row, or the reason it is unavailable."""
     if result.get("kind") == ResultKind.NON_DETECT:
-        return "Not compared · Non-detect"
+        return None, "Non-detect"
     if result.get("kind") != ResultKind.DETECTED or not isinstance(result.get("qualifiers"), list):
-        return "Not compared · Result information incomplete"
+        return None, "Result information incomplete"
     if report_qualified or result["qualifiers"]:
-        return "Not compared · Qualified result"
+        return None, "Qualified result"
     if "source" in result:
         if result["source"] != "external" or not isinstance(result.get("external_qualifiers"), str):
-            return "Not compared · Result information incomplete"
+            return None, "Result information incomplete"
         if result["external_qualifiers"].strip():
-            return "Not compared · Qualified result"
+            return None, "Qualified result"
 
     text = result.get("reported")
     if (
@@ -167,13 +166,22 @@ def _compare_result(result, basis, upper_limit, report_qualified):
         or len(text) > MAX_TEXT_LENGTH
         or not _REPORTED_NUMBER.fullmatch(text)
     ):
-        return "Not compared · No numeric result"
+        return None, "No numeric result"
     try:
         value = Decimal(text)
     except InvalidOperation:
-        return "Not compared · No numeric result"
+        return None, "No numeric result"
     if not value.is_finite():
-        return "Not compared · No numeric result"
+        return None, "No numeric result"
+    return value, ""
+
+
+def _compare_result(result, basis, upper_limit, report_qualified):
+    if basis == ResultBasis.UNKNOWN:
+        return "Not compared · Reporting basis unavailable"
+    value, reason = issued_numeric_result(result, report_qualified=report_qualified)
+    if reason:
+        return f"Not compared · {reason}"
     if value > upper_limit:
         return "Above limit"
     if value < upper_limit:

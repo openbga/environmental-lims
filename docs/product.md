@@ -340,6 +340,20 @@ inorganic data review guidance distinguishes estimated quantities from non-detec
 leaves interpretation of those results to the client and laboratory.
 [US EPA guidance, General Table 1, November 2020, checked 2026-11-19](https://www.epa.gov/sites/default/files/2021-03/documents/nfg_for_inorganic_superfund_methods_data_review_november_2020.pdf).
 
+Since 2026-11-19, a client preparing a discharge monitoring report can pair one concentration
+from its current issued report with the corresponding sampling-day flow in million US gallons
+per day. The daily load worksheet shows the issued concentration and unit, its value in mg/L
+and the product of that value, the entered flow and 8.34, in lb/day. It supports water and
+wastewater concentrations issued in mg/L or micrograms per liter. A non-detect, a qualification
+or insufficient evidence leaves the load unavailable. The report PDF identifies the source.
+The worksheet is transient. The permittee decides whether this concentration, flow and factor
+apply to the discharge and how to round and report the result.
+
+US EPA’s 2017 permit ID0020214 for Idaho illustrates this calculation in Table 1, note 1.
+It has separate rules for averaging and for results below detection limits. Period averages and
+maximums remain on the roadmap. The permittee files the report.
+[US EPA, 2017 Idaho permit, page 8, checked 2026-11-19](https://www.epa.gov/sites/production/files/2017-05/documents/r10-npdes-preston-id0020214-final-permit-2017.pdf).
+
 Deliverable and reporting targets for milestones 2 to 4. All are exploratory. A recipient accepts an EDD only against its own current specification and reference values, so no format here is claimed as accepted until tested against one named recipient's spec.
 
 | Target | What it is | Notes |

@@ -28,13 +28,15 @@ from django.http import Http404, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.http import content_disposition_header
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_http_methods
 
 from core.grids import GridRequest, active_filters
 from receipt.models import Project, RequestedTest, Sample
 
 from .content import synthetic_notice
-from .forms import ResultCSVTemplateForm
+from .daily_load import calculate_daily_load, daily_load_input
+from .forms import DailyLoadForm, ResultCSVTemplateForm
 from .location_history import comparison_context
 from .location_history import location_history as issued_location_history
 from .models import Report, ReportFile, ReportVersion
@@ -507,6 +509,58 @@ def report_detail(request, pk):
             current=current,
             c=content,
             toc=toc if len(toc) >= 4 else [],
+        ),
+    )
+
+
+@client_required
+@require_http_methods(["GET", "POST"])
+@never_cache
+def daily_load(request, pk, number, position, result_position):
+    version = get_object_or_404(
+        client_versions(request.user)
+        .filter(file__isnull=False)
+        .select_related("report", "file")
+        .only("number", "report__latest_version", "file__snapshot"),
+        report_id=pk,
+        number=number,
+    )
+    content = version.file.snapshot["content"]
+    if position < 1 or result_position < 1:
+        raise Http404
+    try:
+        sample = content["samples"][position - 1]
+        result = sample["results"][result_position - 1]
+    except IndexError, KeyError, TypeError:
+        raise Http404 from None
+    if not isinstance(result, dict):
+        raise Http404
+
+    current = number == version.report.latest_version
+    concentration, reason = None, ""
+    form, load = None, None
+    if current:
+        concentration, reason = daily_load_input(content, sample, result)
+        if concentration is not None:
+            form = DailyLoadForm(request.POST if request.method == "POST" else None)
+            if form.is_bound and form.is_valid():
+                load = calculate_daily_load(concentration, form.cleaned_data["flow_mgd"])
+
+    return render(
+        request,
+        "reporting/portal/daily_load.html",
+        _context(
+            request,
+            "Daily load",
+            version=version,
+            current=current,
+            sample=sample,
+            result=result,
+            form=form,
+            reason=reason,
+            concentration=format(concentration, "f") if concentration is not None else None,
+            load=format(load, "f") if load is not None else None,
+            synthetic_notice=content.get("synthetic_notice") is True or synthetic_notice(),
         ),
     )
 

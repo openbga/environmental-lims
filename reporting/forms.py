@@ -1,10 +1,32 @@
+from decimal import Decimal
+
 from django import forms
+from django.core.validators import DecimalValidator
 from django.utils import timezone
 
 from receipt.models import Project, Sample
 
+from .daily_load import FLOW_DECIMAL_PLACES, FLOW_MAX_DIGITS
 from .models import MAX_NARRATIVE
 from .results_csv import parse_csv_template
+
+
+class DailyLoadForm(forms.Form):
+    flow_mgd = forms.RegexField(
+        label="Sampling-day flow",
+        regex=r"\A\+?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)\Z",
+        max_length=60,
+        widget=forms.NumberInput(attrs={"unit": "MGD", "inputmode": "decimal"}),
+        help_text="Enter the corresponding daily flow in million US gallons per day.",
+        error_messages={
+            "invalid": "Enter zero or a positive decimal without units or an exponent."
+        },
+    )
+
+    def clean_flow_mgd(self):
+        flow = Decimal(self.cleaned_data["flow_mgd"])
+        DecimalValidator(FLOW_MAX_DIGITS, FLOW_DECIMAL_PLACES)(flow)
+        return flow
 
 
 class ResultCSVTemplateForm(forms.Form):

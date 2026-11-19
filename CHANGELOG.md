@@ -10,6 +10,10 @@ The same list is shown in the application under What's new.
 
 ### High impact
 
+- **Added:** Calculate daily mass loading from an issued result (2026-11-19, Client portal)
+
+  Clients can open Daily load from a water or wastewater result on their current report. Enter the corresponding sampling-day flow to see the calculation in pounds per day and open the issued PDF to check the source.
+
 - **Added:** Compare results at a sampling location with a client upper limit (2026-11-19, Client portal)
 
   From a sampling location’s result history, clients can enter an upper limit in the issued unit and see which comparable results fall above, at or below it. Each row links to its issued PDF and explains when a comparison cannot be made.
