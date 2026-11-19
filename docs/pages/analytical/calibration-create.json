@@ -5,7 +5,7 @@
   ],
   "title": "Record calibration",
   "purpose": "Keep the instrument-reported curve, standard points and source for one test in this analytical batch.",
-  "summary": "Record a curve supplied by an instrument, with its standard points and source. Analysts and administrators can record evidence; the application does not fit the curve or decide method acceptance.",
+  "summary": "Record a curve supplied by an instrument, with its standard points and source. Analysts and administrators can record evidence and then open the read-only linear fit worksheet.",
   "tasks": [
     {
       "title": "Record a curve",
@@ -24,7 +24,7 @@
     }
   ],
   "good_to_know": [
-    "The application keeps instrument-reported evidence. It does not calculate a fit, check fit quality or establish method acceptance.",
+    "Record the instrument’s own model and weighting here. The worksheet on the saved record provides a separate calculation for inspection.",
     "Concentrations use the unit shown with [[Test]]. Responses use [[Response unit]]. Negative responses are allowed; negative concentrations are refused.",
     "The record cannot be edited or deleted. A different record never silently replaces evidence on an earlier result.",
     "Closing the batch freezes membership only; you can still record calibration evidence."
@@ -33,7 +33,7 @@
     {
       "title": "Access and navigation",
       "paragraphs": [
-        "Active analysts and administrators can open and submit this form for an analytical batch. Other staff and clients cannot record calibration. Preparation batches are not eligible. Cancel returns to the batch without saving; success opens the immutable calibration record. The dialog and full-page form have the same fields and rules."
+        "Active analysts and administrators can open and submit this form for an analytical batch. Other staff and clients cannot record calibration. Preparation batches are not eligible. Cancel returns to the batch without saving. Success opens the immutable calibration record and its Linear fit worksheet. The dialog and full-page form have the same fields and rules."
       ]
     },
     {
@@ -88,6 +88,7 @@
     "analytical/services.py",
     "analytical/tests/test_calibration.py",
     "analytical/tests/test_calibration_views.py",
-    "analytical/templates/analytical/form.html"
+    "analytical/templates/analytical/form.html",
+    "analytical/templates/analytical/calibration_detail.html"
   ]
 }

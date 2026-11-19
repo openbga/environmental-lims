@@ -434,7 +434,7 @@
     {
       "title": "Recorded calibration evidence",
       "paragraphs": [
-        "The application records curves and verification provenance; it does not fit curves, determine method acceptance, verify independent standard sources or check sequence and bracketing. A calibration link is not required for every test."
+        "A calibration link is optional. It points to the recorded instrument evidence. The calibration record’s Linear fit worksheet is for inspection only. Follow the laboratory’s procedure for method acceptance, source independence, sequencing and bracketing."
       ],
       "items": [
         {
@@ -486,6 +486,7 @@
     "analytical/calibration.py",
     "analytical/calibration_forms.py",
     "analytical/calibration_views.py",
+    "analytical/templates/analytical/calibration_detail.html",
     "analytical/tests/test_calibration.py",
     "analytical/tests/test_calibration_views.py"
   ]

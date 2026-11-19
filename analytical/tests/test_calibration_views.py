@@ -10,6 +10,7 @@ from accounts.models import User
 from analytical import calibration, services
 from analytical.calibration_forms import CalibrationForm
 from analytical.models import Result, RunCalibration
+from core.models import AuditEvent
 from receipt.models import RequestedTest
 
 pytestmark = pytest.mark.django_db
@@ -95,6 +96,92 @@ def test_clients_cannot_read_or_record(lab, analyst, client):
         url = reverse(f"analytical:{name}", args=[pk])
         assert client.get(url).status_code == 403
         assert client.post(url, {}).status_code == 403
+    url = reverse("analytical:calibration-detail", args=[curve.pk])
+    assert client.get(url, {"weighting": "equal"}).status_code == 403
+
+
+def test_fit_requires_a_choice_and_keeps_evidence_and_result_links(lab, analyst, reviewer, client):
+    batch, result = setup_run(lab, analyst)
+    points = [
+        {"standard": "SYN-STD-1", "concentration": "1.00", "response": "2.000"},
+        {"standard": "SYN-STD-2", "concentration": "2.0", "response": "4"},
+        {"standard": "SYN-STD-3", "concentration": "3", "response": "8.0"},
+    ]
+    curve = record(lab, analyst, batch, points=points)
+    client.force_login(analyst)
+    result_url = reverse("analytical:result-detail", args=[result.pk])
+    assert client.post(result_url, entry(calibration_id=curve.pk)).status_code == 302
+    revision = result.revisions.get()
+    evidence = revision.calibration_evidence
+    curve_fields = RunCalibration.objects.values().get(pk=curve.pk)
+
+    client.force_login(reviewer)
+    audit_count = AuditEvent.objects.count()
+    url = reverse("analytical:calibration-detail", args=[curve.pk])
+    initial = client.get(url, {"per_page": 50})
+    assert initial.status_code == 200 and not initial.context["fit_form"].is_bound
+    assert b"Linear fit worksheet" in initial.content
+    assert b"Predicted response (counts)" not in initial.content
+    slopes = set()
+    for weighting in ("equal", "inverse", "inverse_square"):
+        response = client.get(url, {"weighting": weighting})
+        assert response.status_code == 200
+        assert response.context["fit_form"]["weighting"].value() == weighting
+        fit = response.context["fit"]
+        slopes.add(fit["slope"])
+        if weighting == "equal":
+            assert fit["slope"] == "3"
+        assert "y = slope × x + intercept" in response.content.decode()
+        assert b"Predicted response (counts)" in response.content
+        assert b"Residual (counts)" in response.content
+        assert b"SYNTHETIC instrument record 01" in response.content
+        assert b"Instrument-reported linear fit; synthetic" in response.content
+        assert b">1.00</td>" in response.content and b">2.000</td>" in response.content
+        assert b'name="weighting"' in response.content
+        assert b"Result revisions using" in response.content
+    assert len(slopes) == 3
+    assert client.post(url, {"weighting": "equal"}).status_code == 405
+    assert RunCalibration.objects.values().get(pk=curve.pk) == curve_fields
+    assert result.revisions.get().calibration_evidence == evidence
+    assert AuditEvent.objects.count() == audit_count
+
+
+def test_fit_errors_keep_recorded_points_visible(lab, analyst, client):
+    batch, _ = setup_run(lab, analyst)
+    curve = record(
+        lab,
+        analyst,
+        batch,
+        points=[
+            {"standard": "SYN-BLANK", "concentration": "0.000", "response": "-0.0200"},
+            {"standard": "SYN-LOW", "concentration": "1.00", "response": "2.000"},
+        ],
+    )
+    client.force_login(analyst)
+    url = reverse("analytical:calibration-detail", args=[curve.pk])
+    assert client.get(url, {"weighting": "equal"}).context["fit"]
+    for weighting in ("", "quadratic", "inverse", "inverse_square"):
+        response = client.get(url, {"weighting": weighting})
+        assert response.status_code == 200 and response.context["fit"] is None
+        assert b"Predicted response (counts)" not in response.content
+        assert b"SYN-BLANK" in response.content and b"-0.0200" in response.content
+        if weighting.startswith("inverse"):
+            assert b"Fit unavailable" in response.content
+            assert (
+                b"Inverse weighting requires every concentration to be greater than zero."
+                in response.content
+            )
+            assert response.context["fit_form"]["weighting"].value() == weighting
+        else:
+            assert b'aria-invalid="true"' in response.content
+            assert response.context["fit_form"].errors["weighting"]
+
+    one_point = record(lab, analyst, batch, reference="SYNTHETIC-SINGLE-POINT")
+    url = reverse("analytical:calibration-detail", args=[one_point.pk])
+    response = client.get(url, {"weighting": "equal"})
+    assert response.status_code == 200 and response.context["fit"] is None
+    assert b"A linear fit needs at least two distinct concentrations." in response.content
+    assert b"SYN-STD-1" in response.content
 
 
 def test_csv_bounds_errors_keep_input(lab, analyst, client):

@@ -4,14 +4,22 @@
     "analytical:calibration-detail"
   ],
   "title": "Calibration evidence",
-  "purpose": "Inspect the frozen instrument-reported curve and the result revisions that explicitly use it.",
-  "summary": "Inspect a recorded curve, its exact standard points and source, and the result revisions linked to it. The evidence stays as recorded even if the catalog or batch equipment changes.",
+  "purpose": "Inspect the recorded instrument model, calculate a temporary linear fit, and trace the result revisions that use this evidence.",
+  "summary": "Inspect a recorded curve, its exact standard points and source, and the result revisions linked to it. Use the read-only worksheet to fit a line to the points.",
   "tasks": [
     {
       "title": "Check the curve’s source and points",
       "steps": [
         "Read [[Calibration facts]] and [[Standard points]].",
-        "Compare the model, units and source with the laboratory’s instrument record. The application does not evaluate the fit."
+        "Compare the model, units and source with the laboratory’s instrument record."
+      ]
+    },
+    {
+      "title": "Calculate a linear fit",
+      "steps": [
+        "In [[Linear fit worksheet]], choose [[Weighting]] and select [[Calculate fit]].",
+        "Read the [[Equation]], [[Slope]] and [[Intercept]] in the worksheet.",
+        "Compare the predicted and observed responses and residuals in [[Standard points]]."
       ]
     },
     {
@@ -31,6 +39,7 @@
   ],
   "good_to_know": [
     "This record is immutable. Recording another curve does not change any existing result or issued report.",
+    "The fit is for inspection. Follow the laboratory’s procedure for method acceptance. Both inverse choices require positive concentrations at every point.",
     "A curve link is optional and explicitly selected for each result revision; it is never inferred for a batch.",
     "A selected verification correction holds submission, approval and release until a new result revision records current evidence.",
     "The people who recorded a selected curve or verification cannot review or release its result."
@@ -55,7 +64,7 @@
         },
         {
           "label": "Instrument-reported model",
-          "description": "The supplied equation, fit and weighting description, retained without evaluating or changing it."
+          "description": "The supplied equation, fit and weighting description stored as instrument evidence."
         },
         {
           "label": "Concentration unit / Response unit",
@@ -76,9 +85,35 @@
       ]
     },
     {
+      "title": "Linear fit worksheet",
+      "paragraphs": [
+        "Staff who can read the calibration can use the worksheet. The calculation fits response as a function of concentration by least squares with an intercept. It uses every recorded point, including repeated concentrations, in the frozen units.",
+        "At least two distinct concentrations are required. Either inverse weighting requires every concentration to be greater than zero. A missing or unrecognized weighting shows a field error. If the points cannot be fitted, Fit unavailable explains why and the recorded points remain visible.",
+        "The worksheet output is temporary and lives on this page. Links from result revisions refer to the frozen instrument evidence. Use the laboratory’s procedure and configured QC checks for method acceptance."
+      ],
+      "items": [
+        {
+          "label": "Weighting",
+          "description": "Choose a weighting for each calculation. Unweighted (equal weights) gives every row the same weight. 1/x (inverse concentration) weights each row by the reciprocal of its concentration. 1/x² (inverse concentration squared) weights each row by the reciprocal of concentration squared."
+        },
+        {
+          "label": "Calculate fit",
+          "description": "Calculate using the selected weighting. The page initially shows the recorded evidence and points, with the worksheet ready for a choice. Return to the choices and calculate again to try a different weighting."
+        },
+        {
+          "label": "Equation",
+          "description": "The selected fit shows the weighting and an equation of the form y = slope × x + intercept. Here x is the recorded concentration and y is predicted instrument response."
+        },
+        {
+          "label": "Slope / Intercept",
+          "description": "The slope is the fitted change in response per unit of concentration. The intercept is the fitted response at zero concentration. Calculated values are displayed with up to 12 significant digits. Predictions and residuals use the unrounded coefficients."
+        }
+      ]
+    },
+    {
       "title": "Standard points",
       "paragraphs": [
-        "Between 1 and 50 points are stored. This bound is an application limit, not a method requirement. No curve fitting, fit acceptance, standard-source independence, run sequencing or check bracketing is performed."
+        "The record stores 1 to 50 points. The range is an application limit. A successful worksheet fit adds predicted responses and residuals beside the recorded observations."
       ],
       "items": [
         {
@@ -90,8 +125,16 @@
           "description": "Exact supplied decimal text in the frozen concentration unit, including significant trailing zeros. Concentrations cannot be negative."
         },
         {
-          "label": "Response",
+          "label": "Observed response",
           "description": "Exact supplied decimal text in the frozen response unit. Signed negative responses are allowed."
+        },
+        {
+          "label": "Predicted response",
+          "description": "Response calculated from the chosen fit at the recorded concentration, in the frozen response unit."
+        },
+        {
+          "label": "Residual",
+          "description": "Observed response minus predicted response, in the frozen response unit. A positive residual means the observed response exceeds the prediction."
         }
       ]
     },
@@ -129,6 +172,7 @@
   ],
   "sources": [
     "analytical/calibration.py",
+    "analytical/calibration_fit.py",
     "analytical/calibration_forms.py",
     "analytical/calibration_views.py",
     "analytical/models.py",

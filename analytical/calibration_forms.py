@@ -75,6 +75,19 @@ class CalibrationForm(forms.Form):
         return points
 
 
+class CalibrationFitForm(forms.Form):
+    weighting = forms.ChoiceField(
+        label="Weighting",
+        choices=[
+            ("", "Choose weighting"),
+            ("equal", "Unweighted (equal weights)"),
+            ("inverse", "1/x (inverse concentration)"),
+            ("inverse_square", "1/x² (inverse concentration squared)"),
+        ],
+        error_messages={"required": "Choose a weighting to calculate the fit."},
+    )
+
+
 def evidence_choices(form, *, batch_id, definition):
     """Inline choices belong only to this run and test, never the global evidence catalog."""
     curves = RunCalibration.objects.filter(
