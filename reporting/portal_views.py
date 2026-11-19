@@ -3,6 +3,7 @@ client is indistinguishable from a missing one (404). Staff accounts are refused
 
 from collections import Counter
 from datetime import UTC, datetime
+from decimal import Decimal
 from functools import wraps
 
 from django import forms
@@ -34,6 +35,7 @@ from receipt.models import Project, RequestedTest, Sample
 
 from .content import synthetic_notice
 from .forms import ResultCSVTemplateForm
+from .location_history import comparison_context
 from .location_history import location_history as issued_location_history
 from .models import Report, ReportFile, ReportVersion
 from .queries import (
@@ -117,6 +119,23 @@ class PortalSampleFilterForm(PortalFilterForm):
 
 class LocationHistoryFilterForm(forms.Form):
     analyte = forms.CharField(required=False, max_length=160)
+
+
+class LocationLimitForm(forms.Form):
+    upper_limit = forms.RegexField(
+        regex=r"\A[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d{1,3})?\Z",
+        label="Upper limit",
+        required=False,
+        max_length=60,
+        widget=forms.NumberInput,
+        error_messages={
+            "invalid": "Enter a decimal number. An exponent can have up to three digits."
+        },
+    )
+
+    def clean_upper_limit(self):
+        text = self.cleaned_data["upper_limit"]
+        return Decimal(text) if text else None
 
 
 def client_required(view):
@@ -370,65 +389,87 @@ def _render_grid(
 
 @client_required
 @require_GET
-def location_history(request, pk, number, position):
-    if position < 1:
+def location_history(request, pk, number, position, result_position=None):
+    if position < 1 or (result_position is not None and result_position < 1):
         raise Http404
-    project_id, project_name, location = get_object_or_404(
-        client_versions(request.user)
-        .filter(file__isnull=False)
-        .values_list(
-            "report__project_id",
-            "report__project__name",
-            f"file__snapshot__content__samples__{position - 1}__collection_location",
-        ),
+    sample = f"file__snapshot__content__samples__{position - 1}"
+    fields = ["report__project_id", "report__project__name", f"{sample}__collection_location"]
+    if result_position is not None:
+        fields.extend([f"{sample}__results__{result_position - 1}", f"{sample}__matrix"])
+    project_id, project_name, location, *anchor = get_object_or_404(
+        client_versions(request.user).filter(file__isnull=False).values_list(*fields),
         report_id=pk,
         number=number,
     )
     if not isinstance(location, str) or not location.strip():
         raise Http404
+
+    comparison = None
+    if anchor:
+        result, matrix = anchor
+        comparison = comparison_context(result, matrix)
+        if comparison is None:
+            raise Http404
+        form = LocationLimitForm(request.GET)
+        form.fields["upper_limit"].widget.attrs["unit"] = comparison["unit"]
+    else:
+        form = LocationHistoryFilterForm(request.GET)
+
     try:
         grid = GridRequest.parse(request.GET, LOCATION_HISTORY_COLUMNS, "-collected_at")
     except ValueError as exc:
         return HttpResponseBadRequest(str(exc))
-
-    form = LocationHistoryFilterForm(request.GET)
     clear_url = reverse(
-        "portal:location-history",
-        args=[pk, number, position],
+        request.resolver_match.view_name,
+        kwargs=request.resolver_match.kwargs,
         query={"sort": grid.sort, "per_page": grid.per_page},
     )
     page = []
     chips = []
     if form.is_valid():
-        analyte = form.cleaned_data["analyte"]
         page = issued_location_history(
             client_id=request.user.client_id,
             project_id=project_id,
             location=location,
-            analyte=analyte,
+            comparison=comparison,
             page=grid.page_number,
             descending=grid.sort.startswith("-"),
             per_page=grid.per_page,
+            **form.cleaned_data,
         )
-        if analyte:
-            chips = [{"label": "Analyte", "value": analyte, "remove_url": clear_url}]
+        if comparison and form.cleaned_data["upper_limit"] is not None:
+            display = f"{form['upper_limit'].value().strip()} {comparison['unit']}"
+            chips.append({"label": "Upper limit", "value": display, "remove_url": clear_url})
+        elif analyte := form.cleaned_data.get("analyte"):
+            chips.append({"label": "Analyte", "value": analyte, "remove_url": clear_url})
 
     return render(
         request,
         "reporting/portal/location_history.html",
         _context(
             request,
-            "Location history",
+            "Compare with limit" if comparison else "Location history",
             project_name=project_name,
             location=location,
+            comparison=comparison,
+            history_url=reverse("portal:location-history", args=[pk, number, position]),
+            grid_key="portal.location-comparison" if comparison else "portal.location-history",
+            empty_title="No matching issued results"
+            if comparison
+            else "No issued results at this location",
+            empty_body=(
+                "No current issue at this location matches the analyte, unit, matrix and basis."
+                if comparison
+                else "Results appear when a current issue for this project includes this location."
+            ),
             page_obj=page,
             filter_form=form,
             sort=grid.sort,
             per_page=grid.per_page,
             active_filters=chips,
-            filtered=bool(chips),
+            filtered=bool(chips) and comparison is None,
             clear_url=clear_url,
-            **toolbar_fields(form, ("analyte",)),
+            **toolbar_fields(form, form.fields),
         ),
     )
 

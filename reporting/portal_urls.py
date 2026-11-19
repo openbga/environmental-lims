@@ -25,6 +25,11 @@ urlpatterns = [
         views.location_history,
         name="location-history",
     ),
+    path(
+        "reports/<int:pk>/v<int:number>/samples/<int:position>/results/<int:result_position>/compare/",
+        views.location_history,
+        name="location-comparison",
+    ),
     path("reports/<int:pk>/v<int:number>.pdf", views.report_pdf, name="report-pdf"),
     path(
         "reports/<int:pk>/v<int:number>/results.csv",
