@@ -32,7 +32,10 @@ records; it does not certify compliance or accreditation.
   and open the issued PDF behind each result. They can enter an upper limit to compare
   unqualified numeric results for the same analyte, unit, matrix and reporting basis.
   For an eligible water or wastewater result on the current report, clients can enter the
-  sampling-day flow and calculate daily mass loading in pounds per day.
+  sampling-day flow and calculate daily mass loading in pounds per day. Clients can also
+  open a monthly concentration worksheet for a project location. With one eligible result per
+  sampled day, it shows the arithmetic mean and highest daily concentration in mg/L, alongside
+  links to the issued PDFs.
 - **Operations:** price lists and versioned quotes, client-submitted COCs, delivery scheduling,
   labels, subcontracted results and staff account-hold notices at receipt and report release.
   Internal draft invoices take received tests and an explicitly selected price list or matching

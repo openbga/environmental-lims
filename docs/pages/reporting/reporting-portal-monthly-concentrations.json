@@ -1,0 +1,84 @@
+{
+  "id": "reporting-portal-monthly-concentrations",
+  "routes": ["portal:monthly-concentrations"],
+  "title": "Monthly concentrations",
+  "purpose": "Review the sampled-day mean and highest daily concentration for one location and analyte, with every issued source result.",
+  "summary": "Review an analyte's sampled-day mean and highest daily concentration for one location and collection month. Open the issued PDFs to check the source results.",
+  "tasks": [
+    {
+      "title": "Review a collection month",
+      "steps": [
+        "From your current report, select [[Monthly concentrations]] beside the result for the location, analyte and month you need.",
+        "Check the [[Reporting period]] and [[Sampled days]]. Review the [[Arithmetic mean]] and [[Highest daily concentration]] when available."
+      ]
+    },
+    {
+      "title": "Check a result or an unavailable calculation",
+      "steps": [
+        "In [[Issued source results]], read the [[Worksheet status]] and use the report number and version under [[Issued PDF]] to open its report of record.",
+        "If the selected version has been superseded, follow [[current report]] and select the result again."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Only current issued results for the selected project, exact location, matrix and analyte contribute to the worksheet.",
+    "The calculation needs one eligible concentration per sampled day, including when the same result appears on multiple current reports.",
+    "Both concentrations use mg/L. A repeating arithmetic mean appears as an exact fraction.",
+    "The permittee checks representativeness, all required data sources, sampling coverage, permit rules and rounding before filing."
+  ],
+  "sections": [
+    {
+      "title": "Access and navigation",
+      "paragraphs": [
+        "An active client account can open a worksheet from its own issued reports. The report number in the breadcrumb opens the current issue. Reports opens the list of your issued reports."
+      ],
+      "items": [
+        {"label": "Current version / Superseded version", "description": "The report number and version in the header identify the result that opened the worksheet. If a newer issue replaces that version, select the result again in the current report. The earlier PDF remains in Version history."},
+        {"label": "Collection location and analyte", "description": "These header values come from the issued sample and result. The worksheet matches their exact recorded text, so a change in spelling, case or spacing can identify a separate series."},
+        {"label": "Demonstration", "description": "This notice identifies synthetic data for trying the workflow."}
+      ]
+    },
+    {
+      "title": "Monthly summary",
+      "paragraphs": [
+        "This read-only worksheet covers results available in the current issued reports for the matching project, location, matrix and analyte. The permittee checks the coverage of required data sources and sampling days, determines representativeness and which permit rules apply, and applies any rounding before filing."
+      ],
+      "items": [
+        {"label": "Reporting period", "description": "Calendar month of the selected sample's recorded collection date. For a composite, the recorded end selects the month. The worksheet uses the date recorded in the issued timestamp, including its original local day."},
+        {"label": "Sampled days", "description": "Count of distinct assigned collection dates among the matching issued results, including dates with blocked results. Unassigned dates leave the count unchanged."},
+        {"label": "Arithmetic mean", "description": "Sum of the eligible daily concentrations in mg/L divided by the number of sampled days. Micrograms per liter are divided by 1,000. The worksheet shows an exact decimal or an exact fraction when the decimal would repeat."},
+        {"label": "Highest daily concentration", "description": "Largest eligible daily concentration in mg/L among the sampled days, using the same unit conversion and one-value-per-day rule as the mean."},
+        {"label": "Project / Matrix", "description": "The project named in the selected issue and the issued sample's matrix, Water or Wastewater. The owning project and matrix scope the series."},
+        {"label": "Calculation blocked", "description": "The worksheet gives the reason and leaves both concentrations blank. A missing or unusable collection date on the selected sample prevents the worksheet from selecting a month. If the series exceeds 1,000 matching rows, the full count and source rows are also unavailable."}
+      ]
+    },
+    {
+      "title": "Issued source results",
+      "paragraphs": [
+        "Eligible concentrations come from field samples with a Proceed receipt disposition and a usable preservation record. A recorded preservation decision must be Proceed. In-house results require complete, unqualified analytical and applicable preparation QC. The worksheet checks the issued qualifier text for subcontracted results."
+      ],
+      "items": [
+        {"label": "Issued PDF", "description": "Select the report number and version to download the stored PDF that supplied the row. The PDF remains the report of record. PDF unavailable appears beside the report and version if the stored report file is missing."},
+        {"label": "Lab sample ID", "description": "Issued laboratory sample identifier to locate this result in the PDF."},
+        {"label": "Collection day", "description": "Calendar date recorded on the issued sample. A grab needs a single usable collection date. A composite needs a consistent start and end on a single calendar day. If a matching sample could fall in this month and has no single usable day, the worksheet shows Unassigned with the recorded collection time and start when available."},
+        {"label": "Sample source", "description": "The issued description of where the sample came from, when recorded. The issued field designation is shown for samples such as field duplicates or blanks. Check the source and collection location against your permit."},
+        {"label": "Issued result / Unit", "description": "Original reported text and unit from the issued PDF, including the issued representation of a non-detect and any trailing zeroes. The summary converts eligible concentrations to mg/L."},
+        {"label": "Method", "description": "Issued method code and version where available. The PDF has further details including method attribution for outsourced analyses."},
+        {"label": "Worksheet status", "description": "Eligible concentration or the reason this issued result or date prevents calculation. Multiple rows on one day, the same lab sample ID on different days, or unreadable issued records can leave both concentrations unavailable. Multiple rows include separate current reports that carry the same result. An unassignable collection interval, field QC sample, non-detect, qualification, unrecognized unit or basis, negative value, missing evidence, or unusable receipt, preservation or QC records can also block the calculation."}
+      ]
+    }
+  ],
+  "sources": [
+    "core/templatetags/navigation.py",
+    "reporting/portal_urls.py",
+    "reporting/portal_views.py",
+    "reporting/monthly_concentrations.py",
+    "reporting/daily_load.py",
+    "reporting/content.py",
+    "reporting/models.py",
+    "reporting/templates/reporting/portal/monthly_concentrations.html",
+    "reporting/templates/reporting/portal/report_detail.html",
+    "reporting/templates/reporting/portal/notice.html",
+    "reporting/tests/test_portal_monthly_concentrations.py"
+  ]
+}

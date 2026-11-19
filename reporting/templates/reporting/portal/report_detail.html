@@ -34,7 +34,14 @@
       <thead><tr><th scope="col">Analyte</th><th scope="col" class="text-end">Result</th><th scope="col">Unit</th><th scope="col">Qualifiers</th><th scope="col" class="text-end">Reporting limit</th><th scope="col">Method</th><th scope="col">Analyzed</th></tr></thead>
       <tbody>
         {% for r in s.results %}
-        <tr><th scope="row">{{ r.analyte }}</th><td class="text-end"><span class="fw-semibold">{{ r.reported }}</span>{% with basis=r|basis_label:s.matrix solids=r|solids_text %}{% if basis %}<div class="vr-muted small">{{ basis }}</div>{% endif %}{% if solids %}<div class="vr-muted small">{{ solids }}</div>{% endif %}{% endwith %}{% if s.matrix|daily_load_supported:r.unit %}<div><a href="{% url 'portal:daily-load' report.pk current.number n forloop.counter %}">Daily load<span class="visually-hidden"> for {{ r.analyte }} on {{ s.client_sample_id }}</span></a></div>{% endif %}</td><td>{{ r.unit }}</td><td>{% if r.source == "external" %}{% if r.external_qualifiers %}{{ r.external_qualifiers }}<div class="vr-muted small">As reported by {{ r.external.laboratory }}</div>{% else %}—{% endif %}{% else %}{{ r.qualifiers|join:", "|default:"—" }}{% endif %}</td><td class="text-end">{{ r.reporting_limit }}</td><td>{% if r.source == "external" %}{{ r.method_code }}<div class="vr-muted small">Subcontracted to {{ r.external.laboratory }}</div>{% else %}{{ r.method_code }} v{{ r.method_version }}{% endif %}</td><td class="vr-nowrap">{{ r.analysis_started_at|iso_time }}</td></tr>
+        <tr><th scope="row">{{ r.analyte }}</th><td class="text-end"><span class="fw-semibold">{{ r.reported }}</span>{% with basis=r|basis_label:s.matrix solids=r|solids_text %}{% if basis %}<div class="vr-muted small">{{ basis }}</div>{% endif %}{% if solids %}<div class="vr-muted small">{{ solids }}</div>{% endif %}{% endwith %}
+          {% if s.matrix|daily_load_supported:r.unit %}
+          <div class="d-flex flex-wrap justify-content-end gap-2">
+            <a href="{% url 'portal:daily-load' report.pk current.number n forloop.counter %}">Daily load<span class="visually-hidden"> for {{ r.analyte }} on {{ s.client_sample_id }}</span></a>
+            {% if s.collection_location.strip and r.analyte.strip %}<a href="{% url 'portal:monthly-concentrations' report.pk current.number n forloop.counter %}">Monthly concentrations<span class="visually-hidden"> for {{ r.analyte }} on {{ s.client_sample_id }}</span></a>{% endif %}
+          </div>
+          {% endif %}
+        </td><td>{{ r.unit }}</td><td>{% if r.source == "external" %}{% if r.external_qualifiers %}{{ r.external_qualifiers }}<div class="vr-muted small">As reported by {{ r.external.laboratory }}</div>{% else %}—{% endif %}{% else %}{{ r.qualifiers|join:", "|default:"—" }}{% endif %}</td><td class="text-end">{{ r.reporting_limit }}</td><td>{% if r.source == "external" %}{{ r.method_code }}<div class="vr-muted small">Subcontracted to {{ r.external.laboratory }}</div>{% else %}{{ r.method_code }} v{{ r.method_version }}{% endif %}</td><td class="vr-nowrap">{{ r.analysis_started_at|iso_time }}</td></tr>
         {% endfor %}
       </tbody>
     </table>

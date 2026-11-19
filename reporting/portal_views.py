@@ -35,11 +35,13 @@ from core.grids import GridRequest, active_filters
 from receipt.models import Project, RequestedTest, Sample
 
 from .content import synthetic_notice
-from .daily_load import calculate_daily_load, daily_load_input
+from .daily_load import calculate_daily_load, daily_load_input, daily_load_supported
 from .forms import DailyLoadForm, ResultCSVTemplateForm
 from .location_history import comparison_context
 from .location_history import location_history as issued_location_history
 from .models import Report, ReportFile, ReportVersion
+from .monthly_concentrations import issued_collection_date
+from .monthly_concentrations import monthly_concentrations as issued_monthly_concentrations
 from .packages import export_report_package
 from .queries import (
     approved_tests,
@@ -513,29 +515,35 @@ def report_detail(request, pk):
     )
 
 
-@client_required
-@require_http_methods(["GET", "POST"])
-@never_cache
-def daily_load(request, pk, number, position, result_position):
+def _issued_result(user, pk, number, position, result_position):
+    if position < 1 or result_position < 1:
+        raise Http404
     version = get_object_or_404(
-        client_versions(request.user)
+        client_versions(user)
         .filter(file__isnull=False)
         .select_related("report", "file")
-        .only("number", "report__latest_version", "file__snapshot"),
+        .only("number", "report__project_id", "report__latest_version", "file__snapshot"),
         report_id=pk,
         number=number,
     )
-    content = version.file.snapshot["content"]
-    if position < 1 or result_position < 1:
-        raise Http404
     try:
+        content = version.file.snapshot["content"]
         sample = content["samples"][position - 1]
         result = sample["results"][result_position - 1]
     except IndexError, KeyError, TypeError:
         raise Http404 from None
     if not isinstance(result, dict):
         raise Http404
+    return version, content, sample, result
 
+
+@client_required
+@require_http_methods(["GET", "POST"])
+@never_cache
+def daily_load(request, pk, number, position, result_position):
+    version, content, sample, result = _issued_result(
+        request.user, pk, number, position, result_position
+    )
     current = number == version.report.latest_version
     concentration, reason = None, ""
     form, load = None, None
@@ -561,6 +569,71 @@ def daily_load(request, pk, number, position, result_position):
             concentration=format(concentration, "f") if concentration is not None else None,
             load=format(load, "f") if load is not None else None,
             synthetic_notice=content.get("synthetic_notice") is True or synthetic_notice(),
+        ),
+    )
+
+
+@client_required
+@require_GET
+@never_cache
+def monthly_concentrations(request, pk, number, position, result_position):
+    version, content, sample, result = _issued_result(
+        request.user, pk, number, position, result_position
+    )
+    location = sample.get("collection_location")
+    analyte, matrix = result.get("analyte"), sample.get("matrix")
+    if not daily_load_supported(matrix, result.get("unit")) or not all(
+        isinstance(value, str) and value.strip() for value in (location, analyte)
+    ):
+        raise Http404
+
+    collected = issued_collection_date(sample.get("collected_at"))
+    period = collected.replace(day=1) if collected else None
+    project = content.get("project")
+    project_name = project.get("name") if isinstance(project, dict) else None
+    current = number == version.report.latest_version
+    summary, reason = None, ""
+    if current and period:
+        summary = issued_monthly_concentrations(
+            client_id=request.user.client_id,
+            project_id=version.report.project_id,
+            location=location,
+            analyte=analyte,
+            matrix=matrix,
+            month=period,
+        )
+        # An amendment can commit between the anchor read and the series read.
+        latest = get_object_or_404(
+            client_reports(request.user).values_list("latest_version", flat=True), pk=pk
+        )
+        current = number == latest
+        if not current:
+            summary = None
+        else:
+            reason = summary["reason"]
+    elif current:
+        reason = "The issued sample has no usable collection date for selecting a calendar month."
+
+    return render(
+        request,
+        "reporting/portal/monthly_concentrations.html",
+        _context(
+            request,
+            "Monthly concentrations",
+            version=version,
+            current=current,
+            project_name=project_name,
+            location=location,
+            analyte=analyte,
+            matrix=matrix,
+            period=period,
+            summary=summary,
+            reason=reason,
+            synthetic_notice=(
+                content.get("synthetic_notice") is True
+                or bool(summary and summary["synthetic_notice"])
+                or synthetic_notice()
+            ),
         ),
     )
 
