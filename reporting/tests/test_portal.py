@@ -122,6 +122,62 @@ def test_location_history_access_and_blank_location(world, people, client):
     assert client.post(path).status_code == 405
 
 
+def test_client_compares_issued_location_results_with_exact_upper_limit(issued, client):
+    report = issued["report_a"]
+    version = report.versions.get()
+    path = reverse("portal:location-comparison", args=[report.pk, version.number, 1, 1])
+    history = reverse("portal:location-history", args=[report.pk, version.number, 1])
+    client.force_login(issued["user_a"])
+    assert f'href="{path}"' in client.get(history).content.decode()
+    initial = client.get(path)
+    assert initial.status_code == 200
+    assert initial.context["comparison"]["unit"] == "mg/L"
+    assert b"Enter a limit" in initial.content and b"VR-B1" not in initial.content
+    assert f'href="{history}"' in initial.content.decode()
+
+    for limit, expected in (
+        ("+5.00e-2", "At limit"),
+        ("٥.٠٠e-٢", "At limit"),
+        ("0.0500000000000000000001", "Below limit"),
+        ("0.0499999999999999999999", "Above limit"),
+        ("0", "Above limit"),
+    ):
+        comparison = client.get(
+            path, {"upper_limit": limit, "unit": "forged", "sort": "collected_at"}
+        )
+        assert expected.encode() in comparison.content
+        assert comparison.context["active_filters"][0]["value"] == f"{limit} mg/L"
+        assert comparison.context["filter_form"]["upper_limit"].value() == limit
+        assert list(comparison.context["page_obj"])[0]["result"] == "0.050"
+        assert b'aria-sort="ascending"' in comparison.content
+    cleared = client.get(comparison.context["clear_url"])
+    assert not cleared.context["active_filters"]
+    assert b"Enter a limit" in cleared.content
+    pdf = client.get(reverse("portal:report-pdf", args=[report.pk, version.number]))
+    assert pdf.content == bytes(version.file.pdf)
+
+    for invalid in ("<0.5", "NaN", "1_000", "1e9999", "7" * 61, "5 mg/L"):
+        response = client.get(path, {"upper_limit": invalid})
+        assert "upper_limit" in response.context["filter_form"].errors
+        assert response.context["filter_form"]["upper_limit"].value() == invalid
+        assert not response.context["page_obj"]
+
+
+def test_location_comparison_requires_owned_issued_result(issued, people, client):
+    report = issued["report_a"]
+    path = reverse("portal:location-comparison", args=[report.pk, 1, 1, 1])
+    assert client.get(path).status_code == 302
+    client.force_login(people["approver"])
+    assert client.get(path).status_code == 403
+    client.force_login(issued["user_b"])
+    assert client.get(path).status_code == 404
+    client.force_login(issued["user_a"])
+    for version, sample, result in ((2, 1, 1), (1, 0, 1), (1, 99, 1), (1, 1, 0), (1, 1, 99)):
+        url = reverse("portal:location-comparison", args=[report.pk, version, sample, result])
+        assert client.get(url).status_code == 404
+    assert client.post(path).status_code == 405
+
+
 def test_client_cannot_see_drafts_or_staff_routes(world, people, client):
     client.force_login(world["user_a"])
     report = world["report_a"]  # never released

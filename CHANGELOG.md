@@ -6,9 +6,13 @@ What was added or changed in OpenBGA Environmental LIMS, newest first. Changes a
 grouped by the calendar month they were merged in and ranked from high to low impact.
 The same list is shown in the application under What's new.
 
-## November 2026 (2026-11-11 to 2026-11-18)
+## November 2026 (2026-11-11 to 2026-11-19)
 
 ### High impact
+
+- **Added:** Compare results at a sampling location with a client upper limit (2026-11-19, Client portal)
+
+  From a sampling location’s result history, clients can enter an upper limit in the issued unit and see which comparable results fall above, at or below it. Each row links to its issued PDF and explains when a comparison cannot be made.
 
 - **Added:** Download issued invoice lines for accounting (2026-11-18, Draft invoices)
 

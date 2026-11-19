@@ -13,6 +13,13 @@
       ]
     },
     {
+      "title": "Compare an analyte with your upper limit",
+      "steps": [
+        "Find a result with the unit, matrix and reporting basis you want to compare.",
+        "Select [[Compare with limit]] on that row, enter your upper limit and select [[Apply]]."
+      ]
+    },
+    {
       "title": "Download the report behind a result",
       "steps": ["Select the report number and version in [[Issued report]]."]
     },
@@ -61,7 +68,8 @@
         {"label": "Result", "description": "Exact issued result text and unit, with the reported basis where applicable. For soil this can be Wet weight, Dry weight or Basis not recorded. Use the recorded unit and basis for comparison. ND means not detected at or above the reporting limit."},
         {"label": "Qualifiers", "description": "Issued qualifier codes or the external laboratory’s qualifier text. The report PDF provides the meaning and context."},
         {"label": "Reporting limit", "description": "The limit applied to the issued result, in that result’s unit."},
-        {"label": "Method", "description": "Issued method code and version, when recorded. A subcontracted result identifies the external laboratory when available."}
+        {"label": "Method", "description": "Issued method code and version, when recorded. A subcontracted result identifies the external laboratory when available."},
+        {"label": "Compare with limit", "description": "Open results from this location with the selected analyte, unit, matrix and reporting basis. Comparison unavailable means the issue lacks an analyte name, unit or matrix."}
       ],
       "paragraphs": ["Values are displayed as issued. Review the PDF for the full report context before interpreting changes over time."]
     }

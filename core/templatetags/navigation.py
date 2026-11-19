@@ -402,7 +402,12 @@ PORTAL_NAV = (
         "Reports",
         "portal:report-list",
         "",
-        ("portal:report-detail", "portal:report-csv-template", "portal:location-history"),
+        (
+            "portal:report-detail",
+            "portal:report-csv-template",
+            "portal:location-history",
+            "portal:location-comparison",
+        ),
     ),
 )
 

@@ -9,6 +9,7 @@ from helpers import correct_and_approve, pick, release_version, save_download, s
 from playwright.sync_api import Page, expect
 
 from accounts.models import User
+from analytical.models import ResultRevision
 from analytical.services import approve_result
 from receipt.corrections import correct_sample
 from reporting.models import Report
@@ -39,7 +40,14 @@ def test_client_follows_location_history_to_current_issued_results(
         for role in ("analyst", "reviewer", "custodian", "project_manager", "approver")
     )
     later = Report.objects.get(title="Test Creek Outfall 001 analytical report")
-    set_location(later.samples.get(), custodian)
+    later_sample = later.samples.get()
+    set_location(later_sample, custodian)
+    later_lead = ResultRevision.objects.get(
+        result__requested_test__sample=later_sample, analyte_name="Lead"
+    )
+    correct_and_approve(
+        later_lead, supplied_text="ND", reason="Synthetic non-detect for comparison"
+    )
     release_version(later, approver)
 
     _, revision, sample = submit_fresh_batch(analyst, coc_reference="E2E-LOCATION-HISTORY")
@@ -132,4 +140,28 @@ def test_client_follows_location_history_to_current_issued_results(
     page.get_by_role("link", name="Clear all", exact=True).click()
     expect(rows).to_have_count(4)
     expect(analyte).to_have_value("")
+
+    earlier.get_by_role("link", name="Compare with limit", exact=False).press("Enter")
+    expect(page.get_by_role("heading", level=1, name="Compare with limit")).to_be_visible()
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+    upper_limit = page.get_by_role("textbox", name="Upper limit", exact=True)
+    upper_limit.fill("5.5999999999")
+    apply.click()
+    compared = page.get_by_role("row").filter(has=pdf)
+    expect(compared).to_contain_text("Above limit")
+    expect(compared).to_contain_text("5.600")
+    non_detect = page.get_by_role("row").filter(
+        has=page.get_by_role("link", name=f"{later.number} v1 (PDF)", exact=True)
+    )
+    expect(non_detect).to_have_count(1)
+    expect(non_detect).to_contain_text("Not compared · Non-detect")
+    upper_limit.fill("5.600")
+    apply.press("Enter")
+    expect(compared).to_contain_text("At limit")
+    assert save_download(page, pdf.click, tmp_path / "comparison.pdf") == bytes(current.file.pdf)
+    page.get_by_role("link", name="Clear all", exact=True).click()
+    expect(upper_limit).to_have_value("")
+    expect(compared).to_contain_text("Enter a limit")
+    page.get_by_role("link", name="Location history", exact=True).first.click()
+    expect(page.get_by_role("heading", level=1, name="Location history")).to_be_visible()
     assert page.console_errors == []

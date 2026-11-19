@@ -27,7 +27,8 @@ records; it does not certify compliance or accreditation.
   client can read its issued results and download them as CSV or Excel for the current or an earlier
   report version. Both formats accept the same CSV template for choosing columns, headings and order.
   From a reported sampling location, clients can follow results over time within the same project
-  and open the issued PDF behind each result.
+  and open the issued PDF behind each result. They can enter an upper limit to compare
+  unqualified numeric results for the same analyte, unit, matrix and reporting basis.
 - **Operations:** price lists and versioned quotes, client-submitted COCs, delivery scheduling,
   labels, subcontracted results and staff account-hold notices at receipt and report release.
   Internal draft invoices take received tests and an explicitly selected price list or matching

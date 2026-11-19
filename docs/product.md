@@ -313,8 +313,21 @@ client’s project, the history matches the location text exactly as issued and 
 issue of each report, ordered by sample collection time. If two distinct reports include the
 same result, both appearances retain their report number and version. The issued values, units,
 qualifiers, reporting limits, matrix, result basis and method give the client the context for
-reading the series. Earlier issues remain available in the report’s version history. Client
-limits and comparisons against them remain planned.
+reading the series. Earlier issues remain available in the report’s version history.
+
+From a result in that history, a client can enter an upper limit in the issued unit. The
+comparison covers the same analyte, matrix, unit and reporting basis at that project location.
+It shows whether an unqualified numeric result is above, at or below the supplied value using
+the exact issued decimal. Non-detects and qualified results retain their issued wording, with
+a reason the comparison was withheld. This includes a qualification recorded at receipt,
+for the result’s preservation, or against its test in the analytical or preparation batch.
+Soil results need a recorded wet or dry weight basis. The limit and the outcome belong to
+the comparison view. The issued report remains the source for the method and qualification.
+
+This conservative comparison is a product choice. For example, the US EPA’s Superfund
+inorganic data review guidance distinguishes estimated quantities from non-detects. The portal
+leaves interpretation of those results to the client and laboratory.
+[US EPA guidance, General Table 1, November 2020, checked 2026-11-19](https://www.epa.gov/sites/default/files/2021-03/documents/nfg_for_inorganic_superfund_methods_data_review_november_2020.pdf).
 
 Deliverable and reporting targets for milestones 2 to 4. All are exploratory. A recipient accepts an EDD only against its own current specification and reference values, so no format here is claimed as accepted until tested against one named recipient's spec.
 

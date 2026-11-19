@@ -1,0 +1,92 @@
+{
+  "id": "reporting-portal-location-comparison",
+  "routes": ["portal:location-comparison"],
+  "title": "Compare with limit",
+  "purpose": "Compare issued results at one collection location against an upper limit supplied by the client.",
+  "summary": "Enter your upper limit to see which issued values at a location fall above, at or below it. Each row links to its source report and shows any reason a result could not be compared.",
+  "tasks": [
+    {
+      "title": "Compare results with an upper limit",
+      "steps": [
+        "Check the project, location, analyte, unit, matrix and basis under the page title.",
+        "Enter your number in [[Upper limit]] using the unit shown and select [[Apply]].",
+        "Read [[Comparison]] beside each issued result. Open the report number in [[Issued report]] for its method and qualifiers."
+      ]
+    },
+    {
+      "title": "Try another limit",
+      "steps": [
+        "Replace [[Upper limit]] and select [[Apply]] to compare the same series again.",
+        "Select [[Clear all]] to remove the number and see the series without comparison outcomes."
+      ]
+    },
+    {
+      "title": "Compare a different analyte or unit",
+      "steps": [
+        "Select [[Location history]] above the title.",
+        "Find the result you want and select [[Compare with limit]] on that row."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "The series uses the current issue of each report in your project. An amendment can replace or remove a matching value when you reopen the page.",
+    "The upper limit is part of the page address. The laboratory report and its reporting limit stay as issued.",
+    "A result can be qualified at receipt, during preservation review or through a batch QC decision even when the Qualifiers column is empty. The source PDF explains those decisions.",
+    "Matching rows can use different methods. Read the source reports before using the comparison."
+  ],
+  "sections": [
+    {
+      "title": "Series and access",
+      "paragraphs": [
+        "Signed-in clients open Compare with limit from a result in their own project's Location history. Reports and Location history above the title return to the report list and to the full history at the same location.",
+        "Project and Location identify the series. The selected issued row supplies the exact analyte, unit, matrix and reporting basis. The page compares matching values without converting units. The project and location stay fixed when you edit the limit.",
+        "The latest issued version of each matching report contributes its rows. A sample included in two reports appears under each report. Demonstration identifies synthetic data on the demonstration deployment."
+      ]
+    },
+    {
+      "title": "Limit and comparison",
+      "items": [
+        {"label": "Upper limit / Apply", "description": "Enter one number in the displayed unit. Decimal and scientific notation, signs and zero are accepted. Use up to 60 characters, with at most three digits in the exponent. Leave the field blank to view matching results before comparing. Apply returns to the first page."},
+        {"label": "Comparison", "description": "Above limit, At limit and Below limit compare the exact issued numeric text with the upper limit. An unqualified detected number and a known reporting basis are needed. A non-detect stays as reported and never counts as zero. Qualified results, unavailable reporting basis and incomplete or nonnumeric result information receive a reason. Enter a limit means no upper limit has been applied."},
+        {"label": "Clear all / Clear filters", "description": "Remove the upper limit and keep this series and table settings. The chip below the form also removes the limit. An invalid limit shows an error by the field and hides results until corrected or cleared."},
+        {"label": "No matching issued results", "description": "The current report versions contain no matching values in this series. Select Location history to see other results at the location."}
+      ]
+    },
+    {
+      "title": "Qualifications on the issued report",
+      "paragraphs": [
+        "Not compared · Qualified result can come from a result qualifier, external laboratory qualifier, a Qualify decision for this sample at receipt or a Qualify decision for this result during preservation review.",
+        "A QC issue accepted with qualification for this test in its analytical or preparation batch also qualifies the result. The issue must match the batch and test definition. Older report versions match by exact analyte name when both records lack the test definition identifier.",
+        "Other tests, other batches and other QC dispositions do not qualify this result. The comparison uses decisions recorded in the issue. A holding-time flag or missing section in an older report does not by itself establish a qualification. Open the PDF for the laboratory’s full findings."
+      ]
+    },
+    {
+      "title": "Read and arrange the rows",
+      "items": [
+        {"label": "Issued report", "description": "The report number and version download the stored PDF. Synthetic data identifies an issue marked as synthetic."},
+        {"label": "Collected", "description": "Sample collection date, time and UTC offset as issued. Select the heading to reverse the sort. Undated samples appear last."},
+        {"label": "Sample / Analyte", "description": "Client and laboratory sample identifiers, the sample matrix and the analyte name."},
+        {"label": "Result / Qualifiers", "description": "Issued result text and unit with the weight basis when recorded, and the issued qualifier codes or external laboratory's qualifier text."},
+        {"label": "Reporting limit", "description": "The laboratory's reporting limit for the issued result, in the result's unit. Your upper limit is shown above the table."},
+        {"label": "Method", "description": "The issued method code and version when recorded. Subcontracted results show the external laboratory when available."},
+        {"label": "Columns", "description": "Choose visible columns and their order. The report and comparison stay visible. The layout is saved for your account."},
+        {"label": "Rows per page / Show", "description": "Select 25, 50 or 100 and then Show. The current upper limit stays applied. The page size and collection order are saved for your account."},
+        {"label": "First page / Previous page / Next page / Last page", "description": "Move through a series over several pages with the same upper limit and sort order."}
+      ]
+    }
+  ],
+  "sources": [
+    "reporting/portal_urls.py",
+    "reporting/portal_views.py",
+    "reporting/location_history.py",
+    "reporting/results_csv.py",
+    "reporting/content.py",
+    "reporting/pdf.py",
+    "reporting/templates/reporting/portal/location_history.html",
+    "reporting/tests/test_location_history.py",
+    "reporting/tests/test_portal.py",
+    "core/preferences.py",
+    "templates/includes/grid_toolbar.html",
+    "templates/includes/pagination.html"
+  ]
+}

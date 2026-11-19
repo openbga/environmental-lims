@@ -1,11 +1,12 @@
 from datetime import datetime
+from decimal import Decimal
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
 from receipt.models import Client, Project
-from reporting.location_history import location_history
+from reporting.location_history import comparison_context, location_history
 from reporting.models import Report, ReportFile, ReportVersion
 from reporting.results_csv import issued_result_rows
 
@@ -24,7 +25,7 @@ def issue(db):
     """Store representative frozen records without needing their mutable source records."""
     issuer = get_user_model().objects.create(username="history-issuer")
 
-    def freeze(project, *samples, amends=None, synthetic_notice=None):
+    def freeze(project, *samples, amends=None, synthetic_notice=None, batches=None):
         report = (
             amends.report
             if amends
@@ -41,6 +42,8 @@ def issue(db):
             pdf_size=1,
         )
         content = {"report": {"number": report.number}, "samples": samples}
+        if batches is not None:
+            content["batches"] = batches
         if synthetic_notice is not None:
             content["synthetic_notice"] = synthetic_notice
         ReportFile.objects.create(
@@ -218,3 +221,155 @@ def test_pagination_returns_a_bounded_page_and_consistent_total(
     assert [row["analyte"] for row in last] == ["Analyte 100", "Analyte 101", "Analyte 102"]
     with pytest.raises(ValueError, match="Invalid page size"):
         history(project, per_page=101)
+
+
+def test_comparison_matches_the_exact_issued_series_before_pagination(project, issue):
+    anchor = result(kind="detected", qualifiers=[], result_basis="dry")
+    issue(
+        project,
+        sample("off-location", anchor, location=LOCATION + " "),
+        sample("other-matrix", anchor) | {"matrix": "Water"},
+        sample(
+            "mixed",
+            anchor | {"analyte": anchor["analyte"].upper()},
+            anchor | {"analyte": anchor["analyte"] + " "},
+            anchor | {"unit": "mg/kg"},
+            anchor | {"result_basis": "wet"},
+            anchor | {"result_basis": "unknown"},
+            anchor | {"source": "external"},
+            *[anchor] * 26,
+        ),
+    )
+    context = comparison_context(anchor, "Soil")
+    second = history(project, comparison=context, page=2)
+    assert second.paginator.count == 26
+    (row,) = second
+    assert row["comparison_available"]
+    assert (row["lab_sample_id"], row["sample_position"], row["result_position"]) == (
+        "mixed",
+        3,
+        32,
+    )
+    assert not row.get("comparison")
+    assert not history(project, comparison=context, client_id=project.client_id + 1)
+
+
+def test_comparison_reads_exact_unqualified_reported_text_and_never_imputes(project, issue):
+    anchor = result(kind="detected", qualifiers=[], result_basis="dry")
+    threshold = Decimal("1.00000000000000001")
+    cases = [
+        ({"reported": "+1.00000000000000002", "value": "0"}, "Above limit"),
+        ({"reported": "١.٢٠٠"}, "Above limit"),
+        ({"reported": "100000000000000001E-17"}, "At limit"),
+        ({"reported": "1.00000000000000000"}, "Below limit"),
+        (
+            {"kind": "non_detect", "reported": "ND", "reporting_limit": "0.01"},
+            "Not compared · Non-detect",
+        ),
+        ({"qualifiers": ["J"]}, "Not compared · Qualified result"),
+        ({"reported": "<1.2"}, "Not compared · No numeric result"),
+        ({"reported": "NaN"}, "Not compared · No numeric result"),
+        ({"reported": "3_5"}, "Not compared · No numeric result"),
+        ({"reported": None}, "Not compared · No numeric result"),
+        ({"kind": "text"}, "Not compared · Result information incomplete"),
+        ({"qualifiers": None}, "Not compared · Result information incomplete"),
+    ]
+    issue(project, sample("exact", *(anchor | fields for fields, _ in cases)))
+    page = history(project, comparison=comparison_context(anchor, "Soil"), upper_limit=threshold)
+    assert [row["comparison"] for row in page] == [label for _, label in cases]
+    assert page[0]["result"] == "+1.00000000000000002"
+
+
+def test_comparison_groups_only_recorded_soil_basis_and_known_aqueous_matrices(project, issue):
+    anchor = result(kind="detected", qualifiers=[], reported="0")
+    for matrix in ("Soil", "Water", "Wastewater", "Unrecognized"):
+        issue(
+            project,
+            sample(
+                matrix,
+                anchor,
+                anchor | {"result_basis": "na"},
+                anchor | {"result_basis": "wet"},
+                anchor | {"source": "external", "external_qualifiers": ""},
+                anchor | {"source": "external", "external_qualifiers": "J: estimated"},
+                anchor | {"source": "external"},
+            )
+            | {"matrix": matrix},
+        )
+        context = comparison_context(anchor, matrix)
+        rows = history(project, comparison=context, upper_limit=Decimal("-0"))
+        if matrix in ("Water", "Wastewater"):
+            assert context["basis_label"] == "Not applicable"
+            assert [row["comparison"] for row in rows] == [
+                "At limit",
+                "At limit",
+                "At limit",
+                "Not compared · Qualified result",
+                "Not compared · Result information incomplete",
+            ]
+        else:
+            assert context["basis"] == "unknown"
+            assert len(rows) == (5 if matrix == "Soil" else 6)
+            assert all(
+                row["comparison"] == "Not compared · Reporting basis unavailable" for row in rows
+            )
+        assert all(row["matrix"] == matrix for row in rows)
+
+
+def test_comparison_refuses_missing_identity_and_nonfinite_limits(project):
+    assert comparison_context(result(unit=" "), "Water") is None
+    assert comparison_context(result(analyte=None), "Soil") is None
+    assert comparison_context(result(), None) is None
+    for upper_limit in (Decimal("NaN"), Decimal("-Infinity"), 1.25):
+        with pytest.raises(ValueError, match="finite decimal"):
+            history(
+                project, comparison=comparison_context(result(), "Water"), upper_limit=upper_limit
+            )
+
+
+def test_comparison_observes_only_qualifications_frozen_for_this_sample_and_test(project, issue):
+    detected = result(kind="detected", qualifiers=[], result_basis="dry", reported="12")
+    accepted = {"issues": [{"disposition": "accept_qualified"}]}
+    clean = {"issues": [{"disposition": "reanalyze"}]}
+    # The issued QC uses the renamed analyte. Its definition still identifies the right test.
+    batches = [
+        {
+            "number": "A-1",
+            "qc": {
+                "Renamed": accepted | {"test_definition_id": 17},
+                "Other": clean | {"test_definition_id": 18},
+            },
+        },
+        {"number": "P-1", "qc": {"Renamed": accepted | {"test_definition_id": 19}}},
+        {"number": "A-legacy", "qc": {detected["analyte"]: accepted}},
+        {"number": "P-other", "qc": {"Other analyte": accepted}},
+    ]
+    qualified = "Not compared · Qualified result"
+    cases = [
+        ("scope", {"batch": "A-1", "test_definition_id": 17}, qualified),
+        ("same-batch-other-test", {"batch": "A-1", "test_definition_id": 18}, "Above limit"),
+        ("other-batch", {"batch": "A-2", "test_definition_id": 17}, "Above limit"),
+        (
+            "prep",
+            {"batch": "A-2", "preparation": {"batch": "P-1"}, "test_definition_id": 19},
+            qualified,
+        ),
+        ("legacy", {"batch": "A-legacy"}, qualified),
+        ("unlinked-test", {"batch": "A-legacy", "test_definition_id": 42}, "Above limit"),
+        ("unlinked-name", {"preparation": {"batch": "P-other"}}, "Above limit"),
+        ("preservation", {"preservation": {"decision": {"decision": "qualify"}}}, qualified),
+        ("proceed", {"preservation": {"decision": {"decision": "proceed"}}}, "Above limit"),
+    ]
+    samples = [sample(label, detected | fields) for label, fields, _ in cases]
+    issue(
+        project, *samples, sample("receipt", detected) | {"disposition": "Qualify"}, batches=batches
+    )
+    issue(project, sample("separate-issue", detected | {"batch": "A-1", "test_definition_id": 17}))
+    rows = history(
+        project, comparison=comparison_context(detected, "Soil"), upper_limit=Decimal("10")
+    )
+    assert {row["lab_sample_id"]: row["comparison"] for row in rows} == {
+        **{label: outcome for label, _, outcome in cases},
+        "receipt": qualified,
+        "separate-issue": "Above limit",
+    }
