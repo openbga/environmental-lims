@@ -21,6 +21,12 @@
       ]
     },
     {
+      "title": "Find earlier results from the same collection location",
+      "steps": [
+        "In the sample's section, select [[Location history]]. This opens issued results at that location within this project."
+      ]
+    },
+    {
       "title": "Get an earlier version",
       "steps": [
         "In [[Version history]], select [[Download PDF]], [[Download results CSV]] or [[Download Excel workbook]] for the version you need."
@@ -129,6 +135,10 @@
         {
           "label": "Sample heading",
           "description": "Frozen client sample ID and lab ID, location or Location not recorded, matrix and collection time. These sections are not editable."
+        },
+        {
+          "label": "Location history",
+          "description": "Open results from the current issues of this project's reports at the sample's exact issued collection location. The link is available when the sample has a recorded location."
         },
         {
           "label": "Analyte",

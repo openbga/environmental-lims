@@ -92,7 +92,8 @@ def test_page_size_and_sort_persist_per_user_and_page(client, staff):
     assert response.context["request"].GET["sort"] == "lab_id"
     assert client.get(url, {"per_page": 100}).context["page_obj"].paginator.per_page == 100
     assert client.get(url).context["page_obj"].paginator.per_page == 100
-    client.get(url, {"per_page": 9})  # invalid: refused by the view, never saved
+    for invalid in ("9", "²"):
+        assert client.get(url, {"per_page": invalid}).status_code == 400
     assert UserPreference.objects.get(user=user, key="page:receipt:sample-list").value == {
         "per_page": 100,
         "sort": "lab_id",

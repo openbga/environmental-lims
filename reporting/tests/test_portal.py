@@ -1,6 +1,7 @@
 import pytest
 from django.core.exceptions import ValidationError
 from django.urls import reverse
+from django.utils.html import escape
 
 from reporting import services
 from reporting.content import assemble
@@ -41,6 +42,84 @@ def test_client_sees_only_own_records(issued, client):
     assert client.get(reverse("portal:report-pdf", args=[a.pk, 2])).status_code == 404
     forged = client.get(reverse("portal:sample-list"), {"project": b.project_id})
     assert "VR-B1" not in forged.content.decode()
+
+
+def test_location_history_uses_exact_issued_location_and_pdf_version(
+    world, people, client, settings
+):
+    location = "  Outfall A+B & <Basin>/É\nUpper bank  "
+    report, sample = world["report_a"], world["sample_a"]
+    sample.collection_location = location
+    sample.save(update_fields=["collection_location"])
+    release(report, people["approver"])
+    report = services.update_report(
+        actor=people["pm"],
+        report_id=report.pk,
+        expected_revision=report.revision,
+        title="Updated outfall report",
+        samples=[sample],
+    )
+    amended = release(report, people["approver"], reason="Corrected the report title")
+    sample.collection_location = "Later unissued location"
+    sample.save(update_fields=["collection_location"])
+    settings.REPORT_SYNTHETIC_DATA_NOTICE = False
+
+    client.force_login(world["user_a"])
+    path = reverse("portal:location-history", args=[report.pk, 2, 1])
+    detail = client.get(reverse("portal:report-detail", args=[report.pk]))
+    assert f'href="{path}"' in detail.content.decode()
+
+    original_path = reverse("portal:location-history", args=[report.pk, 1, 1])
+    history = client.get(original_path)
+    assert history.status_code == 200
+    assert history.context["location"] == location
+    (row,) = history.context["page_obj"]
+    assert row["report_version"] == amended.number == 2
+    assert row["lab_sample_id"] == sample.lab_id
+    assert b"Later unissued location" not in history.content
+    assert b"Synthetic data" in history.content
+    assert str(escape(location)) in history.content.decode()
+    pdf_url = reverse("portal:report-pdf", args=[report.pk, 2])
+    assert f'href="{pdf_url}"' in history.content.decode()
+    assert client.get(pdf_url).content == bytes(amended.file.pdf)
+
+    filtered = client.get(path, {"analyte": "lEa", "sort": "collected_at"})
+    assert list(filtered.context["page_obj"]) == [row]
+    assert b'aria-sort="ascending"' in filtered.content
+    assert f'href="{escape(filtered.context["clear_url"])}"' in filtered.content.decode()
+    cleared = client.get(filtered.context["clear_url"])
+    assert cleared.context["location"] == location
+    assert not cleared.context["filtered"] and list(cleared.context["page_obj"]) == [row]
+    assert b"No results match this analyte" in client.get(path, {"analyte": "Unreported"}).content
+    invalid = client.get(path, {"analyte": "Outfall\x00"})
+    assert b"These filters cannot be applied" in invalid.content
+
+    release(report, people["approver"], reason="Corrected the collection location")
+    assert b"No issued results at this location" in client.get(path).content
+
+    client.force_login(world["user_b"])
+    assert client.get(path).status_code == 404
+
+
+def test_location_history_access_and_blank_location(world, people, client):
+    report, sample = world["report_a"], world["sample_a"]
+    sample.collection_location = "   "
+    sample.save(update_fields=["collection_location"])
+    release(report, people["approver"])
+    path = reverse("portal:location-history", args=[report.pk, 1, 1])
+    assert client.get(path).status_code == 302
+
+    client.force_login(people["approver"])
+    assert client.get(path).status_code == 403
+
+    client.force_login(world["user_a"])
+    detail = client.get(reverse("portal:report-detail", args=[report.pk]))
+    assert path.encode() not in detail.content and b"Location not recorded" in detail.content
+    assert client.get(path).status_code == 404
+    assert client.get(reverse("portal:location-history", args=[report.pk, 1, 0])).status_code == 404
+    assert client.get(reverse("portal:location-history", args=[report.pk, 1, 2])).status_code == 404
+    assert client.get(reverse("portal:location-history", args=[report.pk, 2, 1])).status_code == 404
+    assert client.post(path).status_code == 405
 
 
 def test_client_cannot_see_drafts_or_staff_routes(world, people, client):

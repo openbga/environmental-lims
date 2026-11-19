@@ -308,6 +308,14 @@ The Excel worksheet stores values as text so sample IDs retain leading zeros and
 the precision and qualifiers the laboratory reported. If a selected value cannot be written
 exactly in the workbook, clients can download that version as CSV. The stored PDF is the report of record.
 
+Clients can open the result history for a sampling location from an issued report. Within the
+client’s project, the history matches the location text exactly as issued and shows the latest
+issue of each report, ordered by sample collection time. If two distinct reports include the
+same result, both appearances retain their report number and version. The issued values, units,
+qualifiers, reporting limits, matrix, result basis and method give the client the context for
+reading the series. Earlier issues remain available in the report’s version history. Client
+limits and comparisons against them remain planned.
+
 Deliverable and reporting targets for milestones 2 to 4. All are exploratory. A recipient accepts an EDD only against its own current specification and reference values, so no format here is claimed as accepted until tested against one named recipient's spec.
 
 | Target | What it is | Notes |

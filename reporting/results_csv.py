@@ -136,29 +136,33 @@ def issued_result_rows(snapshot):
             "collection_location": sample.get("collection_location"),
         }
         for result in sample["results"]:
-            external = result.get("external", {})
-            qualifiers = (
-                result.get("external_qualifiers")
-                if result.get("source") == "external"
-                else ", ".join(result.get("qualifiers", []))
-            )
-            yield {
-                **sample_cells,
-                "analyte": result["analyte"],
-                "result": result["reported"],
-                "unit": result["unit"],
-                "qualifiers": qualifiers,
-                "reporting_limit": result["reporting_limit"],
-                "result_basis": basis_label(result, sample["matrix"]),
-                "percent_solids": result.get("percent_solids"),
-                "solids_reference": result.get("solids_reference"),
-                "method_code": result["method_code"],
-                "method_version": result.get("method_version"),
-                "analysis_started_at": result.get("analysis_started_at"),
-                "subcontract_lab": external.get("laboratory"),
-                "subcontract_report_reference": external.get("report_reference"),
-                "subcontract_sample_id": external.get("external_sample_id"),
-            }
+            yield {**sample_cells, **issued_result_values(result, sample["matrix"])}
+
+
+def issued_result_values(result, matrix):
+    """Read the common display fields from one frozen result."""
+    external = result.get("external", {})
+    qualifiers = (
+        result.get("external_qualifiers")
+        if result.get("source") == "external"
+        else ", ".join(result.get("qualifiers", []))
+    )
+    return {
+        "analyte": result["analyte"],
+        "result": result["reported"],
+        "unit": result["unit"],
+        "qualifiers": qualifiers,
+        "reporting_limit": result["reporting_limit"],
+        "result_basis": basis_label(result, matrix),
+        "percent_solids": result.get("percent_solids"),
+        "solids_reference": result.get("solids_reference"),
+        "method_code": result["method_code"],
+        "method_version": result.get("method_version"),
+        "analysis_started_at": result.get("analysis_started_at"),
+        "subcontract_lab": external.get("laboratory"),
+        "subcontract_report_reference": external.get("report_reference"),
+        "subcontract_sample_id": external.get("external_sample_id"),
+    }
 
 
 def export_results_csv(snapshot, *, columns=None):

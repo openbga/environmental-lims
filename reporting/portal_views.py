@@ -23,8 +23,9 @@ from django.db.models import (
     When,
 )
 from django.db.models.functions import Coalesce
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import Http404, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.http import content_disposition_header
 from django.views.decorators.http import require_GET, require_http_methods
 
@@ -33,6 +34,7 @@ from receipt.models import Project, RequestedTest, Sample
 
 from .content import synthetic_notice
 from .forms import ResultCSVTemplateForm
+from .location_history import location_history as issued_location_history
 from .models import Report, ReportFile, ReportVersion
 from .queries import (
     approved_tests,
@@ -80,6 +82,7 @@ PROJECT_COLUMNS = {
     "last_received": "last_received_order",
     "reports": "report_count",
 }
+LOCATION_HISTORY_COLUMNS = {"collected_at": "collected_at"}
 NEVER = datetime(1, 1, 1, tzinfo=UTC)
 
 
@@ -110,6 +113,10 @@ class PortalSampleFilterForm(PortalFilterForm):
     collected_to = forms.DateField(
         required=False, label="Collected to", widget=forms.DateInput(attrs={"type": "date"})
     )
+
+
+class LocationHistoryFilterForm(forms.Form):
+    analyte = forms.CharField(required=False, max_length=160)
 
 
 def client_required(view):
@@ -359,6 +366,71 @@ def _render_grid(
         **(extra or {}),
     )
     return render(request, template, context)
+
+
+@client_required
+@require_GET
+def location_history(request, pk, number, position):
+    if position < 1:
+        raise Http404
+    project_id, project_name, location = get_object_or_404(
+        client_versions(request.user)
+        .filter(file__isnull=False)
+        .values_list(
+            "report__project_id",
+            "report__project__name",
+            f"file__snapshot__content__samples__{position - 1}__collection_location",
+        ),
+        report_id=pk,
+        number=number,
+    )
+    if not isinstance(location, str) or not location.strip():
+        raise Http404
+    try:
+        grid = GridRequest.parse(request.GET, LOCATION_HISTORY_COLUMNS, "-collected_at")
+    except ValueError as exc:
+        return HttpResponseBadRequest(str(exc))
+
+    form = LocationHistoryFilterForm(request.GET)
+    clear_url = reverse(
+        "portal:location-history",
+        args=[pk, number, position],
+        query={"sort": grid.sort, "per_page": grid.per_page},
+    )
+    page = []
+    chips = []
+    if form.is_valid():
+        analyte = form.cleaned_data["analyte"]
+        page = issued_location_history(
+            client_id=request.user.client_id,
+            project_id=project_id,
+            location=location,
+            analyte=analyte,
+            page=grid.page_number,
+            descending=grid.sort.startswith("-"),
+            per_page=grid.per_page,
+        )
+        if analyte:
+            chips = [{"label": "Analyte", "value": analyte, "remove_url": clear_url}]
+
+    return render(
+        request,
+        "reporting/portal/location_history.html",
+        _context(
+            request,
+            "Location history",
+            project_name=project_name,
+            location=location,
+            page_obj=page,
+            filter_form=form,
+            sort=grid.sort,
+            per_page=grid.per_page,
+            active_filters=chips,
+            filtered=bool(chips),
+            clear_url=clear_url,
+            **toolbar_fields(form, ("analyte",)),
+        ),
+    )
 
 
 @client_required

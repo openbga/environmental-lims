@@ -162,8 +162,12 @@ class GridPreferenceMiddleware:
             return None
         stored = for_request(request).get(key, {})
         given = {}
-        if request.GET.get("per_page", "").isdigit() and int(request.GET["per_page"]) in PAGE_SIZES:
-            given["per_page"] = int(request.GET["per_page"])
+        try:
+            page_size = int(request.GET.get("per_page", 0))
+        except ValueError:
+            page_size = None
+        if page_size in PAGE_SIZES:
+            given["per_page"] = page_size
         if SORT.match(request.GET.get("sort", "")):
             given["sort"] = request.GET["sort"]
         if given and {**stored, **given} != stored:

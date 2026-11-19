@@ -2851,7 +2851,7 @@ a.vr-navlink[aria-current="page"]:hover {
   text-decoration: none;
 }
 
-[aria-sort] > .vr-sort {
+th[aria-sort] .vr-sort {
   color: var(--vr-text-strong);
 }
 
@@ -2861,7 +2861,7 @@ a.vr-navlink[aria-current="page"]:hover {
   opacity: 0;
 }
 
-[aria-sort] > .vr-sort .vr-icon,
+th[aria-sort] .vr-sort .vr-icon,
 .vr-sort:hover .vr-icon,
 .vr-sort:focus-visible .vr-icon {
   opacity: 1;

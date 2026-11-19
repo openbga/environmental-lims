@@ -18,6 +18,10 @@ The same list is shown in the application under What's new.
 
   Clients can download the results from an issued report as a CSV. Version history includes a download for each earlier issue, so clients can retrieve the values the laboratory reported before an amendment.
 
+- **Added:** Follow issued results by sampling location (2026-11-18, Reports)
+
+  Open a sampling location on an issued report to see its results over time in the same project. Filter by analyte and open the issued PDF for any row from the latest version of each report. Sortable tables now keep the active sort arrow visible when column controls are available.
+
 - **Added:** Issue a numbered invoice and download its PDF (2026-11-17, Draft invoices)
 
   Project managers and administrators can issue a reviewed draft and download the original invoice for delivery. To correct an issued invoice, void it with a reason and prepare a new draft from the order. The original PDF and history remain available.

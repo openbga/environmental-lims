@@ -1,0 +1,81 @@
+{
+  "id": "reporting-portal-location-history",
+  "routes": ["portal:location-history"],
+  "title": "Location history",
+  "purpose": "Find issued results from the same collection location within a client project.",
+  "summary": "Review issued results for one collection location in your project, see when each sample was collected, and download the PDF that reported each result.",
+  "tasks": [
+    {
+      "title": "Find earlier results for an analyte",
+      "steps": [
+        "Type part or all of the name in [[Analyte]], then select [[Apply]].",
+        "Select [[Collected]] to reverse the collection order."
+      ]
+    },
+    {
+      "title": "Download the report behind a result",
+      "steps": ["Select the report number and version in [[Issued report]]."]
+    },
+    {
+      "title": "See results for every analyte again",
+      "steps": ["Select [[Clear all]] to remove the analyte filter and keep the same collection location."]
+    }
+  ],
+  "good_to_know": [
+    "The project and the exact collection location from the issued report appear under the heading. Differences in case, spacing or punctuation identify separate locations.",
+    "Each report contributes its current issue. Earlier issues remain available in [[Version history]] on the report page.",
+    "The same sample can appear more than once when issued in separate reports. Check the report number and version on each row.",
+    "Check the matrix, unit, basis, qualifiers, reporting limit and method before comparing results. ND means not detected at or above the reporting limit."
+  ],
+  "sections": [
+    {
+      "title": "Access and navigation",
+      "paragraphs": [
+        "Open an issued report from Reports and select Location history beside a sample with a collection location. Signed-in clients can view locations in their own projects. The page displays the project name and the issued collection location.",
+        "Each row is one result from the current issued version of a report in the selected project. The location must exactly match the frozen text, including capitalization, spaces and punctuation. When you reopen a saved history link after an amendment, it still searches the location in the issue you opened it from. The PDF for each earlier issue remains available in its report's Version history.",
+        "When Demonstration appears, the page contains synthetic results."
+      ]
+    },
+    {
+      "title": "Find and arrange results",
+      "items": [
+        {"label": "Analyte", "description": "Optional search for part or all of an issued analyte name. The search ignores capitalization."},
+        {"label": "Apply", "description": "Apply the analyte filter and return to the first page."},
+        {"label": "Clear all / Clear filters", "description": "Remove the analyte filter while keeping the location and table settings. The active filter chip can also be removed."},
+        {"label": "Collected", "description": "Reverse the collection order. The default is newest collection first. Undated results appear last in either direction."},
+        {"label": "Columns", "description": "Adjust which table columns are visible and their order. The report link stays visible. Layout is saved for your account."},
+        {"label": "Rows per page / Show", "description": "Choose 25, 50 or 100 results, then select Show. The page count reflects the current filter. The page size and collection order are saved for your account."},
+        {"label": "First page / Previous page / Next page / Last page", "description": "Move through the results pages when more than one page is available. The location, analyte filter and sort stay selected."}
+      ],
+      "paragraphs": [
+        "An empty history means the current issues for this project have no results at the exact location. For an empty filter result, check the analyte search or clear it. For an invalid filter, correct the field highlighted above the empty table area."
+      ]
+    },
+    {
+      "title": "Issued result columns",
+      "items": [
+        {"label": "Issued report", "description": "Report number and version. Synthetic data appears when that issue was marked as synthetic. Select the link for the stored PDF of that issue, which is the report of record. If its integrity check refuses the file, contact the laboratory."},
+        {"label": "Collected", "description": "Collection date, time and UTC offset as recorded in the issue. Sorting uses the collection instant."},
+        {"label": "Sample", "description": "Client sample ID, lab sample ID and matrix from the issue. Separate reports may each show a result for the same sample."},
+        {"label": "Analyte", "description": "Substance or parameter named in the issued report."},
+        {"label": "Result", "description": "Exact issued result text and unit, with the reported basis where applicable. For soil this can be Wet weight, Dry weight or Basis not recorded. Use the recorded unit and basis for comparison. ND means not detected at or above the reporting limit."},
+        {"label": "Qualifiers", "description": "Issued qualifier codes or the external laboratory’s qualifier text. The report PDF provides the meaning and context."},
+        {"label": "Reporting limit", "description": "The limit applied to the issued result, in that result’s unit."},
+        {"label": "Method", "description": "Issued method code and version, when recorded. A subcontracted result identifies the external laboratory when available."}
+      ],
+      "paragraphs": ["Values are displayed as issued. Review the PDF for the full report context before interpreting changes over time."]
+    }
+  ],
+  "sources": [
+    "reporting/portal_urls.py",
+    "reporting/portal_views.py",
+    "reporting/location_history.py",
+    "reporting/results_csv.py",
+    "reporting/templates/reporting/portal/location_history.html",
+    "reporting/templates/reporting/portal/report_detail.html",
+    "reporting/tests/test_portal.py",
+    "core/preferences.py",
+    "templates/includes/grid_toolbar.html",
+    "templates/includes/pagination.html"
+  ]
+}

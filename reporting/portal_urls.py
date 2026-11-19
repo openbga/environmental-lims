@@ -20,6 +20,11 @@ urlpatterns = [
         name="report-csv-template",
     ),
     path("reports/<int:pk>/", views.report_detail, name="report-detail"),
+    path(
+        "reports/<int:pk>/v<int:number>/samples/<int:position>/location-history/",
+        views.location_history,
+        name="location-history",
+    ),
     path("reports/<int:pk>/v<int:number>.pdf", views.report_pdf, name="report-pdf"),
     path(
         "reports/<int:pk>/v<int:number>/results.csv",
