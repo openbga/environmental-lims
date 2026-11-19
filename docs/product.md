@@ -350,9 +350,23 @@ The worksheet is transient. The permittee decides whether this concentration, fl
 apply to the discharge and how to round and report the result.
 
 US EPA’s 2017 permit ID0020214 for Idaho illustrates this calculation in Table 1, note 1.
-It has separate rules for averaging and for results below detection limits. Period averages and
-maximums remain on the roadmap. The permittee files the report.
+It has separate rules for averaging and for results below detection limits. The permittee files the report.
 [US EPA, 2017 Idaho permit, page 8, checked 2026-11-19](https://www.epa.gov/sites/production/files/2017-05/documents/r10-npdes-preston-id0020214-final-permit-2017.pdf).
+
+The monthly concentration worksheet uses the collection month on the issued result. Across the
+project’s current issued reports it groups the same named location, aqueous matrix and analyte.
+When each sampled day has one eligible concentration, the worksheet gives that day equal weight
+in the arithmetic mean and shows the highest daily concentration. It converts micrograms per
+liter to mg/L exactly and shows a fraction when the mean has no terminating decimal.
+Each contributing row identifies the issued report version. Multiple observations on a day,
+cross-day composites, non-detects, qualifications or incomplete evidence withhold both figures.
+
+US EPA’s 2024 general permit for offshore activities in the eastern Gulf of Mexico illustrates
+a sampled-day monthly average and daily maximum. Several grabs on the same day can require
+flow weighting. The worksheet covers the single-observation case using the calendar dates on
+the issued reports. The permittee checks sampling coverage, methods, representativeness and
+rounding against the applicable permit before filing.
+[US EPA, permit GEG460000, Part II.E.4, checked 2026-11-19](https://www.epa.gov/system/files/documents/2024-03/geg460000-2024-finalsigned.pdf#page=99).
 
 Deliverable and reporting targets for milestones 2 to 4. All are exploratory. A recipient accepts an EDD only against its own current specification and reference values, so no format here is claimed as accepted until tested against one named recipient's spec.
 

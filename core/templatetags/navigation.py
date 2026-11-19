@@ -408,6 +408,7 @@ PORTAL_NAV = (
             "portal:location-history",
             "portal:location-comparison",
             "portal:daily-load",
+            "portal:monthly-concentrations",
         ),
     ),
 )

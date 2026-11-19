@@ -73,7 +73,7 @@ def _batch_qc_reason(content, result):
     return "" if matched == required else _INCOMPLETE_QC
 
 
-def daily_load_input(content, sample, result):
+def issued_concentration_mg_l(content, sample, result):
     """Return the issued concentration in mg/L, or explain why the worksheet is unavailable."""
     if not all(isinstance(item, dict) for item in (content, sample, result)):
         return None, "The issued result information is incomplete."
@@ -81,7 +81,7 @@ def daily_load_input(content, sample, result):
     if not daily_load_supported(sample.get("matrix"), unit):
         return None, "Select a water or wastewater concentration in mg/L or µg/L."
     if sample.get("sample_type", "Field sample") != "Field sample":
-        return None, "A daily load needs a field sample. This sample has another field designation."
+        return None, "The calculation requires a field sample. Check the issued field designation."
     try:
         datetime.fromisoformat(sample["collected_at"])
     except KeyError, TypeError, ValueError:
@@ -95,7 +95,7 @@ def daily_load_input(content, sample, result):
     if reason:
         return None, reason
     if value < 0:
-        return None, "A daily load needs a nonnegative concentration."
+        return None, "The calculation requires a nonnegative concentration."
     if abs(value.as_tuple().exponent) > MAX_TEXT_LENGTH:
         return None, "The concentration exponent exceeds the worksheet's calculation range."
     if sample.get("disposition") != Sample.Disposition.PROCEED.label:
@@ -115,6 +115,9 @@ def daily_load_input(content, sample, result):
         with localcontext(Context(prec=MAX_TEXT_LENGTH)):
             value = value.scaleb(-3)
     return value.copy_abs(), ""
+
+
+daily_load_input = issued_concentration_mg_l
 
 
 def calculate_daily_load(concentration_mg_l, flow_mgd):

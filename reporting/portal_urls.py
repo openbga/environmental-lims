@@ -35,6 +35,12 @@ urlpatterns = [
         views.daily_load,
         name="daily-load",
     ),
+    path(
+        "reports/<int:pk>/v<int:number>/samples/<int:position>/"
+        "results/<int:result_position>/monthly-concentrations/",
+        views.monthly_concentrations,
+        name="monthly-concentrations",
+    ),
     path("reports/<int:pk>/v<int:number>.pdf", views.report_pdf, name="report-pdf"),
     path("reports/<int:pk>/v<int:number>/package.zip", views.report_package, name="report-package"),
     path(

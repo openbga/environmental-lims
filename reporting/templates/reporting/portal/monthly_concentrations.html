@@ -1,0 +1,88 @@
+{% extends "layouts/portal.html" %}
+{% load reporting ui %}
+{% block breadcrumbs %}
+  {% url 'portal:report-list' as list_url %}{% url 'portal:report-detail' version.report_id as report_url %}
+  {% breadcrumbs section="Reports" section_url=list_url record=version.report.number record_url=report_url current="Monthly concentrations" %}
+{% endblock %}
+{% block page_meta %}{% page_meta %}
+  <li>{% if current %}{% status label="Current version" tone="success" %}{% else %}{% status label="Superseded version" tone="neutral" %}{% endif %}</li>
+  <li>{{ version.label }}</li>
+  <li>{{ analyte }}</li>
+  <li>{{ location }}</li>
+{% endpage_meta %}{% endblock %}
+{% block content %}
+{% include "reporting/portal/notice.html" %}
+{% if not current %}
+  {% notice tone="warning" label="Superseded version" blocking=True class="flex-wrap" %}A newer version has been issued. Select the result again in the <a href="{% url 'portal:report-detail' version.report_id %}">current report</a>.{% endnotice %}
+{% elif reason %}
+  {% notice tone="warning" label="Calculation blocked" blocking=True class="flex-wrap" %}{{ reason }}{% endnotice %}
+{% endif %}
+{% record_layout %}
+  {% fill lead %}
+    {% panel title="Monthly summary" heading_id="monthly-summary-heading" %}
+      <dl class="vr-facts">
+        {% fact label="Reporting period" value=period|date:"F Y" %}
+        {% fact label="Sampled days" value=summary.days %}
+        {% fact label="Arithmetic mean" %}
+          {% if summary.mean is not None %}
+            {{ summary.mean }} mg/L{% if "/" in summary.mean %} <span class="vr-muted small">(exact fraction)</span>{% endif %}
+          {% else %}—{% endif %}
+        {% endfact %}
+        {% fact label="Highest daily concentration" %}{% if summary.maximum is not None %}{{ summary.maximum }} mg/L{% else %}—{% endif %}{% endfact %}
+        {% fact label="Project" value=project_name wide=True %}
+        {% fact label="Matrix" %}{% matrix_tag matrix=matrix|lower name=matrix size="sm" %}{% endfact %}
+      </dl>
+      <p>This worksheet covers sampled days in the current issued reports for this project, exact collection location, matrix and analyte. It uses one eligible concentration per day.</p>
+      <p>The permittee checks coverage across all required data sources, confirms sample representativeness and applicable permit rules, and applies any required rounding before filing.</p>
+    {% endpanel %}
+  {% endfill %}
+  {% if summary.rows %}
+    {% panel title="Issued source results" heading_id="issued-source-results-heading" table=True %}
+      <div class="vr-table-wrap">
+        <table class="table vr-table" aria-labelledby="issued-source-results-heading">
+          <thead>
+            <tr>
+              <th scope="col">Issued PDF</th>
+              <th scope="col">Lab sample ID</th>
+              <th scope="col">Collection day</th>
+              <th scope="col">Sample source</th>
+              <th scope="col" class="text-end">Issued result</th>
+              <th scope="col">Unit</th>
+              <th scope="col">Method</th>
+              <th scope="col">Worksheet status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in summary.rows %}
+            <tr>
+              <th scope="row">
+                {% if row.pdf_available %}
+                  <a class="vr-row-link" href="{% url 'portal:report-pdf' row.report_id row.report_version %}">{{ row.report_number }} v{{ row.report_version }}</a>
+                {% else %}
+                  {{ row.report_number }} v{{ row.report_version }}
+                  <div class="vr-muted small">PDF unavailable</div>
+                {% endif %}
+              </th>
+              <td class="vr-id">{{ row.lab_sample_id|default:"—" }}</td>
+              <td>
+                {% if row.day %}<time datetime="{{ row.day|date:'Y-m-d' }}">{{ row.day|date:"Y-m-d" }}</time>
+                {% else %}
+                  Unassigned
+                  {% if row.collection_started_at %}<div class="vr-muted small">Start {{ row.collection_started_at|iso_time }}</div>{% endif %}
+                  {% if row.collected_at %}<div class="vr-muted small">Collected {{ row.collected_at|iso_time }}</div>{% endif %}
+                {% endif %}
+              </td>
+              <td>{{ row.sample_source|default:"—" }}{% if row.sample_type and row.sample_type != "Field sample" %}<div class="vr-muted small">{{ row.sample_type }}</div>{% endif %}</td>
+              <td class="text-end">{{ row.reported|default:"—" }}</td>
+              <td>{{ row.unit|default:"—" }}</td>
+              <td>{{ row.method_code|default:"—" }}{% if row.method_version %} v{{ row.method_version }}{% endif %}</td>
+              <td>{{ row.reason|default:"Eligible concentration" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endpanel %}
+  {% endif %}
+{% endrecord_layout %}
+{% endblock %}

@@ -14,6 +14,10 @@ The same list is shown in the application under What's new.
 
   Clients can open Daily load from a water or wastewater result on their current report. Enter the corresponding sampling-day flow to see the calculation in pounds per day and open the issued PDF to check the source.
 
+- **Added:** Check monthly concentrations at a sampling location (2026-11-19, Reports)
+
+  Clients can open Monthly concentrations beside an issued water or wastewater result to see the sampled days and source reports. With one eligible result per sampled day, the worksheet shows the monthly arithmetic mean and highest daily concentration in mg/L. When a result or sampling interval prevents calculation, the worksheet explains why.
+
 - **Added:** Compare results at a sampling location with a client upper limit (2026-11-19, Client portal)
 
   From a sampling location’s result history, clients can enter an upper limit in the issued unit and see which comparable results fall above, at or below it. Each row links to its issued PDF and explains when a comparison cannot be made.

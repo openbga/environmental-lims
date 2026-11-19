@@ -21,9 +21,10 @@
       ]
     },
     {
-      "title": "Find earlier results from the same collection location",
+      "title": "Review results from the same collection location",
       "steps": [
-        "In the sample's section, select [[Location history]]. This opens issued results at that location within this project."
+        "In the sample's section, select [[Location history]] for issued results at that location within this project.",
+        "Select [[Monthly concentrations]] beside an aqueous result to review the month of its collection."
       ]
     },
     {
@@ -154,6 +155,10 @@
           "description": "Open a worksheet for this issued water or wastewater concentration in mg/L or micrograms per liter. It pairs an eligible result with the flow you enter for the sampling day and explains when a calculation is unavailable."
         },
         {
+          "label": "Monthly concentrations",
+          "description": "Open the worksheet from a named analyte in mg/L or micrograms per liter on a water or wastewater sample with a recorded location. It uses the issued project, location, matrix, analyte and collection month and explains any result or day that prevents calculation."
+        },
+        {
           "label": "Unit",
           "description": "Frozen unit for this reported quantity."
         },
@@ -241,7 +246,9 @@
     "reporting/models.py",
     "reporting/content.py",
     "reporting/daily_load.py",
+    "reporting/monthly_concentrations.py",
     "reporting/tests/test_portal_daily_load.py",
+    "reporting/tests/test_portal_monthly_concentrations.py",
     "reporting/results_csv.py",
     "reporting/results_xlsx.py",
     "reporting/packages.py",
