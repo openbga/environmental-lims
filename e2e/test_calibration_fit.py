@@ -168,6 +168,67 @@ def test_quadratic_fit_shows_coefficients_and_signed_residuals(sign_in_as):
     assert not page.console_errors
 
 
+def test_linear_through_origin_shows_fixed_intercept_and_only_recorded_rows(sign_in_as):
+    page = sign_in_as("reviewer")
+    # The fitted slope is 4 with a fixed zero intercept, 8 when free, and the mean factor is 3.
+    rows = [
+        ("Low", "1.00", "1.000", "4", "-3"),
+        ("Low replicate", "1.0", "3", "4", "-1"),
+        ("High", "2", "10.0", "8", "2"),
+    ]
+    points = [
+        {"standard": standard, "concentration": concentration, "response": observed}
+        for standard, concentration, observed, _, _ in rows
+    ]
+    curve = recorded_curve("SYNTHETIC-ZERO-INTERCEPT-WORKSHEET", points)
+    page.set_viewport_size({"width": 390, "height": 844})
+    path = f"/analytical/calibrations/{curve.pk}/"
+    assert page.goto(path).ok
+    form = page.get_by_role("region", name="Calibration fit worksheet", exact=True)
+    table = page.get_by_role("table", name="Standard points")
+    model = field(form, "Model")
+    weighting = field(form, "Weighting")
+    button = form.get_by_role("button", name="Calculate fit", exact=True)
+    residual = table.get_by_role("columnheader", name="Residual (counts)", exact=True)
+    expect(residual).to_have_count(0)
+
+    pick(model, label="Linear through origin")
+    weighting_select = form.locator("select[name=weighting]")
+    expect(weighting_select).to_have_value("")
+    with page.expect_request(
+        lambda request: request.is_navigation_request() and f"{path}?" in request.url
+    ) as load:
+        button.press("Enter")
+    assert load.value.method == "GET"
+    expect(form.get_by_text("y = slope × x", exact=True)).to_be_visible()
+    expect(form).to_contain_text("4 (counts per ug/L)")
+    expect(form).to_contain_text("0 (counts), fixed")
+    expect(form).to_contain_text("Unweighted (equal weights)")
+    expect(residual).to_be_visible()
+    expect(table.get_by_role("row")).to_have_count(len(rows) + 1)
+    for row in rows:
+        expect(table.get_by_role("row", name=" ".join(row), exact=True)).to_be_visible()
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+
+    page.get_by_role("button", name="Help", exact=True).press("Enter")
+    drawer = page.locator("#vr-documentation")
+    expect(drawer).to_contain_text("Linear through origin")
+    expect(drawer).to_contain_text("adds no observation at zero")
+    drawer.get_by_role("button", name="Close documentation", exact=True).press("Enter")
+    expect(drawer).to_be_hidden()
+
+    pick(weighting, "inverse")
+    button.press("Enter")
+    expect(form).to_contain_text("Linear through origin uses equal weights.")
+    expect(weighting_select).to_have_value("inverse")
+    expect(residual).to_have_count(0)
+    for row in rows:
+        expect(table.get_by_role("row", name=" ".join(row[:3]), exact=True)).to_be_visible()
+    curve.refresh_from_db()
+    assert (curve.model_text, curve.source_reference, curve.points) == (MODEL, SOURCE, points)
+    assert not page.console_errors
+
+
 @pytest.mark.browser_context_args(java_script_enabled=False)
 def test_average_factor_submits_with_keyboard_without_javascript(sign_in_as):
     page = sign_in_as("reviewer")

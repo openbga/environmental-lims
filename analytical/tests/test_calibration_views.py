@@ -99,6 +99,7 @@ def test_clients_cannot_read_or_record(lab, analyst, client):
     url = reverse("analytical:calibration-detail", args=[curve.pk])
     assert client.get(url, {"model": "quadratic", "weighting": "equal"}).status_code == 403
     assert client.get(url, {"model": "average_factor"}).status_code == 403
+    assert client.get(url, {"model": "linear_origin"}).status_code == 403
 
 
 def test_fit_requires_a_choice_and_keeps_evidence_and_result_links(lab, analyst, reviewer, client):
@@ -200,6 +201,60 @@ def test_quadratic_fit_displays_coefficients_direction_and_signed_residuals(
     assert AuditEvent.objects.count() == audit_count
 
 
+def test_linear_through_origin_fits_all_rows_and_keeps_evidence_read_only(
+    lab, analyst, reviewer, client
+):
+    batch, result = setup_run(lab, analyst)
+    points = [
+        {"standard": "SYN-LOW", "concentration": "1.00", "response": "1.000"},
+        {"standard": "SYN-LOW-REP", "concentration": "1.0", "response": "3"},
+        {"standard": "SYN-HIGH", "concentration": "2", "response": "10.0"},
+    ]
+    curve = record(lab, analyst, batch, points=points)
+    client.force_login(analyst)
+    result_url = reverse("analytical:result-detail", args=[result.pk])
+    assert client.post(result_url, entry(calibration_id=curve.pk)).status_code == 302
+    revision = result.revisions.values().get()
+    audit_count = AuditEvent.objects.count()
+
+    client.force_login(reviewer)
+    url = reverse("analytical:calibration-detail", args=[curve.pk])
+    params = {"model": "linear_origin"}
+    response = client.get(url, params)
+    assert response.status_code == 200
+    fit = response.context["fit"]
+    assert fit["slope"] == "4" and fit["intercept"] == "0"
+    html = response.content.decode()
+    for shown in (
+        "y = slope × x",
+        f">4</span> (counts per {curve.unit})",
+        ">0</span> (counts), fixed",
+        "Predicted response (counts)",
+        "Residual (counts)",
+    ):
+        assert shown in html
+    assert "Calibration factor (counts per" not in html
+    for weighting in ("", "equal"):
+        response = client.get(url, {**params, "weighting": weighting})
+        assert response.context["fit"] == fit
+        assert response.context["fit_form"]["weighting"].value() == weighting
+        assert response.context["fit_weighting_label"] == "Unweighted (equal weights)"
+    for weighting in ("inverse", "inverse_square"):
+        response = client.get(url, {**params, "weighting": weighting})
+        assert response.status_code == 200 and response.context["fit"] is None
+        form = response.context["fit_form"]
+        assert form["weighting"].value() == weighting
+        assert form.errors["weighting"] == ["Linear through origin uses equal weights."]
+        assert response.context["points"] == points
+        assert b"Predicted response (counts)" not in response.content
+
+    assert client.post(url, params).status_code == 405
+    curve.refresh_from_db()
+    assert curve.points == points
+    assert result.revisions.values().get() == revision
+    assert AuditEvent.objects.count() == audit_count
+
+
 def test_fit_errors_keep_recorded_points_visible(lab, analyst, client):
     batch, _ = setup_run(lab, analyst)
     curve = record(
@@ -238,6 +293,10 @@ def test_fit_errors_keep_recorded_points_visible(lab, analyst, client):
             {"model": "quadratic", "weighting": "equal"},
             b"A quadratic fit needs at least three distinct concentrations.",
         ),
+        (
+            {"model": "linear_origin"},
+            b"A zero-intercept linear fit requires every concentration to be greater than zero.",
+        ),
     ):
         response = client.get(url, params)
         assert response.status_code == 200 and response.context["fit"] is None
@@ -248,6 +307,10 @@ def test_fit_errors_keep_recorded_points_visible(lab, analyst, client):
     one_point = record(lab, analyst, batch, reference="SYNTHETIC-SINGLE-POINT")
     url = reverse("analytical:calibration-detail", args=[one_point.pk])
     response = client.get(url, {"weighting": "equal"})
+    assert response.status_code == 200 and response.context["fit"] is None
+    assert b"A linear fit needs at least two distinct concentrations." in response.content
+    assert b"SYN-STD-1" in response.content
+    response = client.get(url, {"model": "linear_origin"})
     assert response.status_code == 200 and response.context["fit"] is None
     assert b"A linear fit needs at least two distinct concentrations." in response.content
     assert b"SYN-STD-1" in response.content

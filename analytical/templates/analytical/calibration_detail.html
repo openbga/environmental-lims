@@ -21,7 +21,7 @@
     {% endpanel %}
   {% endfill %}
     {% panel title="Calibration fit worksheet" heading_id="fit-heading" id="fit-worksheet" class="mb-3" %}
-      <p>Inspect the recorded points using a linear fit, a quadratic fit or an average calibration factor for external standards. Follow your laboratory’s procedure for method acceptance.</p>
+      <p>Use Average calibration factor for concentration-based external standards. Follow your method and laboratory SOP for model selection and acceptance.</p>
       {# form: filter #}
       <form class="vr-form" method="get" action="{{ request.path }}#fit-worksheet" novalidate>
         {% form_errors form=fit_form %}
@@ -49,9 +49,13 @@
             {% fact label="Intercept" %}<span class="vr-id">{{ fit.intercept }}</span> ({{ curve.response_unit }}){% endfact %}
             {% fact label="Direction over recorded range" value=fit.trend %}
           {% else %}
-            {% fact label="Equation" wide=True value="y = slope × x + intercept" %}
+            {% if fit_model == "linear_origin" %}
+              {% fact label="Equation" wide=True value="y = slope × x" %}
+            {% else %}
+              {% fact label="Equation" wide=True value="y = slope × x + intercept" %}
+            {% endif %}
             {% fact label="Slope" %}<span class="vr-id">{{ fit.slope }}</span> ({{ curve.response_unit }} per {{ curve.unit }}){% endfact %}
-            {% fact label="Intercept" %}<span class="vr-id">{{ fit.intercept }}</span> ({{ curve.response_unit }}){% endfact %}
+            {% fact label="Intercept" %}<span class="vr-id">{{ fit.intercept }}</span> ({{ curve.response_unit }}){% if fit_model == "linear_origin" %}, fixed{% endif %}{% endfact %}
           {% endif %}
         </dl>
         <p class="vr-muted">In the equation, x is concentration ({{ curve.unit }}) and y is predicted response ({{ curve.response_unit }}). Residual is observed response minus predicted response.

@@ -5,7 +5,7 @@
   ],
   "title": "Calibration evidence",
   "purpose": "Inspect the recorded instrument model, compare temporary calibration fits, and trace the result revisions that use this evidence.",
-  "summary": "Inspect the recorded standard points, source and linked result revisions. The read-only worksheet calculates linear and quadratic fits and the average calibration factor for external standards.",
+  "summary": "Inspect the recorded standards, source and linked result revisions. Compare linear fits with a free or fixed zero intercept, quadratic fits and the average calibration factor in the read-only worksheet.",
   "tasks": [
     {
       "title": "Check the curve’s source and points",
@@ -17,7 +17,8 @@
     {
       "title": "Fit a linear or quadratic model",
       "steps": [
-        "In [[Calibration fit worksheet]], choose [[Model]] and [[Weighting]], then select [[Calculate fit]].",
+        "In [[Calibration fit worksheet]], choose [[Model]] and [[Weighting]]. For [[Linear through origin]], leave [[Weighting]] blank or choose [[Unweighted (equal weights)]].",
+        "Select [[Calculate fit]].",
         "Read the [[Equation]] and fitted coefficients. For a quadratic fit, check [[Direction over recorded range]].",
         "Compare the predicted and observed responses and residuals in [[Standard points]]."
       ]
@@ -47,7 +48,7 @@
   ],
   "good_to_know": [
     "This record is immutable. Recording another curve does not change any existing result or issued report.",
-    "The fit is for inspection. Follow the laboratory’s procedure for method acceptance. Average calibration factor and inverse weighting both need every concentration to be positive.",
+    "Follow your method and laboratory SOP for model selection and acceptance. [[Linear through origin]], [[Average calibration factor]] and inverse weighting need all concentrations to be positive.",
     "A curve link is optional and explicitly selected for each result revision; it is never inferred for a batch.",
     "A selected verification correction holds submission, approval and release until a new result revision records current evidence.",
     "The people who recorded a selected curve or verification cannot review or release its result."
@@ -95,19 +96,19 @@
     {
       "title": "Calibration fit worksheet",
       "paragraphs": [
-        "Staff who can read the calibration can use the worksheet. Linear and quadratic fits use least squares with a free intercept. Average calibration factor uses the arithmetic mean of observed response divided by concentration for concentration-based external standards. All three models use every recorded point in the frozen units, including repeated concentrations.",
-        "Linear and average calibration factor calculations need at least two distinct concentrations. A quadratic fit needs at least three. Average calibration factor and either inverse weighting require every concentration to be greater than zero.",
+        "Staff who can read the calibration can use the worksheet. Linear and quadratic fits use least squares with a free intercept. Linear through origin fits the slope by least squares with the intercept fixed at zero. Average calibration factor takes the arithmetic mean of observed response divided by concentration for concentration-based external standards. Every model uses each recorded row in the frozen units, including replicates.",
+        "A quadratic fit needs at least three distinct concentrations. Each other model needs at least two. Linear through origin, average calibration factor and either inverse weighting require every concentration to be positive. Linear through origin rejects a recorded zero-concentration standard and adds no observation at zero.",
         "An explicitly empty or unrecognized model or an incompatible weighting shows a field error. When the model cannot use the recorded points, Fit unavailable explains why. The recorded points remain visible in both cases.",
         "The worksheet output is temporary and displayed with up to 12 significant digits. Predictions and residuals use the unrounded coefficients or mean factor. Links from result revisions refer to the frozen instrument evidence. Use the laboratory’s procedure and configured QC checks for method acceptance."
       ],
       "items": [
         {
           "label": "Model",
-          "description": "Choose Linear for a straight line, Quadratic for a second-degree polynomial or Average calibration factor for the arithmetic mean of the standard factors. Linear is selected when you first open the worksheet and when you follow a worksheet link that specifies only a weighting."
+          "description": "Choose Linear for a straight line with a fitted intercept, Linear through origin for a straight line with a fixed zero intercept, Quadratic for a second-degree polynomial or Average calibration factor to average the standard factors. Linear is selected when you first open the worksheet and when you follow a worksheet link that specifies only a weighting."
         },
         {
           "label": "Weighting",
-          "description": "Unweighted (equal weights) gives every row the same weight. Linear and quadratic fits require a selection and also support 1/x (inverse concentration) and 1/x² (inverse concentration squared). Average calibration factor uses equal weights. For that model, leave Weighting blank or choose Unweighted (equal weights)."
+          "description": "Unweighted (equal weights) gives every row the same weight. Linear and quadratic fits require a selection and also support 1/x (inverse concentration) and 1/x² (inverse concentration squared). For Linear through origin and Average calibration factor, leave Weighting blank or choose Unweighted (equal weights)."
         },
         {
           "label": "Calculate fit",
@@ -115,7 +116,7 @@
         },
         {
           "label": "Equation",
-          "description": "A linear fit shows y = slope × x + intercept. A quadratic fit shows y = a × x² + b × x + intercept. Average calibration factor shows y = mean factor × x. Here x is the recorded concentration and y is the predicted instrument response."
+          "description": "Linear shows y = slope × x + intercept. Linear through origin shows y = slope × x. Quadratic shows y = a × x² + b × x + intercept. Average calibration factor shows y = mean factor × x. Here x is the recorded concentration and y is the predicted instrument response."
         },
         {
           "label": "Mean calibration factor",
@@ -139,7 +140,7 @@
         },
         {
           "label": "Intercept",
-          "description": "For linear and quadratic fits, the fitted response at zero concentration, in response units."
+          "description": "The response at zero concentration, in response units. Linear and quadratic fit this coefficient. Linear through origin fixes it at zero."
         },
         {
           "label": "Direction over recorded range",
@@ -221,6 +222,7 @@
     "analytical/tests/test_calibration.py",
     "analytical/tests/test_calibration_fit.py",
     "analytical/tests/test_calibration_views.py",
-    "analytical/templates/analytical/calibration_detail.html"
+    "analytical/templates/analytical/calibration_detail.html",
+    "e2e/test_calibration_fit.py"
   ]
 }
