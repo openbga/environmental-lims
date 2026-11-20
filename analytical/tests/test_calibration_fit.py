@@ -135,6 +135,65 @@ def test_fit_enforces_record_bounds(points, message):
         calculate_fit(points, "equal")
 
 
+@pytest.mark.parametrize("weighting", ["equal", ""])
+def test_zero_intercept_fit_uses_every_recorded_point_and_preserves_original_text(weighting):
+    points = [
+        point("1.00", "-1", "Standard 1"),
+        point("2.000", "0.000", "Standard 2"),
+        point("3e0", "12", "Standard 3"),
+        point("2", "10", "Standard 2 replicate"),
+    ]
+    original = deepcopy(points)
+
+    fit = calculate_fit(points, weighting, model="linear_origin")
+
+    assert fit == {
+        "slope": "3.05555555556",  # Exact slope is 55/18.
+        "intercept": "0",
+        "rows": [
+            dict(original[0], predicted="3.05555555556", residual="-4.05555555556"),
+            dict(original[1], predicted="6.11111111111", residual="-6.11111111111"),
+            dict(original[2], predicted="9.16666666667", residual="2.83333333333"),
+            dict(original[3], predicted="6.11111111111", residual="3.88888888889"),
+        ],
+    }
+    assert points == original
+    assert calculate_fit(points, "equal", model="average_factor")["mean_factor"] == "2"
+    free_fit = calculate_fit(points, "equal")
+    assert (free_fit["slope"], free_fit["intercept"]) == ("6.5", "-7.75")
+
+
+def test_zero_intercept_fit_calculates_residuals_before_display_rounding():
+    points = [
+        point("99999999999999.9999999998", "99999999999999.9999999997"),
+        point("99999999999999.9999999999", "99999999999999.9999999998"),
+    ]
+
+    fit = calculate_fit(points, "equal", model="linear_origin")
+
+    assert fit["slope"] == "1.00000000000"
+    assert [row["residual"] for row in fit["rows"]] == ["-5.00000000000E-35", "5.00000000000E-35"]
+
+
+def test_zero_intercept_fit_rejects_zero_concentration_among_distinct_positive_levels():
+    points = [point("1", "2"), point("2", "3"), point("-0e-1000000000", "0")]
+
+    with pytest.raises(ValidationError, match="every concentration to be greater than zero"):
+        calculate_fit(points, "equal", model="linear_origin")
+
+
+@pytest.mark.parametrize("points", [[point("1", "2")], [point("1.0", "2"), point("1e0", "3")]])
+def test_zero_intercept_fit_needs_two_distinct_concentrations(points):
+    with pytest.raises(ValidationError, match="at least two distinct concentrations"):
+        calculate_fit(points, "equal", model="linear_origin")
+
+
+@pytest.mark.parametrize("weighting", ["inverse", "inverse_square", "unsupported", None, []])
+def test_zero_intercept_fit_requires_equal_weighting(weighting):
+    with pytest.raises(ValidationError, match="A zero-intercept linear fit uses equal weighting"):
+        calculate_fit([point("1", "2"), point("2", "3")], weighting, model="linear_origin")
+
+
 @pytest.mark.parametrize("weighting", ["unsupported", None, []])
 def test_fit_rejects_unknown_weighting(weighting):
     with pytest.raises(ValidationError, match="Choose equal"):
@@ -263,7 +322,8 @@ def test_quadratic_inverse_weights_require_strictly_positive_concentrations(weig
 @pytest.mark.parametrize("model", ["cubic", None, []])
 def test_fit_rejects_unknown_model(model):
     with pytest.raises(
-        ValidationError, match="Choose a linear, quadratic or average calibration factor fit"
+        ValidationError,
+        match="Choose a linear, zero-intercept linear, quadratic or average calibration factor fit",
     ):
         calculate_fit([point("1", "2"), point("2", "3")], "equal", model=model)
 

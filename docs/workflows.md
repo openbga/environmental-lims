@@ -248,7 +248,11 @@ concentration and response units. This is separate from equipment maintenance/ca
 On the calibration detail page, select **Model** and **Weighting** in the **Calibration fit worksheet**,
 then select **Calculate fit**. Linear needs at least two distinct concentrations. Quadratic needs
 at least three and shows the direction of the fitted curve over the recorded concentration range.
-Inverse weighting needs positive concentrations at every point. The residual is the recorded
+Choose **Linear through origin** when the method calls for a fixed zero intercept. Leave
+**Weighting** blank or choose **Unweighted (equal weights)**. Every point must have a positive
+concentration, and at least two concentrations must differ. The worksheet fits the slope to all
+recorded points, including replicates.
+Inverse weighting needs positive concentrations at every point for the free-intercept models. The residual is the recorded
 response minus the predicted response. Use the worksheet to inspect the fit and follow the
 laboratory's method and SOP for acceptance. A closed batch still accepts evidence because
 closing freezes membership only.

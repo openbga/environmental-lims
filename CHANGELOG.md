@@ -164,6 +164,10 @@ The same list is shown in the application under What's new.
 
 ### Medium impact
 
+- **Added:** Compare calibration standards with a line through the origin (2026-11-20, Batches & QC)
+
+  On a recorded calibration, choose Linear through origin when the method calls for a zero intercept. The worksheet shows the fitted slope, predicted response and signed residual for each standard using equal weights.
+
 - **Added:** Compare external standards by calibration factor (2026-11-20, Batches & QC)
 
   On a recorded calibration, staff can see how much instrument response each external standard produces per unit of concentration. The worksheet shows the mean factor, the variation among standards and the residual for each point.

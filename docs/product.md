@@ -186,6 +186,17 @@ nowhere zero. Staff apply their method's requirements for levels, model selectio
 The worksheet is for inspection. [US EPA Method 8000D](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P1016J8Z.txt)
 and [US EPA Method 6010D](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P1017DDQ.txt), checked 2026-11-19.
 
+The **Linear through origin** option fixes the intercept at zero before fitting the slope.
+It minimizes the sum of squared response residuals, using every recorded standard and replicate.
+Staff can inspect the slope and the predicted response and signed residual at each measured level.
+This comparison requires at least two distinct positive concentrations. That minimum is a
+worksheet choice. US EPA SW-846 Method 8000D Rev. 5 (March 2018), section 11.5.2.1, describes
+using an unweighted fit through the origin where appropriate and excludes zero-concentration
+calibration points. The worksheet accepts equal weights and adds no point at the origin.
+For this method, the lowest analyzed standard still sets the lower end of the demonstrated
+calibration range. The laboratory determines whether the model suits its procedure.
+[US EPA Method 8000D, checked 2026-11-20](https://www.epa.gov/sites/default/files/2015-12/documents/8000d.pdf).
+
 For external standards, staff can also compare the instrument response per unit of recorded
 concentration at each point. Each standard, including a replicate, contributes equally to the
 mean calibration factor. The predicted response is the mean factor times the standard

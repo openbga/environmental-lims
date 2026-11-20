@@ -80,6 +80,7 @@ class CalibrationFitForm(forms.Form):
         choices=[
             ("", "Choose model"),
             ("linear", "Linear"),
+            ("linear_origin", "Linear through origin"),
             ("quadratic", "Quadratic"),
             ("average_factor", "Average calibration factor"),
         ],
@@ -98,15 +99,17 @@ class CalibrationFitForm(forms.Form):
             ("inverse", "1/x (inverse concentration)"),
             ("inverse_square", "1/x² (inverse concentration squared)"),
         ],
-        help_text="Choose a weighting for linear or quadratic fits. For average calibration "
-        "factor, leave blank or choose Unweighted (equal weights).",
+        help_text="Choose a weighting for Linear or Quadratic. For Linear through origin or "
+        "Average calibration factor, leave blank or choose Unweighted (equal weights).",
     )
 
     def clean_weighting(self):
         weighting = self.cleaned_data["weighting"]
-        if self.cleaned_data.get("model") == "average_factor":
+        model = self.cleaned_data.get("model")
+        if model in ("linear_origin", "average_factor"):
             if weighting not in ("", "equal"):
-                raise ValidationError("Average calibration factor uses equal weights.")
+                label = dict(self.fields["model"].choices)[model]
+                raise ValidationError(f"{label} uses equal weights.")
             return "equal"
         if not weighting:
             raise ValidationError("Choose a weighting to calculate the fit.")
