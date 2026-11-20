@@ -25,6 +25,8 @@ records; it does not certify compliance or accreditation.
   and see whether a quadratic changes direction across the recorded concentrations. When their
   method calls for a zero intercept, staff can fit an unweighted line through the origin. For external
   standards, they can also inspect the mean calibration factor and the variation among standards.
+  For either linear fit or the average factor, staff can compare each standard’s back-calculated
+  concentration with its recorded concentration and see the absolute percent error.
   On an analytical batch, staff can inspect the actual injection order alongside the nearest
   recorded verification before and after each sample. Staff can count sample injections between
   verifications and compare each interval with a maximum they enter. Analysts can correct a

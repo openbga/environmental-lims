@@ -5,7 +5,7 @@
   ],
   "title": "Calibration evidence",
   "purpose": "Inspect the recorded instrument model, compare temporary calibration fits, and trace the result revisions that use this evidence.",
-  "summary": "Inspect the recorded standards, source and linked result revisions. Compare linear fits with a free or fixed zero intercept, quadratic fits and the average calibration factor in the read-only worksheet.",
+  "summary": "Inspect the recorded standards, source and linked result revisions. Compare linear and quadratic fits or the average calibration factor. Use a linear or factor fit to check back-calculated concentrations and percent errors.",
   "tasks": [
     {
       "title": "Check the curve’s source and points",
@@ -20,7 +20,7 @@
         "In [[Calibration fit worksheet]], choose [[Model]] and [[Weighting]]. For [[Linear through origin]], leave [[Weighting]] blank or choose [[Unweighted (equal weights)]].",
         "Select [[Calculate fit]].",
         "Read the [[Equation]] and fitted coefficients. For a quadratic fit, check [[Direction over recorded range]].",
-        "Compare the predicted and observed responses and residuals in [[Standard points]]."
+        "Compare predicted response and residuals in [[Standard points]]. For either linear model, also check [[Back-calculated concentration]] and [[Absolute percent error]]."
       ]
     },
     {
@@ -28,7 +28,7 @@
       "steps": [
         "Choose [[Average calibration factor]] under [[Model]]. Leave [[Weighting]] blank or choose [[Unweighted (equal weights)]].",
         "Select [[Calculate fit]] and review the [[Mean calibration factor]], [[Sample standard deviation]] and [[Relative standard deviation (RSD)]].",
-        "Compare the factors, predicted responses and residuals in [[Standard points]]."
+        "In [[Standard points]], check the factors, predicted responses, residuals, [[Back-calculated concentration]] and [[Absolute percent error]]."
       ]
     },
     {
@@ -49,7 +49,7 @@
   "good_to_know": [
     "This record is immutable. Recording another curve does not change any existing result or issued report.",
     "Follow your method and laboratory SOP for model selection and acceptance. [[Linear through origin]], [[Average calibration factor]] and inverse weighting need all concentrations to be positive.",
-    "A curve link is optional and explicitly selected for each result revision; it is never inferred for a batch.",
+    "A zero slope or mean factor leaves both inverse values unavailable. At a zero recorded concentration with a nonzero slope, only [[Absolute percent error]] is unavailable.",
     "A selected verification correction holds submission, approval and release until a new result revision records current evidence.",
     "The people who recorded a selected curve or verification cannot review or release its result."
   ],
@@ -99,7 +99,7 @@
         "Staff who can read the calibration can use the worksheet. Linear and quadratic fits use least squares with a free intercept. Linear through origin fits the slope by least squares with the intercept fixed at zero. Average calibration factor takes the arithmetic mean of observed response divided by concentration for concentration-based external standards. Every model uses each recorded row in the frozen units, including replicates.",
         "A quadratic fit needs at least three distinct concentrations. Each other model needs at least two. Linear through origin, average calibration factor and either inverse weighting require every concentration to be positive. Linear through origin rejects a recorded zero-concentration standard and adds no observation at zero.",
         "An explicitly empty or unrecognized model or an incompatible weighting shows a field error. When the model cannot use the recorded points, Fit unavailable explains why. The recorded points remain visible in both cases.",
-        "The worksheet output is temporary and displayed with up to 12 significant digits. Predictions and residuals use the unrounded coefficients or mean factor. Links from result revisions refer to the frozen instrument evidence. Use the laboratory’s procedure and configured QC checks for method acceptance."
+        "The worksheet output is temporary and displayed with up to 12 significant digits. Predicted responses, residuals, back-calculated concentrations and percent errors use the unrounded coefficients or mean factor. Links from result revisions refer to the frozen instrument evidence. Use the laboratory’s procedure and configured QC checks for method acceptance."
       ],
       "items": [
         {
@@ -151,7 +151,8 @@
     {
       "title": "Standard points",
       "paragraphs": [
-        "The record stores 1 to 50 points. The range is an application limit. A successful worksheet fit adds predicted responses and residuals beside the recorded observations. The average calibration factor calculation also shows the factor for each point."
+        "The record stores 1 to 50 points. The range is an application limit. A successful worksheet fit adds predicted responses and residuals beside the recorded observations. Average calibration factor also shows the factor for each point.",
+        "Linear, Linear through origin and Average calibration factor also show back-calculated concentrations and percent errors for each original row, including replicates. Quadratic fits show forward values only, even when the quadratic coefficient is zero. Before a successful fit, the table shows the recorded points."
       ],
       "items": [
         {
@@ -177,6 +178,14 @@
         {
           "label": "Residual",
           "description": "Observed response minus predicted response, in the frozen response unit. A positive value means the observation is above the prediction. A negative value means it is below."
+        },
+        {
+          "label": "Back-calculated concentration",
+          "description": "Use the observed response to solve for concentration in the frozen concentration unit. Subtract the fitted intercept, then divide by the slope. For Linear through origin, divide by the slope directly. For Average calibration factor, divide by the mean factor. A negative slope or mean factor can be used, and the calculated concentration can be negative. A zero slope or mean factor leaves the value unavailable."
+        },
+        {
+          "label": "Absolute percent error",
+          "description": "The absolute difference between the unrounded back-calculated concentration and the recorded concentration, divided by the recorded concentration and multiplied by 100. The value is unavailable at a zero recorded concentration or when the slope or mean factor is zero. Predictions and residuals remain visible for these fits."
         }
       ]
     },

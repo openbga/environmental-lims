@@ -97,6 +97,8 @@ def test_clients_cannot_read_or_record(lab, analyst, client):
         assert client.get(url).status_code == 403
         assert client.post(url, {}).status_code == 403
     url = reverse("analytical:calibration-detail", args=[curve.pk])
+    assert client.get(url, {"weighting": "equal"}).status_code == 403
+    assert client.head(url, {"model": "linear", "weighting": "equal"}).status_code == 403
     assert client.get(url, {"model": "quadratic", "weighting": "equal"}).status_code == 403
     assert client.get(url, {"model": "average_factor"}).status_code == 403
     assert client.get(url, {"model": "linear_origin"}).status_code == 403
@@ -125,6 +127,8 @@ def test_fit_requires_a_choice_and_keeps_evidence_and_result_links(lab, analyst,
     assert b"Calibration fit worksheet" in initial.content
     assert initial.context["fit_form"]["model"].value() == "linear"
     assert b"Predicted response (counts)" not in initial.content
+    assert b"Back-calculated concentration (" not in initial.content
+    assert b"Absolute percent error (%)" not in initial.content
     slopes = set()
     for weighting in ("equal", "inverse", "inverse_square"):
         response = client.get(url, {"weighting": weighting})
@@ -138,12 +142,15 @@ def test_fit_requires_a_choice_and_keeps_evidence_and_result_links(lab, analyst,
         assert "y = slope × x + intercept" in response.content.decode()
         assert b"Predicted response (counts)" in response.content
         assert b"Residual (counts)" in response.content
+        assert f"Back-calculated concentration ({curve.unit})" in response.content.decode()
+        assert b"Absolute percent error (%)" in response.content
         assert b"SYNTHETIC instrument record 01" in response.content
         assert b"Instrument-reported linear fit; synthetic" in response.content
         assert b">1.00</td>" in response.content and b">2.000</td>" in response.content
         assert b'name="weighting"' in response.content
         assert b"Result revisions using" in response.content
     assert len(slopes) == 3
+    assert client.head(url, {"weighting": "equal"}).status_code == 200
     assert client.post(url, {"weighting": "equal"}).status_code == 405
     assert RunCalibration.objects.values().get(pk=curve.pk) == curve_fields
     assert result.revisions.get().calibration_evidence == evidence
@@ -195,6 +202,8 @@ def test_quadratic_fit_displays_coefficients_direction_and_signed_residuals(
         "Result revisions using this calibration",
     ):
         assert shown in html
+    assert "Back-calculated concentration (" not in html
+    assert "Absolute percent error (%)" not in html
     assert client.post(url, {"model": "quadratic", "weighting": "equal"}).status_code == 405
     assert RunCalibration.objects.values().get(pk=curve.pk) == curve_fields
     assert result.revisions.values().get() == revision
@@ -231,6 +240,10 @@ def test_linear_through_origin_fits_all_rows_and_keeps_evidence_read_only(
         ">0</span> (counts), fixed",
         "Predicted response (counts)",
         "Residual (counts)",
+        f"Back-calculated concentration ({curve.unit})",
+        "Absolute percent error (%)",
+        ">0.25</td>",
+        ">75</td>",
     ):
         assert shown in html
     assert "Calibration factor (counts per" not in html
@@ -273,6 +286,8 @@ def test_fit_errors_keep_recorded_points_visible(lab, analyst, client):
         response = client.get(url, {"weighting": weighting})
         assert response.status_code == 200 and response.context["fit"] is None
         assert b"Predicted response (counts)" not in response.content
+        assert b"Back-calculated concentration (" not in response.content
+        assert b"Absolute percent error (%)" not in response.content
         assert b"SYN-BLANK" in response.content and b"-0.0200" in response.content
         if weighting.startswith("inverse"):
             assert b"Fit unavailable" in response.content
@@ -359,6 +374,10 @@ def test_average_factor_uses_each_point_and_keeps_evidence_read_only(
         f"Calibration factor (counts per {curve.unit})",
         "Predicted response (counts)",
         "Residual (counts)",
+        f"Back-calculated concentration ({curve.unit})",
+        "Absolute percent error (%)",
+        ">0.333333333333</td>",
+        ">66.6666666667</td>",
         'class="vr-id">66.6666666667</span>%',
         ">1.00</td>",
         ">1.000</td>",
@@ -438,6 +457,71 @@ def test_average_factor_shows_rsd_state(lab, analyst, client, responses, shown):
     response = client.get(url, {"model": "average_factor"})
     assert response.status_code == 200 and response.context["fit"]
     assert shown in response.content.decode()
+
+
+def test_linear_refit_explains_the_error_at_zero_concentration(lab, analyst, reviewer, client):
+    batch, _ = setup_run(lab, analyst)
+    curve = record(
+        lab,
+        analyst,
+        batch,
+        points=[
+            {"standard": "SYN-ZERO", "concentration": "0.000", "response": "-1.00"},
+            {"standard": "SYN-LOW", "concentration": "1.00", "response": "4"},
+            {"standard": "SYN-HIGH", "concentration": "2", "response": "5"},
+        ],
+    )
+    client.force_login(reviewer)
+    url = reverse("analytical:calibration-detail", args=[curve.pk])
+
+    response = client.get(url, {"model": "linear", "weighting": "equal"})
+
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert '<th scope="col" class="text-end">Absolute percent error (%)</th>' in html
+    assert '<th scope="row"><span class="vr-preserve-space">SYN-ZERO</span></th>' in html
+    assert f"Back-calculated concentration ({curve.unit})" in html
+    assert ">-0.222222222222</td>" in html
+    assert ">0.000</td>" in html and ">-1.00</td>" in html
+    assert html.count(">Unavailable at zero concentration</td>") == 1
+    assert ">44.4444444444</td>" in html
+    assert not response.context["fit_errors"]
+
+
+@pytest.mark.parametrize(
+    ("model", "responses", "reason"),
+    [
+        ("linear", ("3", "3"), "fitted slope"),
+        ("linear_origin", ("-2", "1"), "fitted slope"),
+        ("average_factor", ("-1", "2"), "mean calibration factor"),
+    ],
+)
+def test_flat_fit_explains_the_unavailable_refit(lab, analyst, client, model, responses, reason):
+    batch, _ = setup_run(lab, analyst)
+    points = [
+        {"standard": f"SYN-{x}", "concentration": str(x), "response": response}
+        for x, response in enumerate(responses, start=1)
+    ]
+    curve = record(lab, analyst, batch, points=points)
+    client.force_login(analyst)
+
+    response = client.get(
+        reverse("analytical:calibration-detail", args=[curve.pk]),
+        {"model": model, "weighting": "equal"},
+    )
+
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert "Predicted response (counts)" in html
+    assert "Residual (counts)" in html
+    assert f"Back-calculated concentration ({curve.unit})" in html
+    assert "Absolute percent error (%)" in html
+    assert (
+        f"Back-calculated concentration and absolute percent error are unavailable because the "
+        f"{reason} is zero."
+    ) in html
+    assert html.count('aria-describedby="refit-unavailable-reason">Unavailable</td>') == 4
+    assert not response.context["fit_errors"]
 
 
 def test_csv_bounds_errors_keep_input(lab, analyst, client):

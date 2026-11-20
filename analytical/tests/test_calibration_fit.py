@@ -11,7 +11,15 @@ def point(concentration, response, standard="Test standard"):
 
 
 @pytest.mark.parametrize(
-    ("weighting", "slope", "intercept", "predicted", "residual"),
+    (
+        "weighting",
+        "slope",
+        "intercept",
+        "predicted",
+        "residual",
+        "back_calculated",
+        "percent_error",
+    ),
     [
         # Exact slope and intercept are 50/19 and 30/19, respectively.
         (
@@ -20,6 +28,8 @@ def point(concentration, response, standard="Test standard"):
             "1.57894736842",
             ["4.21052631579", "6.84210526316", "12.1052631579", "6.84210526316"],
             ["-0.210526315789", "1.15789473684", "-0.105263157895", "-0.842105263158"],
+            ["0.92", "2.44", "3.96", "1.68"],
+            ["8", "22", "1", "16"],
         ),
         # Exact slope and intercept are 46/17 and 24/17, respectively.
         (
@@ -28,6 +38,8 @@ def point(concentration, response, standard="Test standard"):
             "1.41176470588",
             ["4.11764705882", "6.82352941176", "12.2352941176", "6.82352941176"],
             ["-0.117647058824", "1.17647058824", "-0.235294117647", "-0.823529411765"],
+            ["0.956521739130", "2.43478260870", "3.91304347826", "1.69565217391"],
+            ["4.34782608696", "21.7391304348", "2.17391304348", "15.2173913043"],
         ),
         # Exact slope and intercept are 53/19 and 24/19, respectively.
         (
@@ -36,11 +48,13 @@ def point(concentration, response, standard="Test standard"):
             "1.26315789474",
             ["4.05263157895", "6.84210526316", "12.4210526316", "6.84210526316"],
             ["-0.0526315789474", "1.15789473684", "-0.421052631579", "-0.842105263158"],
+            ["0.981132075472", "2.41509433962", "3.84905660377", "1.69811320755"],
+            ["1.88679245283", "20.7547169811", "3.77358490566", "15.0943396226"],
         ),
     ],
 )
 def test_fit_uses_each_recorded_point_and_preserves_original_text(
-    weighting, slope, intercept, predicted, residual
+    weighting, slope, intercept, predicted, residual, back_calculated, percent_error
 ):
     points = [
         point("1.00", "4", "Standard 1"),
@@ -55,9 +69,14 @@ def test_fit_uses_each_recorded_point_and_preserves_original_text(
     assert fit == {
         "slope": slope,
         "intercept": intercept,
+        "back_calculation_unavailable": False,
         "rows": [
-            {**row, "predicted": fit_y, "residual": error}
-            for row, fit_y, error in zip(original, predicted, residual, strict=True)
+            dict(
+                row, predicted=fit_y, residual=dy, back_calculated=fit_x, absolute_percent_error=pct
+            )
+            for row, fit_y, dy, fit_x, pct in zip(
+                original, predicted, residual, back_calculated, percent_error, strict=True
+            )
         ],
     }
     assert points == original
@@ -102,6 +121,67 @@ def test_equal_weights_allow_zero_concentration_and_flat_negative_response():
     assert fit["slope"] == "0"
     assert fit["intercept"] == "-2"
     assert [(row["predicted"], row["residual"]) for row in fit["rows"]] == [("-2", "0")] * 2
+    assert fit["back_calculation_unavailable"]
+    assert all(
+        row["back_calculated"] is row["absolute_percent_error"] is None for row in fit["rows"]
+    )
+
+
+def test_zero_recorded_concentration_still_has_a_signed_back_calculation():
+    points = [point("-0e-1000000000", "-1"), point("1", "4"), point("2", "5")]
+
+    fit = calculate_fit(points, "equal")
+
+    assert fit["slope"] == "3"
+    assert fit["rows"][0]["concentration"] == "-0e-1000000000"
+    assert [row["back_calculated"] for row in fit["rows"]] == [
+        "-0.222222222222",
+        "1.44444444444",
+        "1.77777777778",
+    ]
+    assert [row["absolute_percent_error"] for row in fit["rows"]] == [
+        None,
+        "44.4444444444",
+        "11.1111111111",
+    ]
+
+
+def test_back_calculation_uses_the_unrounded_intercept():
+    fit = calculate_fit(
+        [point("0", "99999999999999.9999999997"), point("1e-10", "99999999999999.9999999998")],
+        "equal",
+    )
+
+    assert fit["intercept"] == "1.00000000000E+14"
+    assert [row["back_calculated"] for row in fit["rows"]] == ["0", "1E-10"]
+    assert [row["absolute_percent_error"] for row in fit["rows"]] == [None, "0"]
+
+
+@pytest.mark.parametrize("model", ["linear", "linear_origin", "average_factor"])
+def test_a_negative_slope_or_mean_can_be_inverted(model):
+    fit = calculate_fit([point("1", "-2"), point("2", "-4")], "equal", model=model)
+
+    parameter = "mean_factor" if model == "average_factor" else "slope"
+    assert fit[parameter] == "-2"
+    assert not fit["back_calculation_unavailable"]
+    assert [row["back_calculated"] for row in fit["rows"]] == ["1", "2"]
+    assert [row["absolute_percent_error"] for row in fit["rows"]] == ["0", "0"]
+
+
+@pytest.mark.parametrize(
+    ("model", "responses"), [("linear_origin", ("-2", "1")), ("average_factor", ("-1", "2"))]
+)
+def test_zero_slope_or_mean_keeps_forward_predictions_and_residuals(model, responses):
+    points = [point("1", responses[0]), point("2", responses[1])]
+
+    fit = calculate_fit(points, "equal", model=model)
+
+    assert fit["back_calculation_unavailable"]
+    assert [row["predicted"] for row in fit["rows"]] == ["0", "0"]
+    assert [row["residual"] for row in fit["rows"]] == list(responses)
+    assert all(
+        row["back_calculated"] is row["absolute_percent_error"] is None for row in fit["rows"]
+    )
 
 
 @pytest.mark.parametrize("weighting", ["inverse", "inverse_square"])
@@ -150,11 +230,36 @@ def test_zero_intercept_fit_uses_every_recorded_point_and_preserves_original_tex
     assert fit == {
         "slope": "3.05555555556",  # Exact slope is 55/18.
         "intercept": "0",
+        "back_calculation_unavailable": False,
         "rows": [
-            dict(original[0], predicted="3.05555555556", residual="-4.05555555556"),
-            dict(original[1], predicted="6.11111111111", residual="-6.11111111111"),
-            dict(original[2], predicted="9.16666666667", residual="2.83333333333"),
-            dict(original[3], predicted="6.11111111111", residual="3.88888888889"),
+            dict(
+                original[0],
+                predicted="3.05555555556",
+                residual="-4.05555555556",
+                back_calculated="-0.327272727273",
+                absolute_percent_error="132.727272727",
+            ),
+            dict(
+                original[1],
+                predicted="6.11111111111",
+                residual="-6.11111111111",
+                back_calculated="0",
+                absolute_percent_error="100",
+            ),
+            dict(
+                original[2],
+                predicted="9.16666666667",
+                residual="2.83333333333",
+                back_calculated="3.92727272727",
+                absolute_percent_error="30.9090909091",
+            ),
+            dict(
+                original[3],
+                predicted="6.11111111111",
+                residual="3.88888888889",
+                back_calculated="3.27272727273",
+                absolute_percent_error="63.6363636364",
+            ),
         ],
     }
     assert points == original
@@ -173,6 +278,8 @@ def test_zero_intercept_fit_calculates_residuals_before_display_rounding():
 
     assert fit["slope"] == "1.00000000000"
     assert [row["residual"] for row in fit["rows"]] == ["-5.00000000000E-35", "5.00000000000E-35"]
+    assert [row["back_calculated"] for row in fit["rows"]] == ["1.00000000000E+14"] * 2
+    assert [row["absolute_percent_error"] for row in fit["rows"]] == ["5.00000000000E-47"] * 2
 
 
 def test_zero_intercept_fit_rejects_zero_concentration_among_distinct_positive_levels():
@@ -311,6 +418,17 @@ def test_quadratic_fit_needs_three_distinct_concentrations():
         calculate_fit(points, "equal", model="quadratic")
 
 
+def test_exactly_linear_quadratic_fit_does_not_back_calculate():
+    fit = calculate_fit([point("0", "3"), point("1", "2"), point("2", "1")], "equal", "quadratic")
+
+    assert fit["quadratic"] == "0"
+    assert fit["slope"] == "-1"
+    assert "back_calculation_unavailable" not in fit
+    assert all(
+        "back_calculated" not in row and "absolute_percent_error" not in row for row in fit["rows"]
+    )
+
+
 @pytest.mark.parametrize("weighting", ["inverse", "inverse_square"])
 def test_quadratic_inverse_weights_require_strictly_positive_concentrations(weighting):
     points = [point("-0.0", "1"), point("1", "2"), point("2", "3")]
@@ -344,11 +462,40 @@ def test_average_factor_uses_each_signed_response_and_preserves_original_text(we
         "mean_factor": "2.5",
         "factor_sd": "2.51661147842",  # Sample variance is 19/3.
         "factor_rsd": "100.664459137",
+        "back_calculation_unavailable": False,
         "rows": [
-            dict(original[0], factor="-1", predicted="2.5", residual="-3.5"),
-            dict(original[1], factor="3", predicted="5", residual="1"),
-            dict(original[2], factor="3", predicted="10", residual="2"),
-            dict(original[3], factor="5", predicted="5", residual="5"),
+            dict(
+                original[0],
+                factor="-1",
+                predicted="2.5",
+                residual="-3.5",
+                back_calculated="-0.4",
+                absolute_percent_error="140",
+            ),
+            dict(
+                original[1],
+                factor="3",
+                predicted="5",
+                residual="1",
+                back_calculated="2.4",
+                absolute_percent_error="20",
+            ),
+            dict(
+                original[2],
+                factor="3",
+                predicted="10",
+                residual="2",
+                back_calculated="4.8",
+                absolute_percent_error="20",
+            ),
+            dict(
+                original[3],
+                factor="5",
+                predicted="5",
+                residual="5",
+                back_calculated="4",
+                absolute_percent_error="100",
+            ),
         ],
     }
     assert points == original
@@ -367,6 +514,8 @@ def test_average_factor_retains_dispersion_and_residuals_at_the_record_limit():
     assert fit["factor_rsd"] == "7.07106781187E-47"
     assert [row["factor"] for row in fit["rows"]] == ["1.00000000000"] * 2
     assert [row["residual"] for row in fit["rows"]] == ["-5.00000000000E-35", "5.00000000000E-35"]
+    assert [row["back_calculated"] for row in fit["rows"]] == ["1.00000000000E+14"] * 2
+    assert [row["absolute_percent_error"] for row in fit["rows"]] == ["5.00000000000E-47"] * 2
 
 
 def test_average_factor_rounds_sample_standard_deviation_ties_to_even():
