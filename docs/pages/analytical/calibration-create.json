@@ -24,7 +24,7 @@
     }
   ],
   "good_to_know": [
-    "Record the instrument’s own model and weighting here. The worksheet on the saved record provides a separate calculation for inspection.",
+    "Record the instrument’s own model and weighting here. On the saved record, the worksheet can inspect linear and quadratic fits and average calibration factors.",
     "Concentrations use the unit shown with [[Test]]. Responses use [[Response unit]]. Negative responses are allowed; negative concentrations are refused.",
     "The record cannot be edited or deleted. A different record never silently replaces evidence on an earlier result.",
     "Closing the batch freezes membership only; you can still record calibration evidence."
@@ -76,12 +76,14 @@
     {
       "title": "Validation and limitations",
       "paragraphs": [
-        "Errors keep the entered form and point to the affected field where possible. A duplicate reference cannot overwrite an earlier record. The 50-point bound is an application resource limit, not a required method standard count. No fit threshold, source independence, calibration expiry, injection sequence or verification bracketing is evaluated. Continue to use the laboratory’s procedure and configured QC checks."
+        "Errors keep the entered form and point to the affected field where possible. A duplicate reference cannot overwrite an earlier record. The 50-point bound is an application resource limit, not a required method standard count. No fit threshold, source independence, calibration expiry, injection sequence or verification bracketing is evaluated. Continue to use the laboratory’s procedure and configured QC checks.",
+        "You can record a standard with zero concentration. To calculate an average calibration factor for concentration-based external standards on the saved record, every concentration must be greater than zero and the record must contain at least two distinct concentrations."
       ]
     }
   ],
   "sources": [
     "analytical/calibration.py",
+    "analytical/calibration_fit.py",
     "analytical/calibration_forms.py",
     "analytical/calibration_views.py",
     "analytical/models.py",

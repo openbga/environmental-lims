@@ -6,7 +6,7 @@ What was added or changed in OpenBGA Environmental LIMS, newest first. Changes a
 grouped by the calendar month they were merged in and ranked from high to low impact.
 The same list is shown in the application under What's new.
 
-## November 2026 (2026-11-11 to 2026-11-19)
+## November 2026 (2026-11-11 to 2026-11-20)
 
 ### High impact
 
@@ -163,6 +163,10 @@ The same list is shown in the application under What's new.
   > No migration. New optional settings, documented in `docs/operations.md` and `.env.example`: `CONTENT_SECURITY_POLICY` (replaces the default policy), `MAX_REQUEST_BODY_BYTES` (12 MiB by default), `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS` and `ALLAUTH_TRUSTED_CLIENT_IP_HEADER` (set it only where the platform supplies a client-address header that clients cannot forge). A deployment that adds its own scripts or embeds content may need to adjust the policy.
 
 ### Medium impact
+
+- **Added:** Compare external standards by calibration factor (2026-11-20, Batches & QC)
+
+  On a recorded calibration, staff can see how much instrument response each external standard produces per unit of concentration. The worksheet shows the mean factor, the variation among standards and the residual for each point.
 
 - **Added:** Compare calibration standards with a linear fit (2026-11-19, Batches & QC)
 

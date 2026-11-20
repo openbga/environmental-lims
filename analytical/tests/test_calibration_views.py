@@ -98,6 +98,7 @@ def test_clients_cannot_read_or_record(lab, analyst, client):
         assert client.post(url, {}).status_code == 403
     url = reverse("analytical:calibration-detail", args=[curve.pk])
     assert client.get(url, {"model": "quadratic", "weighting": "equal"}).status_code == 403
+    assert client.get(url, {"model": "average_factor"}).status_code == 403
 
 
 def test_fit_requires_a_choice_and_keeps_evidence_and_result_links(lab, analyst, reviewer, client):
@@ -230,8 +231,8 @@ def test_fit_errors_keep_recorded_points_visible(lab, analyst, client):
             assert response.context["fit_form"].errors["weighting"]
 
     for params, error in (
-        ({"model": "", "weighting": "equal"}, b"Choose a linear or quadratic fit."),
-        ({"model": "cubic", "weighting": "equal"}, b"Choose a linear or quadratic fit."),
+        ({"model": "", "weighting": "equal"}, b"Choose a calibration fit model."),
+        ({"model": "cubic", "weighting": "equal"}, b"Choose a calibration fit model."),
         ({"model": "quadratic"}, b"Choose a weighting to calculate the fit."),
         (
             {"model": "quadratic", "weighting": "equal"},
@@ -250,6 +251,130 @@ def test_fit_errors_keep_recorded_points_visible(lab, analyst, client):
     assert response.status_code == 200 and response.context["fit"] is None
     assert b"A linear fit needs at least two distinct concentrations." in response.content
     assert b"SYN-STD-1" in response.content
+
+
+def test_average_factor_uses_each_point_and_keeps_evidence_read_only(
+    lab, analyst, reviewer, client
+):
+    batch, result = setup_run(lab, analyst)
+    curve = record(
+        lab,
+        analyst,
+        batch,
+        points=[
+            {"standard": "SYN-LOW", "concentration": "1.00", "response": "1.000"},
+            {"standard": "SYN-LOW-REP", "concentration": "1.0", "response": "3"},
+            {"standard": "SYN-HIGH", "concentration": "2", "response": "10.0"},
+        ],
+    )
+    client.force_login(analyst)
+    result_url = reverse("analytical:result-detail", args=[result.pk])
+    assert client.post(result_url, entry(calibration_id=curve.pk)).status_code == 302
+    revision = result.revisions.values().get()
+    curve_fields = RunCalibration.objects.values().get(pk=curve.pk)
+    audit_count = AuditEvent.objects.count()
+
+    client.force_login(reviewer)
+    url = reverse("analytical:calibration-detail", args=[curve.pk])
+    params = {"model": "average_factor"}
+    implicit = client.get(url, params)
+    assert implicit.status_code == 200
+    fit = implicit.context["fit"]
+    assert (fit["mean_factor"], fit["factor_sd"], fit["factor_rsd"]) == ("3", "2", "66.6666666667")
+    for weighting in ("", "equal"):
+        response = client.get(url, {**params, "weighting": weighting})
+        assert response.context["fit"] == fit
+        assert response.context["fit_form"]["weighting"].value() == weighting
+
+    html = implicit.content.decode()
+    for shown in (
+        "y = mean factor × x",
+        "Mean calibration factor",
+        "Sample standard deviation",
+        "Relative standard deviation (RSD)",
+        "Unweighted (equal weights)",
+        f"Calibration factor (counts per {curve.unit})",
+        "Predicted response (counts)",
+        "Residual (counts)",
+        'class="vr-id">66.6666666667</span>%',
+        ">1.00</td>",
+        ">1.000</td>",
+        "Result revisions using this calibration",
+        "Instrument-reported linear fit; synthetic",
+    ):
+        assert shown in html
+    assert client.post(url, params).status_code == 405
+    assert RunCalibration.objects.values().get(pk=curve.pk) == curve_fields
+    assert result.revisions.values().get() == revision
+    assert AuditEvent.objects.count() == audit_count
+
+
+def test_average_factor_errors_keep_raw_observations_visible(lab, analyst, client):
+    batch, _ = setup_run(lab, analyst)
+    client.force_login(analyst)
+    points = [
+        {"standard": "SYN-BLANK", "concentration": "0.000", "response": "-0.0200"},
+        {"standard": "SYN-LOW", "concentration": "1.00", "response": "2.000"},
+    ]
+    curve = record(lab, analyst, batch, points=points)
+    url = reverse("analytical:calibration-detail", args=[curve.pk])
+    params = {"model": "average_factor"}
+    for weighting in ("inverse", "inverse_square"):
+        response = client.get(url, {**params, "weighting": weighting})
+        assert response.status_code == 200 and response.context["fit"] is None
+        assert response.context["fit_form"].errors["weighting"] == [
+            "Average calibration factor uses equal weights."
+        ]
+        assert response.context["fit_form"]["weighting"].value() == weighting
+        assert b'aria-invalid="true"' in response.content
+        assert b"Predicted response (counts)" not in response.content
+        assert b"SYN-BLANK" in response.content and b"-0.0200" in response.content
+
+    response = client.get(url, params)
+    assert response.status_code == 200 and response.context["fit"] is None
+    assert b"Fit unavailable" in response.content
+    assert (
+        b"Average calibration factor requires every concentration to be greater than zero."
+        in response.content
+    )
+    assert b"SYN-BLANK" in response.content and b"-0.0200" in response.content
+
+    one_level = record(
+        lab,
+        analyst,
+        batch,
+        reference="SYNTHETIC-ONE-LEVEL",
+        points=[points[1], {**points[1], "standard": "SYN-LOW-REP", "concentration": "1"}],
+    )
+    response = client.get(reverse("analytical:calibration-detail", args=[one_level.pk]), params)
+    assert response.status_code == 200 and response.context["fit"] is None
+    assert (
+        b"Average calibration factor needs at least two distinct concentrations."
+        in response.content
+    )
+    assert b"SYN-LOW-REP" in response.content and b"2.000" in response.content
+
+
+@pytest.mark.parametrize(
+    ("responses", "shown"),
+    [
+        (("2", "4"), 'class="vr-id">0</span>%'),
+        (("-2", "4"), "Unavailable when the mean factor is zero or negative."),
+        (("-2", "-4"), "Unavailable when the mean factor is zero or negative."),
+    ],
+)
+def test_average_factor_shows_rsd_state(lab, analyst, client, responses, shown):
+    batch, _ = setup_run(lab, analyst)
+    points = [
+        {"standard": f"SYN-{x}", "concentration": str(x), "response": response}
+        for x, response in enumerate(responses, start=1)
+    ]
+    curve = record(lab, analyst, batch, points=points)
+    client.force_login(analyst)
+    url = reverse("analytical:calibration-detail", args=[curve.pk])
+    response = client.get(url, {"model": "average_factor"})
+    assert response.status_code == 200 and response.context["fit"]
+    assert shown in response.content.decode()
 
 
 def test_csv_bounds_errors_keep_input(lab, analyst, client):

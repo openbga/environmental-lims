@@ -1,4 +1,4 @@
-"""Inspect temporary linear and quadratic fits against recorded calibration standards."""
+"""Inspect temporary fits against recorded calibration standards."""
 
 from datetime import timedelta
 
@@ -152,6 +152,8 @@ def test_quadratic_fit_shows_coefficients_and_signed_residuals(sign_in_as):
     drawer = page.locator("#vr-documentation")
     expect(drawer).to_contain_text("Quadratic")
     expect(drawer).to_contain_text("Direction over recorded range")
+    expect(drawer).to_contain_text("Inspect the average calibration factor")
+    expect(drawer).to_contain_text("Relative standard deviation (RSD)")
     expect(drawer).to_contain_text("Residual")
     drawer.get_by_role("button", name="Close documentation", exact=True).press("Enter")
     expect(drawer).to_be_hidden()
@@ -161,6 +163,62 @@ def test_quadratic_fit_shows_coefficients_and_signed_residuals(sign_in_as):
     expect(residual).to_have_count(0)
     assert facts.inner_text() == recorded_facts
     assert history.inner_text() == recorded_history
+    curve.refresh_from_db()
+    assert (curve.model_text, curve.source_reference, curve.points) == (MODEL, SOURCE, points)
+    assert not page.console_errors
+
+
+@pytest.mark.browser_context_args(java_script_enabled=False)
+def test_average_factor_submits_with_keyboard_without_javascript(sign_in_as):
+    page = sign_in_as("reviewer")
+    rows = [
+        ("Low", "1.00", "1.000", "1", "3", "-2"),
+        ("Low replicate", "1.0", "3", "3", "3", "0"),
+        ("High", "2", "10.0", "5", "6", "4"),
+    ]
+    points = [
+        {"standard": standard, "concentration": concentration, "response": response}
+        for standard, concentration, response, *_ in rows
+    ]
+    curve = recorded_curve("SYNTHETIC-AVERAGE-FACTOR-WORKSHEET", points)
+    page.set_viewport_size({"width": 390, "height": 844})
+    path = f"/analytical/calibrations/{curve.pk}/"
+    assert page.goto(path).ok
+    form = page.get_by_role("region", name="Calibration fit worksheet", exact=True)
+    table = page.get_by_role("table", name="Standard points")
+    model = field(form, "Model")
+    weighting = field(form, "Weighting")
+    button = form.get_by_role("button", name="Calculate fit", exact=True)
+    factor = table.get_by_role("columnheader", name="Calibration factor (counts per ug/L)")
+    expect(factor).to_have_count(0)
+
+    model.select_option("average_factor")
+    model.press("Tab")
+    expect(weighting).to_be_focused()
+    expect(weighting).to_have_value("")
+    weighting.press("Tab")
+    expect(button).to_be_focused()
+    with page.expect_request(
+        lambda request: request.is_navigation_request() and f"{path}?" in request.url
+    ) as load:
+        button.press("Enter")
+    assert load.value.method == "GET"
+    expect(form).to_contain_text("y = mean factor × x")
+    expect(form.get_by_text("Intercept", exact=True)).to_have_count(0)
+    expect(form).to_contain_text("3 (counts per ug/L)")
+    expect(form).to_contain_text("2 (counts per ug/L)")
+    expect(form).to_contain_text("66.6666666667%")
+    expect(factor).to_be_visible()
+    for row in rows:
+        expect(table.get_by_role("row", name=" ".join(row), exact=True)).to_be_visible()
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+
+    weighting.select_option("inverse")
+    button.press("Enter")
+    expect(form).to_contain_text("Average calibration factor uses equal weights.")
+    expect(weighting).to_have_value("inverse")
+    expect(factor).to_have_count(0)
+    expect(table.get_by_role("row", name="Low 1.00 1.000", exact=True)).to_be_visible()
     curve.refresh_from_db()
     assert (curve.model_text, curve.source_reference, curve.points) == (MODEL, SOURCE, points)
     assert not page.console_errors

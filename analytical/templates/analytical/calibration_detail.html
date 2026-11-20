@@ -21,7 +21,7 @@
     {% endpanel %}
   {% endfill %}
     {% panel title="Calibration fit worksheet" heading_id="fit-heading" id="fit-worksheet" class="mb-3" %}
-      <p>Fit a linear or quadratic model with an intercept to all recorded points. The worksheet is for inspection only. Follow your laboratory’s procedure for method acceptance.</p>
+      <p>Inspect the recorded points using a linear fit, a quadratic fit or an average calibration factor for external standards. Follow your laboratory’s procedure for method acceptance.</p>
       {# form: filter #}
       <form class="vr-form" method="get" action="{{ request.path }}#fit-worksheet" novalidate>
         {% form_errors form=fit_form %}
@@ -35,20 +35,29 @@
       {% if fit %}
         <dl class="vr-facts">
           {% fact label="Weighting" value=fit_weighting_label %}
-          {% if fit.trend %}
+          {% if fit_model == "average_factor" %}
+            {% fact label="Equation" wide=True value="y = mean factor × x" %}
+            {% fact label="Mean calibration factor" %}<span class="vr-id">{{ fit.mean_factor }}</span> ({{ curve.response_unit }} per {{ curve.unit }}){% endfact %}
+            {% fact label="Sample standard deviation" %}<span class="vr-id">{{ fit.factor_sd }}</span> ({{ curve.response_unit }} per {{ curve.unit }}){% endfact %}
+            {% fact label="Relative standard deviation (RSD)" %}
+              {% if fit.factor_rsd is None %}Unavailable when the mean factor is zero or negative.{% else %}<span class="vr-id">{{ fit.factor_rsd }}</span>%{% endif %}
+            {% endfact %}
+          {% elif fit_model == "quadratic" %}
             {% fact label="Equation" wide=True value="y = a × x² + b × x + intercept" %}
             {% fact label="Quadratic coefficient (a)" %}<span class="vr-id">{{ fit.quadratic }}</span> ({{ curve.response_unit }} per ({{ curve.unit }})²){% endfact %}
             {% fact label="Linear coefficient (b)" %}<span class="vr-id">{{ fit.slope }}</span> ({{ curve.response_unit }} per {{ curve.unit }}){% endfact %}
+            {% fact label="Intercept" %}<span class="vr-id">{{ fit.intercept }}</span> ({{ curve.response_unit }}){% endfact %}
+            {% fact label="Direction over recorded range" value=fit.trend %}
           {% else %}
             {% fact label="Equation" wide=True value="y = slope × x + intercept" %}
             {% fact label="Slope" %}<span class="vr-id">{{ fit.slope }}</span> ({{ curve.response_unit }} per {{ curve.unit }}){% endfact %}
-          {% endif %}
-          {% fact label="Intercept" %}<span class="vr-id">{{ fit.intercept }}</span> ({{ curve.response_unit }}){% endfact %}
-          {% if fit.trend %}
-            {% fact label="Direction over recorded range" value=fit.trend %}
+            {% fact label="Intercept" %}<span class="vr-id">{{ fit.intercept }}</span> ({{ curve.response_unit }}){% endfact %}
           {% endif %}
         </dl>
-        <p class="vr-muted">In the equation, x is concentration ({{ curve.unit }}) and y is predicted response ({{ curve.response_unit }}). Residual is observed response minus predicted response. Predictions and residuals use the unrounded coefficients. Calculated values are displayed with up to 12 significant digits.</p>
+        <p class="vr-muted">In the equation, x is concentration ({{ curve.unit }}) and y is predicted response ({{ curve.response_unit }}). Residual is observed response minus predicted response.
+          {% if fit_model == "average_factor" %}Each factor is observed response divided by concentration. Every row, including replicates, counts equally in the mean. Predictions and residuals use the unrounded mean factor.
+          {% else %}Predictions and residuals use the unrounded coefficients.{% endif %}
+          Calculated values are displayed with up to 12 significant digits.</p>
       {% endif %}
     {% endpanel %}
     {% panel title="Standard points" heading_id="points-heading" count=points|length table=True class="mb-3" %}
@@ -57,6 +66,9 @@
           <th scope="col">Standard</th>
           <th scope="col" class="text-end">Concentration ({{ curve.unit }})</th>
           <th scope="col" class="text-end">Observed response ({{ curve.response_unit }})</th>
+          {% if fit_model == "average_factor" %}
+            <th scope="col" class="text-end">Calibration factor ({{ curve.response_unit }} per {{ curve.unit }})</th>
+          {% endif %}
           {% if fit %}
             <th scope="col" class="text-end">Predicted response ({{ curve.response_unit }})</th>
             <th scope="col" class="text-end">Residual ({{ curve.response_unit }})</th>
@@ -67,6 +79,9 @@
             <th scope="row">{{ point.standard }}</th>
             <td class="text-end vr-id">{{ point.concentration }}</td>
             <td class="text-end vr-id">{{ point.response }}</td>
+            {% if fit_model == "average_factor" %}
+              <td class="text-end vr-id">{{ point.factor }}</td>
+            {% endif %}
             {% if fit %}
               <td class="text-end vr-id">{{ point.predicted }}</td>
               <td class="text-end vr-id">{{ point.residual }}</td>

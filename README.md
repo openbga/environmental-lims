@@ -22,7 +22,8 @@ records; it does not certify compliance or accreditation.
   with the result and rounded by the laboratory's own rule (dilutions, solids by weight, preparation factors and dry-weight
   correction for soil, alkalinity and EDTA hardness titrations, BOD bottle worksheets), QC evaluation, independent review, control charts and MDL studies.
   Staff can compare recorded calibration standards with a linear or quadratic fit, inspect each residual,
-  and see whether a quadratic changes direction across the recorded concentrations.
+  and see whether a quadratic changes direction across the recorded concentrations. For external
+  standards, they can also inspect the mean calibration factor and the variation among standards.
   Analysts can open returned results from the dashboard, oldest return first, and see why each needs correction.
 - **Reporting:** explicit release authorization, versioned immutable PDF reports that print the
   laboratory's address, logo and certificate numbers, amendments and a client portal where each

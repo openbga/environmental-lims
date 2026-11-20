@@ -80,17 +80,18 @@ def calibration_detail(request, pk):
         fit_data.setdefault("model", "linear")  # Weighting-only worksheet links used a line.
     fit_form = CalibrationFitForm(fit_data)
     fit = None
+    fit_model = None
     fit_weighting_label = None
     fit_errors = []
     if fit_form.is_bound and fit_form.is_valid():
+        model = fit_form.cleaned_data["model"]
         weighting = fit_form.cleaned_data["weighting"]
         try:
-            fit = calibration_fit.calculate_fit(
-                curve.points, weighting, fit_form.cleaned_data["model"]
-            )
+            fit = calibration_fit.calculate_fit(curve.points, weighting, model)
         except ValidationError as exc:
             fit_errors = exc.messages
         else:
+            fit_model = model
             fit_weighting_label = dict(fit_form.fields["weighting"].choices)[weighting]
     return _render(
         request,
@@ -100,6 +101,7 @@ def calibration_detail(request, pk):
             "curve": curve,
             "fit_form": fit_form,
             "fit": fit,
+            "fit_model": fit_model,
             "fit_errors": fit_errors,
             "fit_weighting_label": fit_weighting_label,
             "points": fit["rows"] if fit else curve.points,

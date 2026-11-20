@@ -1,4 +1,4 @@
-"""Read-only linear and quadratic fits for recorded calibration points."""
+"""Read-only fits for recorded calibration points."""
 
 from decimal import ROUND_HALF_EVEN, Context, Decimal
 from fractions import Fraction
@@ -20,6 +20,50 @@ def _fraction(text):
 def _display(value):
     context = Context(prec=DISPLAY_DIGITS, rounding=ROUND_HALF_EVEN)
     return str(context.divide(Decimal(value.numerator), Decimal(value.denominator)))
+
+
+def _display_square_root(value):
+    numerator = Decimal(value.numerator)
+    denominator = Decimal(value.denominator)
+    # A rational value can be close to the square of a display-rounding midpoint.
+    # Allow enough digits to distinguish them before rounding the square root.
+    precision = max(numerator.adjusted(), denominator.adjusted()) + 2 * DISPLAY_DIGITS + 6
+    working = Context(prec=precision, rounding=ROUND_HALF_EVEN)
+    display = Context(prec=DISPLAY_DIGITS, rounding=ROUND_HALF_EVEN)
+    return str(display.plus(working.sqrt(working.divide(numerator, denominator))))
+
+
+def _average_factor_fit(points, observations, concentrations):
+    if 0 in concentrations:
+        raise ValidationError(
+            "Average calibration factor requires every concentration to be greater than zero."
+        )
+    if len(concentrations) < 2:
+        raise ValidationError(
+            "Average calibration factor needs at least two distinct concentrations."
+        )
+
+    # EPA SW-846 8000D Rev. 5, sections 11.4.2 and 11.5.1 (concentration-based external standards).
+    factors = [y / x for x, y in observations]
+    mean = sum(factors) / len(factors)
+    variance = sum((factor - mean) ** 2 for factor in factors) / (len(factors) - 1)
+    rows = []
+    for point, (x, y), factor in zip(points, observations, factors, strict=True):
+        predicted = mean * x
+        rows.append(
+            dict(
+                point,
+                factor=_display(factor),
+                predicted=_display(predicted),
+                residual=_display(y - predicted),
+            )
+        )
+    return {
+        "mean_factor": _display(mean),
+        "factor_sd": _display_square_root(variance),
+        "factor_rsd": _display_square_root(variance * (100 / mean) ** 2) if mean > 0 else None,
+        "rows": rows,
+    }
 
 
 def _coefficients(weighted_points, quadratic):
@@ -66,13 +110,15 @@ def _quadratic_trend(a, b, concentrations):
 
 
 def calculate_fit(points, weighting, model="linear"):
-    """Fit every recorded point, including replicate standards, with a free intercept."""
-    if not isinstance(weighting, str) or weighting not in _WEIGHT_POWERS:
+    """Fit every recorded point, including replicate standards, with the selected model."""
+    if model not in ("linear", "quadratic", "average_factor"):
+        raise ValidationError("Choose a linear, quadratic or average calibration factor fit.")
+    average_factor = model == "average_factor"
+    if average_factor:
+        if weighting not in ("", "equal"):
+            raise ValidationError("Average calibration factor uses equal weighting.")
+    elif not isinstance(weighting, str) or weighting not in _WEIGHT_POWERS:
         raise ValidationError("Choose equal, 1/x or 1/x² weighting.")
-    power = _WEIGHT_POWERS[weighting]
-    if model not in ("linear", "quadratic"):
-        raise ValidationError("Choose a linear or quadratic fit.")
-    quadratic = model == "quadratic"
 
     # Use the record validator's bounds and exact decimal parser before rational arithmetic.
     _points(points)
@@ -80,6 +126,11 @@ def calculate_fit(points, weighting, model="linear"):
         (_fraction(point["concentration"]), _fraction(point["response"])) for point in points
     ]
     concentrations = {x for x, _ in observations}
+    if average_factor:
+        return _average_factor_fit(points, observations, concentrations)
+
+    power = _WEIGHT_POWERS[weighting]
+    quadratic = model == "quadratic"
     if quadratic and len(concentrations) < 3:
         raise ValidationError("A quadratic fit needs at least three distinct concentrations.")
     if len(concentrations) < 2:
