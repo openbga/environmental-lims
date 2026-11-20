@@ -8,6 +8,7 @@ from . import (
     preparation_views,
     preservation_views,
     run_list_views,
+    run_sequence_views,
     views,
 )
 
@@ -43,6 +44,21 @@ urlpatterns = [
     ),
     path("calibrations/<int:pk>/", calibration_views.calibration_detail, name="calibration-detail"),
     path("batches/<int:pk>/run-list.csv", run_list_views.batch_run_list, name="batch-run-list"),
+    path(
+        "batches/<int:pk>/run-sequences/new/",
+        run_sequence_views.run_sequence_create,
+        name="run-sequence-create",
+    ),
+    path(
+        "run-sequences/<int:pk>/",
+        run_sequence_views.run_sequence_detail,
+        name="run-sequence-detail",
+    ),
+    path(
+        "run-sequences/<int:pk>/correct/",
+        run_sequence_views.run_sequence_correct,
+        name="run-sequence-correct",
+    ),
     path("batches/<int:pk>/tests/", views.batch_add_tests, name="batch-add-tests"),
     path(
         "batches/<int:pk>/tests/<int:test_pk>/remove/",

@@ -10,6 +10,14 @@ The same list is shown in the application under What's new.
 
 ### High impact
 
+- **Added:** Record actual instrument injection order (2026-11-20, Batches & QC)
+
+  Analysts can record the injection order from an instrument run on an analytical batch. Staff can see the nearest verification before and after each sample and open earlier versions when an analyst corrects a transcription.
+
+  Technical notes:
+
+  > Migration analytical.0014 adds an append-only table for sequence versions. Keep the migrated schema if rolling back application code after staff have recorded a sequence.
+
 - **Added:** Calculate daily mass loading from an issued result (2026-11-19, Client portal)
 
   Clients can open Daily load from a water or wastewater result on their current report. Enter the corresponding sampling-day flow to see the calculation in pounds per day and open the issued PDF to check the source.

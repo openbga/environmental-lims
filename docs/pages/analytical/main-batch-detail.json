@@ -4,8 +4,8 @@
     "analytical:batch-detail"
   ],
   "title": "Analytical batch",
-  "purpose": "Manage one analytical batch’s membership, current results, QC and supporting equipment and preparation information.",
-  "summary": "Work one analytical batch: its tests and current results, QC samples and findings, preparation time and equipment. Submit entered results for review from here.",
+  "purpose": "Manage one analytical batch’s membership, current results, QC, equipment, preparation information and recorded injection sequences.",
+  "summary": "Work one analytical batch, including its tests, current results, QC, preparation time, equipment and recorded injection sequences. Submit entered results for review from here.",
   "tasks": [
     {
       "title": "Enter or import results",
@@ -35,10 +35,12 @@
       ]
     },
     {
-      "title": "Prepare an instrument run list",
+      "title": "Work with instrument runs",
       "steps": [
         "Select [[Export run list]] to download all batch tests and recorded QC samples.",
-        "Map the CSV columns for your instrument and check sample states, QC and injection order before use."
+        "Map the CSV columns for your instrument and check sample states, QC and injection order before use.",
+        "After the run, select [[Record injection sequence]] to transcribe the actual injection order.",
+        "In [[Injection sequences]], select the run reference to inspect the current version."
       ]
     }
   ],
@@ -432,6 +434,27 @@
       ]
     },
     {
+      "title": "Injection sequences",
+      "paragraphs": [
+        "The table lists the current version of each instrument run recorded for this analytical batch. No injection sequences recorded means there is no transcription for the batch yet. The planned run-list CSV is a separate tool for setup.",
+        "The table lists the most recently recorded versions first. Its pages are independent of the results and calibration pages and use the same rows-per-page size. Result filters do not hide sequences."
+      ],
+      "items": [
+        {
+          "label": "Record injection sequence",
+          "description": "Analysts and administrators can transcribe actual injection order from an instrument source record on open or closed analytical batches. Preparation batches use their own page."
+        },
+        {
+          "label": "Run reference",
+          "description": "Select the instrument run identifier to open its current sequence, verification positions and all prior versions. Other staff can inspect the records."
+        },
+        {
+          "label": "Current version / Source reference / Recorded at",
+          "description": "The latest revision number, its source record reference and when that version was saved in laboratory local time."
+        }
+      ]
+    },
+    {
       "title": "Recorded calibration evidence",
       "paragraphs": [
         "A calibration link is optional. It points to the recorded instrument evidence. The calibration record’s Calibration fit worksheet is for inspection only. Follow the laboratory’s procedure for method acceptance, source independence, sequencing and bracketing."
@@ -488,6 +511,9 @@
     "analytical/calibration_views.py",
     "analytical/templates/analytical/calibration_detail.html",
     "analytical/tests/test_calibration.py",
-    "analytical/tests/test_calibration_views.py"
+    "analytical/tests/test_calibration_views.py",
+    "analytical/run_sequence_views.py",
+    "analytical/run_sequences.py",
+    "analytical/tests/test_run_sequence_views.py"
   ]
 }

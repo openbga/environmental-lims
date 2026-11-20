@@ -1,0 +1,75 @@
+{
+  "id": "analytical-run-sequence-detail",
+  "routes": ["analytical:run-sequence-detail"],
+  "title": "Injection sequence",
+  "purpose": "Inspect a version of the actual recorded instrument injection order for an analytical batch.",
+  "summary": "Inspect a recorded instrument run in injection order, find the nearest recorded verification on each side of a sample, and open earlier versions.",
+  "tasks": [
+    {
+      "title": "Find verification positions around a sample",
+      "steps": [
+        "Find the sample injection by [[Position]] or [[Instrument label]].",
+        "Read [[Verification before]] and [[Verification after]] for the nearest recorded position and label on each side."
+      ]
+    },
+    {
+      "title": "Trace a correction",
+      "steps": [
+        "In [[Version history]], check who recorded the correction, when and why.",
+        "Select a version link to read that sequence. If you opened an earlier version, select [[Go to current version]] to return to the latest."
+      ]
+    },
+    {
+      "title": "Correct the recorded order",
+      "steps": [
+        "From the [[Current version]], select [[Correct injection sequence]].",
+        "Check the prefilled sequence against the source record, make the correction and give a reason."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "[[None recorded]] means there is no verification on that side of the sample in this version.",
+    "Use your method and lab SOP to judge which verification applies, how often it is required and whether it is acceptable.",
+    "Only the latest version can be corrected. Every earlier version retains its own source reference, rows and authorship.",
+    "Instrument labels come from the source transcription. Identify the sample using that record when the same label appears more than once."
+  ],
+  "sections": [
+    {
+      "title": "Sequence details",
+      "items": [
+        {"label": "Run reference / Version / Batch", "description": "The heading is the fixed instrument run identifier. The version number identifies the exact transcription shown. Select the batch number to return to the analytical batch."},
+        {"label": "Current version / Superseded", "description": "Current version identifies the latest sequence. Superseded identifies an earlier version saved before a correction. Go to current version leads from an earlier transcription to the latest one."},
+        {"label": "Source reference", "description": "Identifier of the instrument record used for the version you are viewing."},
+        {"label": "Recorded by / Recorded at", "description": "Staff member who saved the version and the date and time in the laboratory’s time zone."},
+        {"label": "Reason for correction", "description": "The explanation saved when this version corrected the previous one. Version 1 has no correction reason."}
+      ]
+    },
+    {
+      "title": "Injections",
+      "items": [
+        {"label": "Position", "description": "The recorded injection position, starting at 1. The table shows every injection in position order."},
+        {"label": "Kind", "description": "The recorded type of this injection: Sample, Verification, Standard, Blank or Other."},
+        {"label": "Instrument label", "description": "The label transcribed from the source at that position. Duplicate labels can occur at different positions."},
+        {"label": "Verification before / Verification after", "description": "For each Sample, the nearest Verification on each side of it in this version, shown as position and label. The table can show a gap on one or both sides. Other injection kinds show a dash in both columns."}
+      ]
+    },
+    {
+      "title": "Version history and actions",
+      "items": [
+        {"label": "Version history", "description": "Shows the first recording and all corrections for this run, oldest first, with each save’s actor, time and any correction reason. Select a numbered version link to open its recorded sequence."},
+        {"label": "Correct injection sequence", "description": "Analysts and administrators can open a form to create the next version with a reason. The action is disabled on superseded versions, where Go to current version leads to the latest."}
+      ],
+      "paragraphs": ["Staff with an application role can read every version. Client accounts cannot access the record. Use the batch’s result and QC workflows for analytical and release decisions."]
+    }
+  ],
+  "sources": [
+    "accounts/roles.py",
+    "analytical/urls.py",
+    "analytical/run_sequence_views.py",
+    "analytical/run_sequences.py",
+    "analytical/models.py",
+    "analytical/templates/analytical/run_sequence_detail.html",
+    "analytical/templates/analytical/_run_sequence_version_link.html",
+    "analytical/tests/test_run_sequence_views.py"
+  ]
+}

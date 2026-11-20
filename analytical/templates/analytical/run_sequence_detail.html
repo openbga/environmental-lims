@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block breadcrumbs %}{% url 'analytical:batch-list' as list_url %}{% url 'analytical:batch-detail' sequence.batch_id as batch_url %}{% breadcrumbs section="Batches & QC" section_url=list_url record=sequence.batch.number record_url=batch_url current=sequence.reference %}{% endblock %}
+{% block page_meta %}{% page_meta %}
+  <li>{% if is_current %}{% status label="Current version" tone="info" %}{% else %}{% status label="Superseded" tone="neutral" %}{% endif %}</li>
+  <li>Version {{ sequence.version }}</li>
+  <li>Batch <a class="vr-id" href="{% url 'analytical:batch-detail' sequence.batch_id %}">{{ sequence.batch.number }}</a></li>
+{% endpage_meta %}{% endblock %}
+{% block page_actions %}
+  {% if can_enter %}
+    {% if is_current %}<a class="btn btn-primary" href="{% url 'analytical:run-sequence-correct' sequence.pk %}">Correct injection sequence</a>
+    {% else %}<button type="button" class="btn btn-outline-secondary" disabled aria-describedby="sequence-superseded">Correct injection sequence</button>{% endif %}
+  {% endif %}
+{% endblock %}
+{% block content %}
+{% if not is_current %}
+  {% notice tone="neutral" label="Superseded" %}<span id="sequence-superseded">Only the current version can be corrected. <a href="{% url 'analytical:run-sequence-detail' current.pk %}">Go to current version</a>.</span>{% endnotice %}
+{% endif %}
+{% record_layout %}
+  {% fill lead %}
+    {% panel title="Sequence details" heading_id="sequence-details-heading" class="mb-3" %}
+      <dl class="vr-facts">
+        {% fact label="Source reference" value=sequence.source_reference wide=True %}
+        {% fact label="Recorded by" value=sequence.created_by.get_full_name|default:sequence.created_by.get_username %}
+        {% fact label="Recorded at" %}<time datetime="{{ sequence.created_at|date:'c' }}">{{ sequence.created_at|date:"Y-m-d H:i T" }}</time>{% endfact %}
+        {% if sequence.reason %}{% fact label="Reason for correction" value=sequence.reason wide=True %}{% endif %}
+      </dl>
+    {% endpanel %}
+  {% endfill %}
+  {% panel title="Injections" heading_id="injections-heading" count=rows|length table=True class="mb-3" %}
+    {% panel_section %}<p class="vr-form-note">For each sample, the table shows the closest recorded verification on either side. Use your method and lab SOP to determine applicability and acceptance.</p>{% endpanel_section %}
+    <div class="vr-table-wrap"><table class="table vr-table" aria-labelledby="injections-heading">
+      <thead><tr><th scope="col" class="text-end">Position</th><th scope="col">Kind</th><th scope="col">Instrument label</th><th scope="col">Verification before</th><th scope="col">Verification after</th></tr></thead>
+      <tbody>{% for row in rows %}<tr>
+        <th scope="row" class="text-end vr-id">{{ row.position }}</th>
+        <td>{{ row.kind_label }}</td>
+        <td><span class="vr-preserve-space">{{ row.label }}</span></td>
+        {% if row.kind == 'sample' %}
+          <td>{% if row.before %}<span class="vr-id">#{{ row.before.position }}</span> <span class="vr-preserve-space">{{ row.before.label }}</span>{% else %}<span class="vr-muted">None recorded</span>{% endif %}</td>
+          <td>{% if row.after %}<span class="vr-id">#{{ row.after.position }}</span> <span class="vr-preserve-space">{{ row.after.label }}</span>{% else %}<span class="vr-muted">None recorded</span>{% endif %}</td>
+        {% else %}
+          <td class="vr-muted">—</td><td class="vr-muted">—</td>
+        {% endif %}
+      </tr>{% endfor %}</tbody>
+    </table></div>
+  {% endpanel %}
+  {% history_panel title="Version history" events=versions heading_id="version-history-heading" count=versions|length %}
+    {% for version in versions %}
+      {% if version.previous_id %}
+        {% history_item title="Sequence corrected" at=version.created_at actor=version.created_by reason=version.reason extra="analytical/_run_sequence_version_link.html" %}
+      {% else %}
+        {% history_item title="Sequence recorded" at=version.created_at actor=version.created_by extra="analytical/_run_sequence_version_link.html" %}
+      {% endif %}
+    {% endfor %}
+  {% endhistory_panel %}
+{% endrecord_layout %}
+{% endblock %}

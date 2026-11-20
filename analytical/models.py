@@ -331,6 +331,42 @@ class Batch(models.Model):
         return self.number
 
 
+class RunSequence(models.Model):
+    """One immutable transcription of an instrument run, including its injection order."""
+
+    batch = models.ForeignKey(Batch, on_delete=models.PROTECT, related_name="run_sequences")
+    reference = models.CharField(max_length=120)
+    version = models.PositiveIntegerField()
+    previous = models.OneToOneField(
+        "self", null=True, blank=True, on_delete=models.PROTECT, related_name="successor"
+    )
+    source_reference = models.CharField(max_length=240)
+    injections = models.JSONField()
+    reason = models.CharField(max_length=500, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["batch", "reference", "version"], name="run_sequence_version_unique"
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(version=1, previous__isnull=True, reason="")
+                    | (Q(version__gt=1, previous__isnull=False) & ~Q(reason=""))
+                ),
+                name="run_sequence_revision_origin",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.reference} v{self.version}"
+
+
 class RunCalibration(models.Model):
     """Immutable instrument-reported curve evidence; no fitting or acceptance decision."""
 

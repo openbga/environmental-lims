@@ -1,0 +1,1 @@
+<a href="{% url 'analytical:run-sequence-detail' version.pk %}"{% if version.pk == sequence.pk %} aria-current="page"{% endif %}>Version {{ version.version }}</a>{% if version.pk == current.pk %} · Current version{% endif %}

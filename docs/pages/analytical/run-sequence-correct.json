@@ -1,0 +1,59 @@
+{
+  "id": "analytical-run-sequence-correct",
+  "routes": ["analytical:run-sequence-correct"],
+  "title": "Correct injection sequence",
+  "purpose": "Save a new version of a recorded injection sequence with a reason for the correction.",
+  "summary": "Correct the instrument source reference or injection order. Saving creates the next version and keeps the earlier versions in history.",
+  "tasks": [
+    {
+      "title": "Correct a run transcription",
+      "steps": [
+        "Check the prefilled [[Source reference]] against the instrument record and update it if needed.",
+        "Edit [[Injections (one per line)]] to give the complete corrected sequence.",
+        "Enter the [[Reason for correction]] and select [[Correct injection sequence]]."
+      ]
+    },
+    {
+      "title": "Resume after another correction",
+      "steps": [
+        "If the form reports a newer version, return to the sequence and select Go to current version.",
+        "Open Correct injection sequence on the current version and check your intended changes against it."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "A correction replaces the entire sequence for the current version. Include every row you want to keep.",
+    "The run reference stays the same through all versions.",
+    "You can correct evidence after batch closure. The earlier sequence and its record of who saved it remain in history."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "items": [
+        {"label": "Run reference", "description": "The fixed instrument run identifier from the version being corrected. It is read-only."},
+        {"label": "Source reference", "description": "The required source record identifier, prefilled from the current version. Update it when the corrected transcription uses a different source record. The maximum is 240 characters."},
+        {"label": "Injections (one per line)", "description": "The prior rows are prefilled. Enter the complete sequence with 1 to 200 positions in order without gaps or repeats, starting at 1. Use position,kind,label, with no header. Kinds are sample, verification, standard, blank and other. Everything after the second comma is the literal label. Each label is 1 to 120 printable characters and includes a non-space character."},
+        {"label": "Reason for correction", "description": "Required explanation of the correction, up to 500 characters. Saved with your account and the current laboratory date and time."}
+      ]
+    },
+    {
+      "title": "Actions and access",
+      "items": [
+        {"label": "Correct injection sequence", "description": "Save the next version and open it. If someone else has already saved a correction to the version you opened, the save is refused and your input stays on the form. Return to the sequence and open the current version to try again."},
+        {"label": "Cancel", "description": "Return to the sequence or close the form dialog without saving."}
+      ],
+      "paragraphs": ["Analysts and administrators can correct the current version of a run on an open or closed analytical batch. If you try to open the form for a superseded version, it returns you to that version with a message. From there, follow Go to current version."]
+    }
+  ],
+  "sources": [
+    "accounts/roles.py",
+    "analytical/urls.py",
+    "analytical/run_sequence_views.py",
+    "analytical/run_sequence_forms.py",
+    "analytical/run_sequences.py",
+    "analytical/models.py",
+    "analytical/templates/analytical/form.html",
+    "analytical/templates/analytical/run_sequence_detail.html",
+    "analytical/tests/test_run_sequence_views.py"
+  ]
+}
