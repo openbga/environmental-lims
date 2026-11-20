@@ -60,6 +60,10 @@ def entry(**changes):
     }
 
 
+def worksheet_html(response):
+    return response.content.decode().split('id="fit-worksheet"', 1)[1].split("</section>", 1)[0]
+
+
 def test_record_and_read_frozen_evidence(lab, analyst, reviewer, client):
     batch, _ = setup_run(lab, analyst)
     client.force_login(analyst)
@@ -129,6 +133,7 @@ def test_fit_requires_a_choice_and_keeps_evidence_and_result_links(lab, analyst,
     assert b"Predicted response (counts)" not in initial.content
     assert b"Back-calculated concentration (" not in initial.content
     assert b"Absolute percent error (%)" not in initial.content
+    assert "Relative standard error (RSE)" not in worksheet_html(initial)
     slopes = set()
     for weighting in ("equal", "inverse", "inverse_square"):
         response = client.get(url, {"weighting": weighting})
@@ -137,13 +142,17 @@ def test_fit_requires_a_choice_and_keeps_evidence_and_result_links(lab, analyst,
         assert response.context["fit_form"]["weighting"].value() == weighting
         fit = response.context["fit"]
         slopes.add(fit["slope"])
+        worksheet = worksheet_html(response)
         if weighting == "equal":
             assert fit["slope"] == "3"
+            assert 'class="vr-id">16.1440701613</span>%' in worksheet
         assert "y = slope × x + intercept" in response.content.decode()
         assert b"Predicted response (counts)" in response.content
         assert b"Residual (counts)" in response.content
         assert f"Back-calculated concentration ({curve.unit})" in response.content.decode()
         assert b"Absolute percent error (%)" in response.content
+        assert "Relative standard error (RSE)" in worksheet
+        assert "3 recorded points − 2 fitted terms = 1" in worksheet
         assert b"SYNTHETIC instrument record 01" in response.content
         assert b"Instrument-reported linear fit; synthetic" in response.content
         assert b">1.00</td>" in response.content and b">2.000</td>" in response.content
@@ -204,6 +213,7 @@ def test_quadratic_fit_displays_coefficients_direction_and_signed_residuals(
         assert shown in html
     assert "Back-calculated concentration (" not in html
     assert "Absolute percent error (%)" not in html
+    assert "Relative standard error (RSE)" not in worksheet_html(response)
     assert client.post(url, {"model": "quadratic", "weighting": "equal"}).status_code == 405
     assert RunCalibration.objects.values().get(pk=curve.pk) == curve_fields
     assert result.revisions.values().get() == revision
@@ -247,6 +257,7 @@ def test_linear_through_origin_fits_all_rows_and_keeps_evidence_read_only(
     ):
         assert shown in html
     assert "Calibration factor (counts per" not in html
+    assert "Relative standard error (RSE)" not in worksheet_html(response)
     for weighting in ("", "equal"):
         response = client.get(url, {**params, "weighting": weighting})
         assert response.context["fit"] == fit
@@ -378,13 +389,16 @@ def test_average_factor_uses_each_point_and_keeps_evidence_read_only(
         "Absolute percent error (%)",
         ">0.333333333333</td>",
         ">66.6666666667</td>",
-        'class="vr-id">66.6666666667</span>%',
         ">1.00</td>",
         ">1.000</td>",
         "Result revisions using this calibration",
         "Instrument-reported linear fit; synthetic",
     ):
         assert shown in html
+    worksheet = worksheet_html(implicit)
+    assert "Relative standard error (RSE)" in worksheet
+    assert "3 recorded points − 1 fitted term = 2" in worksheet
+    assert worksheet.count('class="vr-id">66.6666666667</span>%') == 2
     assert client.post(url, params).status_code == 405
     assert RunCalibration.objects.values().get(pk=curve.pk) == curve_fields
     assert result.revisions.values().get() == revision
@@ -485,13 +499,16 @@ def test_linear_refit_explains_the_error_at_zero_concentration(lab, analyst, rev
     assert ">0.000</td>" in html and ">-1.00</td>" in html
     assert html.count(">Unavailable at zero concentration</td>") == 1
     assert ">44.4444444444</td>" in html
+    worksheet = worksheet_html(response)
+    assert "Relative standard error (RSE)" in worksheet
+    assert "Unavailable because a recorded concentration is zero." in worksheet
     assert not response.context["fit_errors"]
 
 
 @pytest.mark.parametrize(
     ("model", "responses", "reason"),
     [
-        ("linear", ("3", "3"), "fitted slope"),
+        ("linear", ("3", "3", "3"), "fitted slope"),
         ("linear_origin", ("-2", "1"), "fitted slope"),
         ("average_factor", ("-1", "2"), "mean calibration factor"),
     ],
@@ -520,7 +537,38 @@ def test_flat_fit_explains_the_unavailable_refit(lab, analyst, client, model, re
         f"Back-calculated concentration and absolute percent error are unavailable because the "
         f"{reason} is zero."
     ) in html
-    assert html.count('aria-describedby="refit-unavailable-reason">Unavailable</td>') == 4
+    assert html.count('aria-describedby="refit-unavailable-reason">Unavailable</td>') == (
+        2 * len(responses)
+    )
+    if model != "linear_origin":
+        worksheet = worksheet_html(response)
+        assert "Relative standard error (RSE)" in worksheet
+        assert f"Unavailable because the {reason} is zero." in worksheet
+    assert not response.context["fit_errors"]
+
+
+def test_linear_rse_explains_insufficient_degrees_of_freedom(lab, analyst, client):
+    batch, _ = setup_run(lab, analyst)
+    points = [
+        {"standard": "SYN-LOW", "concentration": "1", "response": "3"},
+        {"standard": "SYN-HIGH", "concentration": "2", "response": "5"},
+    ]
+    curve = record(lab, analyst, batch, points=points)
+    client.force_login(analyst)
+
+    response = client.get(
+        reverse("analytical:calibration-detail", args=[curve.pk]),
+        {"model": "linear", "weighting": "equal"},
+    )
+
+    assert response.status_code == 200
+    worksheet = worksheet_html(response)
+    assert "Relative standard error (RSE)" in worksheet
+    assert "2 recorded points − 2 fitted terms = 0" in worksheet
+    assert (
+        "Unavailable because there are too few recorded points for the number of fitted terms."
+        in worksheet
+    )
     assert not response.context["fit_errors"]
 
 

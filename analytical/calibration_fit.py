@@ -47,6 +47,32 @@ def _back_calculation(concentration, response, slope, intercept=0):
     }
 
 
+def _relative_standard_error(observations, slope, intercept=0, *, terms, coefficient_label):
+    # EPA SW-846 8000D Rev. 5, section 11.5.4.2. Each recorded point counts once.
+    points = len(observations)
+    degrees_of_freedom = points - terms
+    percent = reason = None
+    if any(not x for x, _ in observations):
+        reason = "a recorded concentration is zero"
+    elif not slope:
+        reason = f"the {coefficient_label} is zero"
+    elif degrees_of_freedom <= 0:
+        reason = "there are too few recorded points for the number of fitted terms"
+    else:
+        # The relative inverse concentration error equals the residual divided by slope × x.
+        squared_error = sum(
+            ((y - (slope * x + intercept)) / (slope * x)) ** 2 for x, y in observations
+        )
+        percent = _display_square_root(100**2 * squared_error / degrees_of_freedom)
+    return {
+        "percent": percent,
+        "reason": reason,
+        "points": points,
+        "terms": terms,
+        "degrees_of_freedom": degrees_of_freedom,
+    }
+
+
 def _average_factor_fit(points, observations, concentrations):
     if 0 in concentrations:
         raise ValidationError(
@@ -61,6 +87,9 @@ def _average_factor_fit(points, observations, concentrations):
     factors = [y / x for x, y in observations]
     mean = sum(factors) / len(factors)
     variance = sum((factor - mean) ** 2 for factor in factors) / (len(factors) - 1)
+    rse = _relative_standard_error(
+        observations, mean, terms=1, coefficient_label="mean calibration factor"
+    )
     rows = []
     for point, (x, y), factor in zip(points, observations, factors, strict=True):
         predicted = mean * x
@@ -76,8 +105,10 @@ def _average_factor_fit(points, observations, concentrations):
     return {
         "mean_factor": _display(mean),
         "factor_sd": _display_square_root(variance),
-        "factor_rsd": _display_square_root(variance * (100 / mean) ** 2) if mean > 0 else None,
+        # For a positive mean, the factor RSD and the inverse concentration RSE are equal.
+        "factor_rsd": rse["percent"] if mean > 0 else None,
         "back_calculation_unavailable": not mean,
+        "rse": rse,
         "rows": rows,
     }
 
@@ -186,4 +217,8 @@ def calculate_fit(points, weighting, model="linear"):
         fit.update(quadratic=_display(a), trend=_quadratic_trend(a, b, concentrations))
     else:
         fit["back_calculation_unavailable"] = not b
+    if model == "linear":
+        fit["rse"] = _relative_standard_error(
+            observations, b, c, terms=2, coefficient_label="fitted slope"
+        )
     return fit

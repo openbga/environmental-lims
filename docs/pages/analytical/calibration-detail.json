@@ -5,7 +5,7 @@
   ],
   "title": "Calibration evidence",
   "purpose": "Inspect the recorded instrument model, compare temporary calibration fits, and trace the result revisions that use this evidence.",
-  "summary": "Inspect the recorded standards, source and linked result revisions. Compare linear and quadratic fits or the average calibration factor. Use a linear or factor fit to check back-calculated concentrations and percent errors.",
+  "summary": "Inspect the recorded standards, source and linked result revisions. Compare linear and quadratic fits or the average calibration factor, with back-calculated concentrations and relative standard error where available.",
   "tasks": [
     {
       "title": "Check the curve’s source and points",
@@ -19,7 +19,7 @@
       "steps": [
         "In [[Calibration fit worksheet]], choose [[Model]] and [[Weighting]]. For [[Linear through origin]], leave [[Weighting]] blank or choose [[Unweighted (equal weights)]].",
         "Select [[Calculate fit]].",
-        "Read the [[Equation]] and fitted coefficients. For a quadratic fit, check [[Direction over recorded range]].",
+        "Read the [[Equation]] and fitted coefficients. For [[Linear]], check [[Relative standard error (RSE)]]. For [[Quadratic]], check [[Direction over recorded range]].",
         "Compare predicted response and residuals in [[Standard points]]. For either linear model, also check [[Back-calculated concentration]] and [[Absolute percent error]]."
       ]
     },
@@ -28,6 +28,7 @@
       "steps": [
         "Choose [[Average calibration factor]] under [[Model]]. Leave [[Weighting]] blank or choose [[Unweighted (equal weights)]].",
         "Select [[Calculate fit]] and review the [[Mean calibration factor]], [[Sample standard deviation]] and [[Relative standard deviation (RSD)]].",
+        "Check [[Relative standard error (RSE)]] for the overall fit to the recorded concentrations.",
         "In [[Standard points]], check the factors, predicted responses, residuals, [[Back-calculated concentration]] and [[Absolute percent error]]."
       ]
     },
@@ -49,7 +50,7 @@
   "good_to_know": [
     "This record is immutable. Recording another curve does not change any existing result or issued report.",
     "Follow your method and laboratory SOP for model selection and acceptance. [[Linear through origin]], [[Average calibration factor]] and inverse weighting need all concentrations to be positive.",
-    "A zero slope or mean factor leaves both inverse values unavailable. At a zero recorded concentration with a nonzero slope, only [[Absolute percent error]] is unavailable.",
+    "A zero slope or mean factor prevents back-calculation. A zero recorded concentration prevents percent error for that point and [[Relative standard error (RSE)]] for the whole fit.",
     "A selected verification correction holds submission, approval and release until a new result revision records current evidence.",
     "The people who recorded a selected curve or verification cannot review or release its result."
   ],
@@ -128,7 +129,15 @@
         },
         {
           "label": "Relative standard deviation (RSD)",
-          "description": "Sample standard deviation divided by the mean factor and multiplied by 100. The worksheet shows a percentage for a positive mean and an explanation when the mean is zero or negative."
+          "description": "Sample standard deviation divided by the mean factor and multiplied by 100. For a positive mean this equals the RSE because each relative concentration error equals its factor’s deviation from the mean divided by the mean. The worksheet shows an explanation when the mean is zero or negative."
+        },
+        {
+          "label": "Relative standard error (RSE)",
+          "description": "Available for Linear and Average calibration factor. For each recorded point, subtract the recorded concentration from its unrounded back-calculated concentration and divide by the recorded concentration. Square these relative errors, sum them, divide by the degrees of freedom, take the square root and multiply by 100. Replicates count separately. Weighting applies to fitting the line. RSE is unavailable when any recorded concentration, the fitted slope or the mean factor is zero, or when there are too few points. A negative slope or factor still allows RSE."
+        },
+        {
+          "label": "RSE degrees of freedom",
+          "description": "The number of recorded points minus the number of fitted terms. Linear uses two terms (slope and intercept), and Average calibration factor uses one (the mean factor). RSE requires a positive difference."
         },
         {
           "label": "Slope / Linear coefficient (b)",
