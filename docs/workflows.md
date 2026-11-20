@@ -263,11 +263,15 @@ Choose **Linear through origin** when the method calls for a fixed zero intercep
 concentration, and at least two concentrations must differ. The worksheet fits the slope to all
 recorded points, including replicates.
 Inverse weighting needs positive concentrations at every point for the free-intercept models. The residual is the recorded
-response minus the predicted response. For either linear fit or the average calibration factor,
-compare each standard’s back-calculated concentration with the concentration entered for it.
+response minus the predicted response. Compare each standard’s back-calculated concentration
+with the concentration entered for it. For **Quadratic**, first check the direction shown under
+**Calibration fit worksheet**. If the curve turns inside the recorded range or is constant,
+the worksheet explains why it cannot give a concentration. For an increasing or decreasing
+curve, a standard can be back-calculated when its observed response falls between the fitted
+responses at the lowest and highest recorded concentrations, including either endpoint.
 Absolute percent error is the size of that difference divided by the entered concentration,
-times 100. A zero slope or mean factor prevents back-calculation. A zero entered concentration
-prevents the percentage comparison. For a free-intercept line or an average calibration factor,
+times 100. Back-calculation is unavailable for a linear fit with zero slope or an average
+factor of zero. A zero entered concentration prevents the percentage comparison. For a free-intercept line or an average calibration factor,
 read **Relative standard error (RSE)** to inspect the error across the whole fit. Every recorded
 point contributes, including replicates. A line needs more than two points and an average
 factor needs more than one. A zero recorded concentration or a fit that cannot be inverted

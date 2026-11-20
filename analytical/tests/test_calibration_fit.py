@@ -359,7 +359,7 @@ def test_fit_rejects_unknown_weighting(weighting):
 
 
 @pytest.mark.parametrize(
-    ("weighting", "coefficients", "predicted", "residual"),
+    ("weighting", "coefficients", "predicted", "residual", "back_calculated", "percent_error"),
     [
         (
             "equal",
@@ -372,6 +372,8 @@ def test_fit_rejects_unknown_weighting(weighting):
                 "0.387096774194",
                 "-0.419354838710",
             ],
+            [None, "2.37561212873", "2.78547827913", None, "1.88942741181"],
+            [None, "18.7806064365", "7.15072402906", None, "5.52862940970"],
         ),
         (
             "inverse",
@@ -384,6 +386,8 @@ def test_fit_rejects_unknown_weighting(weighting):
                 "0.585365853659",
                 "-0.560975609756",
             ],
+            [None, "2.33393118776", "2.74955087163", None, "1.85944300043"],
+            [None, "16.6965593882", "8.34830427899", None, "7.02784997867"],
         ),
         (
             "inverse_square",
@@ -396,11 +400,13 @@ def test_fit_rejects_unknown_weighting(weighting):
                 "0.827586206897",
                 "-0.689655172414",
             ],
+            [None, "2.30234010070", "2.72589074892", None, "1.83105446095"],
+            [None, "15.1170050349", "9.13697503589", None, "8.44727695250"],
         ),
     ],
 )
 def test_quadratic_fit_weights_every_observation_including_replicates(
-    weighting, coefficients, predicted, residual
+    weighting, coefficients, predicted, residual, back_calculated, percent_error
 ):
     points = [
         point("1.00", "2", "Standard 1"),
@@ -415,9 +421,23 @@ def test_quadratic_fit_weights_every_observation_including_replicates(
 
     assert (fit["quadratic"], fit["slope"], fit["intercept"]) == coefficients
     assert fit["trend"] == "Increasing"
+    assert fit["back_calculation_reason"] is None
     assert fit["rows"] == [
-        {**row, "predicted": fit_y, "residual": error}
-        for row, fit_y, error in zip(original, predicted, residual, strict=True)
+        dict(
+            row,
+            predicted=fit_y,
+            residual=dy,
+            back_calculated=fit_x,
+            absolute_percent_error=pct,
+            back_calculation_reason=(
+                "The observed response is outside the fitted response range."
+                if fit_x is None
+                else None
+            ),
+        )
+        for row, fit_y, dy, fit_x, pct in zip(
+            original, predicted, residual, back_calculated, percent_error, strict=True
+        )
     ]
     assert points == original
 
@@ -428,6 +448,8 @@ def test_quadratic_fit_preserves_rank_and_direction_at_the_record_limit(weightin
         point("99999999999999.9999999997", "1.00"),
         point("99999999999999.9999999998", "1.0000000001"),
         point("99999999999999.9999999999", "1.0000000004"),
+        point("99999999999999.9999999998", "1.00", "Middle standard replicate A"),
+        point("99999999999999.9999999998", "1.0000000002", "Middle standard replicate B"),
     ]
 
     fit = calculate_fit(points, weighting, model="quadratic")
@@ -436,30 +458,128 @@ def test_quadratic_fit_preserves_rank_and_direction_at_the_record_limit(weightin
     assert fit["slope"] == "-2.00000000000E+24"
     assert fit["intercept"] == "1.00000000000E+38"
     assert fit["trend"] == "Increasing (stationary at the lower endpoint)"
-    assert [row["predicted"] for row in fit["rows"]] == ["1", "1.0000000001", "1.0000000004"]
-    assert [row["residual"] for row in fit["rows"]] == ["0", "0", "0"]
+    assert [row["predicted"] for row in fit["rows"]] == [
+        "1",
+        "1.0000000001",
+        "1.0000000004",
+        "1.0000000001",
+        "1.0000000001",
+    ]
+    assert [row["residual"] for row in fit["rows"]] == ["0", "0", "0", "-1E-10", "1E-10"]
+    assert [row["back_calculated"] for row in fit["rows"]] == ["1.00000000000E+14"] * 5
+    assert [row["absolute_percent_error"] for row in fit["rows"]] == [
+        "0",
+        "0",
+        "0",
+        "1.00000000000E-22",
+        "4.14213562373E-23",
+    ]
 
 
 @pytest.mark.parametrize(
-    ("responses", "trend"),
+    ("responses", "trend", "reason"),
     [
-        (("0", "2", "6"), "Increasing"),
-        (("6", "2", "0"), "Decreasing"),
-        (("0", "-1", "-2"), "Decreasing"),  # Exactly linear.
-        (("-2", "-2", "-2"), "Constant"),
-        (("1", "0", "1"), "Turns within the recorded range"),
-        (("0", "1", "0"), "Turns within the recorded range"),
-        (("0", "1", "4"), "Increasing (stationary at the lower endpoint)"),
-        (("0", "3", "4"), "Increasing (stationary at the upper endpoint)"),
-        (("0", "-1", "-4"), "Decreasing (stationary at the lower endpoint)"),
-        (("4", "1", "0"), "Decreasing (stationary at the upper endpoint)"),
+        (("0", "2", "6"), "Increasing", None),
+        (("6", "2", "0"), "Decreasing", None),
+        (("-2", "-2", "-2"), "Constant", "The fitted response is constant."),
+        (
+            ("1", "0", "1"),
+            "Turns within the recorded range",
+            "The fitted curve turns within the recorded concentration range.",
+        ),
+        (
+            ("0", "1", "0"),
+            "Turns within the recorded range",
+            "The fitted curve turns within the recorded concentration range.",
+        ),
+        (("0", "1", "4"), "Increasing (stationary at the lower endpoint)", None),
+        (("0", "3", "4"), "Increasing (stationary at the upper endpoint)", None),
+        (("0", "-1", "-4"), "Decreasing (stationary at the lower endpoint)", None),
+        (("4", "1", "0"), "Decreasing (stationary at the upper endpoint)", None),
     ],
 )
-def test_quadratic_fit_trend_uses_the_recorded_concentration_range(responses, trend):
+def test_quadratic_fit_trend_and_inverse_use_the_recorded_concentration_range(
+    responses, trend, reason
+):
     low, middle, high = responses
     points = [point("1", middle), point("2", high), point("0", low)]
 
-    assert calculate_fit(points, "equal", model="quadratic")["trend"] == trend
+    fit = calculate_fit(points, "equal", model="quadratic")
+
+    assert fit["trend"] == trend
+    assert fit["back_calculation_reason"] == reason
+    assert [row["back_calculation_reason"] for row in fit["rows"]] == [reason] * 3
+    assert [row["back_calculated"] for row in fit["rows"]] == (
+        [None, None, None] if reason else ["1", "2", "0"]
+    )
+    assert [row["absolute_percent_error"] for row in fit["rows"]] == (
+        [None, None, None] if reason else ["0", "0", None]
+    )
+
+
+def test_quadratic_inverse_checks_unrounded_response_limits_for_a_decreasing_curve():
+    points = [
+        point("0", "10000000000000"),
+        point("1", "9999999999999"),
+        point("2", "9999999999996"),
+        point("2", "9999999999996.0000000001", "Upper-level replicate A"),
+        point("2", "9999999999995.9999999999", "Upper-level replicate B"),
+    ]
+
+    fit = calculate_fit(points, "equal", model="quadratic")
+
+    assert fit["quadratic"] == "-1"
+    assert fit["trend"] == "Decreasing (stationary at the lower endpoint)"
+    assert [row["predicted"] for row in fit["rows"]] == ["1.00000000000E+13"] * len(points)
+    assert fit["rows"][3]["back_calculated"] == "1.99999999997"
+    assert fit["rows"][3]["absolute_percent_error"] == "1.25000000001E-9"
+    assert fit["rows"][4]["back_calculated"] is fit["rows"][4]["absolute_percent_error"] is None
+    assert fit["rows"][4]["back_calculation_reason"] == (
+        "The observed response is outside the fitted response range."
+    )
+
+
+def test_quadratic_inverse_refines_irrational_roots_close_to_a_rounding_midpoint():
+    points = [
+        point("0", "0"),
+        point("100", "100"),
+        point("100", "100.0000000015", "Middle standard replicate A"),
+        point("100", "99.9999999985", "Middle standard replicate B"),
+        point("1e13", "10000000000000.0000000001"),
+    ]
+
+    fit = calculate_fit(points, "equal", model="quadratic")
+
+    # A tiny positive quadratic term puts the inverse on the lower side of the
+    # midpoint at 100.0000000015. The displayed concentrations differ asymmetrically,
+    # even though both unrounded errors agree to twelve significant digits.
+    assert fit["quadratic"] == "1.00000000001E-36"
+    assert [row["back_calculated"] for row in fit["rows"][2:4]] == [
+        "100.000000001",
+        "99.9999999985",
+    ]
+    assert [row["absolute_percent_error"] for row in fit["rows"][2:4]] == ["1.50000000000E-9"] * 2
+
+
+def test_quadratic_rational_inverse_rounds_display_midpoints_to_even():
+    points = [
+        point("100000000000", "4000000000000"),
+        point("200000000000", "16000000000000"),
+        point("300000000000", "36000000000000"),
+        point("200000000000", "16000000000080.0000000001", "Middle standard replicate A"),
+        point("200000000000", "15999999999919.9999999999", "Middle standard replicate B"),
+        point("200000000000", "16000000000240.0000000009", "Middle standard replicate C"),
+        point("200000000000", "15999999999759.9999999991", "Middle standard replicate D"),
+    ]
+
+    fit = calculate_fit(points, "equal", model="quadratic")
+
+    # For y = 4e-10 x², the responses of A and C give exact .5 ties at display precision.
+    assert fit["quadratic"] == "4E-10"
+    assert fit["rows"][3]["back_calculated"] == "200000000000"
+    assert fit["rows"][3]["absolute_percent_error"] == "2.5E-10"
+    assert fit["rows"][5]["back_calculated"] == "200000000002"
+    assert fit["rows"][5]["absolute_percent_error"] == "7.5E-10"
 
 
 def test_quadratic_fit_needs_three_distinct_concentrations():
@@ -469,16 +589,45 @@ def test_quadratic_fit_needs_three_distinct_concentrations():
         calculate_fit(points, "equal", model="quadratic")
 
 
-def test_exactly_linear_quadratic_fit_does_not_back_calculate():
-    fit = calculate_fit([point("0", "3"), point("1", "2"), point("2", "1")], "equal", "quadratic")
+def test_exactly_linear_quadratic_fit_inverts_only_within_the_recorded_range():
+    points = [
+        point("0", "3"),
+        point("1", "2"),
+        point("2", "1"),
+        point("0", "4", "Zero standard replicate A"),
+        point("0", "2", "Zero standard replicate B"),
+        point("2", "0", "Upper-level replicate A"),
+        point("2", "2", "Upper-level replicate B"),
+    ]
+
+    fit = calculate_fit(points, "equal", "quadratic")
 
     assert fit["quadratic"] == "0"
     assert fit["slope"] == "-1"
+    assert fit["trend"] == "Decreasing"
+    assert fit["back_calculation_reason"] is None
     assert "back_calculation_unavailable" not in fit
     assert "rse" not in fit
-    assert all(
-        "back_calculated" not in row and "absolute_percent_error" not in row for row in fit["rows"]
-    )
+    outside = "The observed response is outside the fitted response range."
+    assert [row["back_calculation_reason"] for row in fit["rows"]] == [
+        None,
+        None,
+        None,
+        outside,
+        None,
+        outside,
+        None,
+    ]
+    assert [row["back_calculated"] for row in fit["rows"]] == ["0", "1", "2", None, "1", None, "1"]
+    assert [row["absolute_percent_error"] for row in fit["rows"]] == [
+        None,
+        "0",
+        "0",
+        None,
+        None,
+        None,
+        "50",
+    ]
 
 
 @pytest.mark.parametrize("weighting", ["inverse", "inverse_square"])

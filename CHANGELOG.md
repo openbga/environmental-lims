@@ -184,6 +184,10 @@ The same list is shown in the application under What's new.
 
   On a recorded calibration, staff can see how much instrument response each external standard produces per unit of concentration. The worksheet shows the mean factor, the variation among standards and the residual for each point.
 
+- **Added:** Compare recorded standards with concentrations from a quadratic fit (2026-11-20, Batches & QC)
+
+  Choose Quadratic in the calibration fit worksheet to compare each standard’s back-calculated concentration with its recorded value and see the absolute percent error. The worksheet explains when the curve turns or is flat, or when a standard’s observed response falls outside the fitted response range.
+
 - **Added:** Compare sample counts between instrument verifications (2026-11-20, Batches & QC)
 
   Open a recorded injection sequence to see how many sample injections fall between verifications, before the first or after the last. Enter a maximum to find intervals that exceed it. Missing verifications stay visible in both current and earlier versions.

@@ -219,6 +219,19 @@ makes the inverse unavailable. A zero recorded concentration can still have a ba
 concentration, but its percent error is undefined. Negative and out-of-range estimates remain
 visible so staff can inspect the fit at the ends of the range.
 
+For a quadratic fit, the worksheet gives a back-calculated concentration only within the
+range of recorded standards. The fitted curve must increase or decrease across that range,
+and the observed response must lie between the two fitted endpoint responses, inclusive.
+This gives staff one possible concentration. A curve with a horizontal tangent at an endpoint
+can still give a unique answer. A curve that turns inside the range or has constant response
+makes back-calculation unavailable for every row. A quadratic that reduces to a straight line
+uses the same range restriction. Percent error uses the unrounded concentration.
+
+The closed-range check is a product choice for inspecting recorded standards. A laboratory
+using US EPA Method 8000D should also consider the guidance in section 11.5.3.2 to check
+for zero slope anywhere in the calibration range.
+[US EPA Method 8000D Rev. 5, March 2018, checked 2026-11-20](https://www.epa.gov/sites/default/files/2015-12/documents/8000d.pdf#page=39).
+
 US EPA SW-846 Method 8000D Rev. 5 (March 2018), section 11.5.4.1, describes comparing
 recalculated and known calibration levels. The worksheet displays the magnitude of their
 difference as a percentage of the recorded concentration. The laboratory applies its method’s

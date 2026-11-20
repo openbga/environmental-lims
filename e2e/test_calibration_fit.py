@@ -149,20 +149,37 @@ def test_fit_stays_separate_from_recorded_calibration(sign_in_as):
     assert not page.console_errors
 
 
-def test_quadratic_fit_shows_coefficients_and_signed_residuals(sign_in_as):
+def test_quadratic_fit_shows_coefficients_residuals_and_guarded_inverses(sign_in_as):
     page = sign_in_as("reviewer")
     # The residual vector is orthogonal to 1, x, and x², so the exact fit is 2x² + 3x − 1.
     rows = [
-        ("Blank", "0.0000", "-2.0000", "-1", "-1"),
-        ("Level 1", "1.0000", "7.0000", "4", "3"),
-        ("Level 2", "2.0000", "10.0000", "13", "-3"),
-        ("Level 3", "3.0000", "27.0000", "26", "1"),
-        ("Level 4", "4.0000", "43.0000", "43", "0"),
-        ("Level 5", "5.0000", "64.0000", "64", "0"),
+        (
+            "Blank",
+            "0.0000",
+            "-2.0000",
+            "-1",
+            "-1",
+            "The observed response is outside the fitted response range.",
+            "Unavailable",
+        ),
+        (
+            "Blank replicate",
+            "0.0000",
+            "-1.0000",
+            "-1",
+            "0",
+            "0",
+            "Unavailable at zero concentration",
+        ),
+        ("Level 1", "1.0000", "7.0000", "4", "3", "1.38600093633", "38.6000936329"),
+        ("Level 2", "2.0000", "10.0000", "13", "-3", "1.71221445045", "14.3892774775"),
+        ("Level 3", "3.0000", "27.0000", "26", "1", "3.06608438062", "2.20281268728"),
+        ("Level 4", "4.0000", "43.0000", "43", "0", "4", "0"),
+        ("Level 5", "5.0000", "64.0000", "64", "0", "5", "0"),
     ]
     points = [
         {"standard": standard, "concentration": concentration, "response": observed}
-        for standard, concentration, observed, _, _ in rows
+        for standard, concentration, observed, *_ in rows
     ]
     curve = recorded_curve("SYNTHETIC-QUADRATIC-WORKSHEET", points)
     page.set_viewport_size({"width": 390, "height": 844})
@@ -194,10 +211,17 @@ def test_quadratic_fit_shows_coefficients_and_signed_residuals(sign_in_as):
     expect(form.get_by_text(RSE, exact=True)).to_have_count(0)
     expect(table.get_by_role("columnheader", name="Predicted response (counts)")).to_be_visible()
     expect(residual).to_be_visible()
-    expect(table.get_by_role("columnheader", name=BACK_CALCULATED, exact=True)).to_have_count(0)
-    expect(table.get_by_role("columnheader", name=ABSOLUTE_ERROR, exact=True)).to_have_count(0)
+    expect(table.get_by_role("columnheader", name=BACK_CALCULATED, exact=True)).to_be_visible()
+    error = table.get_by_role("columnheader", name=ABSOLUTE_ERROR, exact=True)
+    expect(error).to_be_visible()
     for row in rows:
         expect(table.get_by_role("row", name=" ".join(row), exact=True)).to_be_visible()
+    button.press("Tab")
+    expect(table.locator("xpath=..")).to_be_focused()
+    for _ in range(20):
+        page.keyboard.press("ArrowRight")
+    expect(error).to_be_in_viewport(ratio=0.95)
+    expect(table.get_by_role("rowheader", name="Blank", exact=True)).to_be_in_viewport(ratio=0.95)
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
 
     page.get_by_role("button", name="Help", exact=True).press("Enter")
@@ -206,7 +230,10 @@ def test_quadratic_fit_shows_coefficients_and_signed_residuals(sign_in_as):
     expect(drawer).to_contain_text("Direction over recorded range")
     expect(drawer).to_contain_text("Inspect the average calibration factor")
     expect(drawer).to_contain_text("Relative standard deviation (RSD)")
-    expect(drawer).to_contain_text("Residual")
+    drawer.locator("summary").filter(has=page.get_by_text("Standard points", exact=True)).press(
+        "Enter"
+    )
+    expect(drawer.get_by_text("A stationary endpoint is allowed.", exact=False)).to_be_visible()
     drawer.get_by_role("button", name="Close documentation", exact=True).press("Enter")
     expect(drawer).to_be_hidden()
 
