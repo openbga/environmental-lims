@@ -1,0 +1,58 @@
+{
+  "id": "analytical-run-sequence-create",
+  "routes": ["analytical:run-sequence-create"],
+  "title": "Record injection sequence",
+  "purpose": "Record the actual injection order transcribed from an instrument source record for an analytical batch.",
+  "summary": "Transcribe the instrument’s actual injection order. Analysts and administrators can record sequences for open or closed analytical batches.",
+  "tasks": [
+    {
+      "title": "Transcribe an instrument run",
+      "steps": [
+        "Enter the instrument run identifier in [[Run reference]] and identify the record you transcribed in [[Source reference]].",
+        "Enter every position, kind and instrument label in [[Injections (one per line)]].",
+        "Select [[Record injection sequence]] to save version 1 and open it."
+      ]
+    },
+    {
+      "title": "Fix an input error",
+      "steps": [
+        "Read the error beside the field and check that entry against the source record.",
+        "Correct the entry and select [[Record injection sequence]] again."
+      ]
+    }
+  ],
+  "good_to_know": [
+    "Use the source record that shows what the instrument ran. The run-list CSV describes planned batch membership.",
+    "Keep commas and quotes in a label as shown on the instrument. The first two commas separate the position and kind from the label.",
+    "You can record evidence after batch closure. Closure freezes which samples and QC samples are in the batch.",
+    "To fix a saved transcription, open its current version and choose Correct injection sequence."
+  ],
+  "sections": [
+    {
+      "title": "Fields",
+      "items": [
+        {"label": "Run reference", "description": "Required instrument run identifier, up to 120 characters. The reference must be unique within the batch and remains fixed across corrections."},
+        {"label": "Source reference", "description": "Required identifier for the source record, up to 240 characters. Use a reference that helps staff find the source, such as the instrument run log or export name."},
+        {"label": "Injections (one per line)", "description": "Required complete transcription, with 1 to 200 positions entered in order without gaps or repeats, starting at 1. Enter position,kind,label with no header. For example, enter 1,verification,SYN-CCV and then 2,sample,SYN-001 on the next line. Kinds are sample, verification, standard, blank and other. Labels require 1 to 120 printable characters with at least one non-space character. Everything after the second comma is the literal label, including spaces, commas and quote marks."}
+      ]
+    },
+    {
+      "title": "Actions and access",
+      "items": [
+        {"label": "Record injection sequence", "description": "Save a new run as version 1 with your account and the current laboratory time, then open the sequence. Correct validation errors and try again. The form keeps the entered values."},
+        {"label": "Cancel", "description": "Return to the analytical batch or close the form dialog without saving."}
+      ],
+      "paragraphs": ["Analysts and administrators can use this form. Staff with other application roles can inspect saved sequences. The form is available for analytical batches only."]
+    }
+  ],
+  "sources": [
+    "accounts/roles.py",
+    "analytical/urls.py",
+    "analytical/run_sequence_views.py",
+    "analytical/run_sequence_forms.py",
+    "analytical/run_sequences.py",
+    "analytical/models.py",
+    "analytical/templates/analytical/form.html",
+    "analytical/tests/test_run_sequence_views.py"
+  ]
+}

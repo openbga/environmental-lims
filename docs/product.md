@@ -212,11 +212,28 @@ worksheet uses the recorded concentration units throughout. Staff apply the acce
 in their method and SOP.
 [US EPA Method 8000D, checked 2026-11-20](https://www.epa.gov/sites/default/files/2015-12/documents/8000d.pdf).
 
-Run sequencing and verification bracketing remain with the laboratory. EPA 200.7 Rev. 4.4
+For an analytical batch, an analyst can transcribe the instrument's actual injection sequence
+and name the source record. Each run has its own reference within the batch. A position has
+the instrument label and the analyst's classification as a sample, verification, standard,
+blank or other injection. Repeated labels occupy separate positions. A transcription holds
+1–200 consecutive positions starting at one, a product limit for review in one worksheet.
+Closing a batch freezes its membership. Analysts can still record sequence evidence or correct
+a transcription with a reason. Each version retains its entries, author, source and timestamp.
+
+Staff can find the nearest earlier and later injections marked as verifications for each
+sample in that version. A missing side is visible. The laboratory checks the original run,
+the applicable analyte, the verification results and the method's requirements. Instrument
+labels alone do not establish a link to a sample, a QC observation or a result revision.
+For example, US EPA SW-846 Method 6010D, Rev. 5 (July 2018), section 10.8.5, specifies checks
+during the run and at its end. The sequence worksheet records placement without applying
+method-specific frequency or acceptance criteria.
+[US EPA Method 6010D, checked 2026-11-20](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P1017DDQ.txt).
+
+Method-specific verification bracketing remains with the laboratory. EPA 200.7 Rev. 4.4
 (1994), sections 9.3.4 and 11.4.4, and SW-846 6010D, sections 10.7–10.8, describe different
-verification arrangements. The 50-point record limit and one optional check per result revision
-are product bounds. The record accepts negative instrument responses and retains the supplied
-standard references. [US EPA Method 200.7 Rev. 4.4, checked 2026-11-15](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P10177CN.txt).
+verification arrangements. Each calibration record can hold up to 50 standard points, and
+each result revision can link to one verification. These are product bounds. The calibration
+record accepts negative instrument responses and retains the supplied standard references. [US EPA Method 200.7 Rev. 4.4, checked 2026-11-15](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P10177CN.txt).
 
 Analysts share a dashboard queue for results returned from technical review. The time waiting
 starts when the reviewer returns the current revision. Analysts can open the oldest return

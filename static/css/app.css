@@ -2729,6 +2729,12 @@ a.vr-navlink[aria-current="page"]:hover {
   min-width: 14rem;
 }
 
+/* Instrument labels preserve the spaces transcribed from the source. */
+.vr-table .vr-preserve-space {
+  white-space: break-spaces;
+  overflow-wrap: anywhere;
+}
+
 /* A list in a cell (intended tests, containers) wraps its items, so a record table fits its card. */
 .vr-table > tbody > tr > td > ul {
   white-space: normal;

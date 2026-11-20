@@ -60,6 +60,8 @@ FORM_SURFACES = {
     "catalog:analyte-edit": "lg",
     "analytical:batch-create": "lg",
     "analytical:calibration-create": "lg",
+    "analytical:run-sequence-create": "lg",
+    "analytical:run-sequence-correct": "lg",
     "analytical:batch-add-tests": "xl",
     "analytical:batch-entry": "xl",
     "analytical:result-bottles": "xl",

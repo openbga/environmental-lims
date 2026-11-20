@@ -240,6 +240,14 @@ sample states against the intended instrument run. This download changes no reco
 retained as an issued snapshot. Its complete column reference and refusal states are in the
 batch's Help drawer.
 
+### Actual injection order
+
+On an analytical batch, **Record injection sequence** transcribes a completed run from an
+identified source. Use the instrument labels, including repeat injections. Staff can inspect
+the nearest verification on each side of a sample. Check the original run and the method
+before using that observation. To correct a transcription, open its current version and give
+a reason. Previous versions stay available.
+
 ### Recorded run calibration
 
 On an analytical batch, **Record calibration** keeps an instrument-reported curve for one test:

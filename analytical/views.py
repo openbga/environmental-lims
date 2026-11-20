@@ -441,6 +441,12 @@ def batch_detail(request, pk):
                 request.GET.get("cal_page")
             ),
             "calibration_count": batch.calibrations.count(),
+            "sequence_page": Paginator(
+                batch.run_sequences.filter(successor__isnull=True)
+                .defer("injections", "reason")
+                .order_by("-created_at", "-pk"),
+                grid.per_page,
+            ).get_page(request.GET.get("sequence_page")),
             "requirements": requirements,
             "issues": issues,
             "preparation_rules": selectors.preparation_rules_missing(batch),
