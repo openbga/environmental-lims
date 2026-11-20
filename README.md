@@ -21,7 +21,8 @@ records; it does not certify compliance or accreditation.
   and mapped CSV/TSV or XLSX worksheet imports, results calculated from bench readings that are kept
   with the result and rounded by the laboratory's own rule (dilutions, solids by weight, preparation factors and dry-weight
   correction for soil, alkalinity and EDTA hardness titrations, BOD bottle worksheets), QC evaluation, independent review, control charts and MDL studies.
-  Staff can compare recorded calibration standards with a straight-line fit using the weighting specified by their method.
+  Staff can compare recorded calibration standards with a linear or quadratic fit, inspect each residual,
+  and see whether a quadratic changes direction across the recorded concentrations.
   Analysts can open returned results from the dashboard, oldest return first, and see why each needs correction.
 - **Reporting:** explicit release authorization, versioned immutable PDF reports that print the
   laboratory's address, logo and certificate numbers, amendments and a client portal where each

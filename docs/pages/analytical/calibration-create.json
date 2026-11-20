@@ -5,7 +5,7 @@
   ],
   "title": "Record calibration",
   "purpose": "Keep the instrument-reported curve, standard points and source for one test in this analytical batch.",
-  "summary": "Record a curve supplied by an instrument, with its standard points and source. Analysts and administrators can record evidence and then open the read-only linear fit worksheet.",
+  "summary": "Record a curve supplied by an instrument, with its standard points and source. Analysts and administrators can record evidence and then open the read-only Calibration fit worksheet.",
   "tasks": [
     {
       "title": "Record a curve",
@@ -33,7 +33,7 @@
     {
       "title": "Access and navigation",
       "paragraphs": [
-        "Active analysts and administrators can open and submit this form for an analytical batch. Other staff and clients cannot record calibration. Preparation batches are not eligible. Cancel returns to the batch without saving. Success opens the immutable calibration record and its Linear fit worksheet. The dialog and full-page form have the same fields and rules."
+        "Active analysts and administrators can open and submit this form for an analytical batch. Other staff and clients cannot record calibration. Preparation batches are not eligible. Cancel returns to the batch without saving. Success opens the immutable calibration record and its Calibration fit worksheet. The dialog and full-page form have the same fields and rules."
       ]
     },
     {

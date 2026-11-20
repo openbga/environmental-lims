@@ -1,4 +1,4 @@
-"""Inspect a line fit in Chromium without changing the calibration that supplies its points."""
+"""Inspect temporary linear and quadratic fits against recorded calibration standards."""
 
 from datetime import timedelta
 
@@ -8,8 +8,11 @@ from playwright.sync_api import expect
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
+SOURCE = "Synthetic instrument export 100"
+MODEL = "Instrument fit y = 2.8000 x - 3.1000"
 
-def test_fit_stays_separate_from_recorded_calibration(sign_in_as):
+
+def recorded_curve(reference, points):
     from django.utils import timezone
 
     from accounts.models import User
@@ -22,34 +25,37 @@ def test_fit_stays_separate_from_recorded_calibration(sign_in_as):
         method__code="DEMO-METALS-AQ", matrix="water", analyte__name="Lead"
     )
     batch = create_batch(actor=analyst, method=definition.method, matrix=definition.matrix)
-    source = "Synthetic instrument export 100"
-    model = "Instrument fit y = 2.8000 x - 3.1000"
+    return record_calibration(
+        actor=analyst,
+        batch_id=batch.pk,
+        definition_id=definition.pk,
+        reference=reference,
+        calibrated_at=timezone.now() - timedelta(hours=1),
+        model_text=MODEL,
+        response_unit="counts",
+        source_reference=SOURCE,
+        points=points,
+    )
+
+
+def test_fit_stays_separate_from_recorded_calibration(sign_in_as):
+    page = sign_in_as("reviewer")
     points = [
         {"standard": "Blank", "concentration": "0.0000", "response": "-1.0000"},
         {"standard": "Low", "concentration": "1.0000", "response": "3.0000"},
         {"standard": "High", "concentration": "2.0000", "response": "4.0000"},
     ]
-    curve = record_calibration(
-        actor=analyst,
-        batch_id=batch.pk,
-        definition_id=definition.pk,
-        reference="SYNTHETIC-FIT-WORKSHEET",
-        calibrated_at=timezone.now() - timedelta(hours=1),
-        model_text=model,
-        response_unit="counts",
-        source_reference=source,
-        points=points,
-    )
+    curve = recorded_curve("SYNTHETIC-LINEAR-WORKSHEET", points)
 
-    page = sign_in_as("reviewer")
     page.set_viewport_size({"width": 390, "height": 844})
     path = f"/analytical/calibrations/{curve.pk}/"
     assert page.goto(path).ok
-    form = page.get_by_role("region", name="Linear fit worksheet", exact=True)
+    form = page.get_by_role("region", name="Calibration fit worksheet", exact=True)
     table = page.get_by_role("table", name="Standard points")
     residual = table.get_by_role("columnheader", name="Residual (counts)", exact=True)
     button = form.get_by_role("button", name="Calculate fit", exact=True)
     weighting = field(form, "Weighting")
+    expect(form.locator("select[name=model]")).to_have_value("linear")
     expect(residual).to_have_count(0)
 
     weighting.press("Tab")
@@ -70,12 +76,6 @@ def test_fit_stays_separate_from_recorded_calibration(sign_in_as):
     expect(table.get_by_role("row", name="High 2.0000 4.0000 4.5 -0.5")).to_be_visible()
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
 
-    page.get_by_role("button", name="Help", exact=True).press("Enter")
-    drawer = page.locator("#vr-documentation")
-    expect(drawer).to_contain_text("Residual")
-    drawer.get_by_role("button", name="Close documentation", exact=True).press("Enter")
-    expect(drawer).to_be_hidden()
-
     pick(weighting, "inverse")
     button.press("Enter")
     expect(form).to_contain_text("Fit unavailable")
@@ -85,11 +85,82 @@ def test_fit_stays_separate_from_recorded_calibration(sign_in_as):
     expect(residual).to_have_count(0)
     expect(table.get_by_role("row", name="Blank 0.0000 -1.0000")).to_be_visible()
 
+    assert page.goto(f"{path}?weighting=equal").ok
+    expect(form.locator("select[name=model]")).to_have_value("linear")
+    expect(form).to_contain_text("2.5 (counts per ug/L)")
+    expect(table.get_by_role("row", name="Low 1.0000 3.0000 2 1")).to_be_visible()
+
     assert page.goto(path).ok
     expect(residual).to_have_count(0)
     facts = page.get_by_role("region", name="Calibration facts")
-    expect(facts).to_contain_text(model)
-    expect(facts).to_contain_text(source)
+    expect(facts).to_contain_text(MODEL)
+    expect(facts).to_contain_text(SOURCE)
     curve.refresh_from_db()
-    assert (curve.model_text, curve.source_reference, curve.points) == (model, source, points)
+    assert (curve.model_text, curve.source_reference, curve.points) == (MODEL, SOURCE, points)
+    assert not page.console_errors
+
+
+def test_quadratic_fit_shows_coefficients_and_signed_residuals(sign_in_as):
+    page = sign_in_as("reviewer")
+    # The residual vector is orthogonal to 1, x, and x², so the exact fit is 2x² + 3x − 1.
+    rows = [
+        ("Blank", "0.0000", "-2.0000", "-1", "-1"),
+        ("Level 1", "1.0000", "7.0000", "4", "3"),
+        ("Level 2", "2.0000", "10.0000", "13", "-3"),
+        ("Level 3", "3.0000", "27.0000", "26", "1"),
+        ("Level 4", "4.0000", "43.0000", "43", "0"),
+        ("Level 5", "5.0000", "64.0000", "64", "0"),
+    ]
+    points = [
+        {"standard": standard, "concentration": concentration, "response": observed}
+        for standard, concentration, observed, _, _ in rows
+    ]
+    curve = recorded_curve("SYNTHETIC-QUADRATIC-WORKSHEET", points)
+    page.set_viewport_size({"width": 390, "height": 844})
+    path = f"/analytical/calibrations/{curve.pk}/"
+    assert page.goto(path).ok
+
+    form = page.get_by_role("region", name="Calibration fit worksheet", exact=True)
+    table = page.get_by_role("table", name="Standard points")
+    history = page.get_by_role("region", name="History", exact=True)
+    facts = page.get_by_role("region", name="Calibration facts", exact=True)
+    button = form.get_by_role("button", name="Calculate fit", exact=True)
+    residual = table.get_by_role("columnheader", name="Residual (counts)", exact=True)
+    recorded_facts = facts.inner_text()
+    recorded_history = history.inner_text()
+    expect(residual).to_have_count(0)
+
+    pick(field(form, "Model"), "quadratic")
+    pick(field(form, "Weighting"), "equal")
+    with page.expect_request(
+        lambda request: request.is_navigation_request() and f"{path}?" in request.url
+    ) as load:
+        button.press("Enter")
+    assert load.value.method == "GET"
+    expect(form).to_contain_text("y = a × x² + b × x + intercept")
+    expect(form).to_contain_text("2 (counts per (ug/L)²)")
+    expect(form).to_contain_text("3 (counts per ug/L)")
+    expect(form).to_contain_text("-1 (counts)")
+    expect(form.get_by_text("Increasing", exact=True)).to_be_visible()
+    expect(table.get_by_role("columnheader", name="Predicted response (counts)")).to_be_visible()
+    expect(residual).to_be_visible()
+    for row in rows:
+        expect(table.get_by_role("row", name=" ".join(row), exact=True)).to_be_visible()
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+
+    page.get_by_role("button", name="Help", exact=True).press("Enter")
+    drawer = page.locator("#vr-documentation")
+    expect(drawer).to_contain_text("Quadratic")
+    expect(drawer).to_contain_text("Direction over recorded range")
+    expect(drawer).to_contain_text("Residual")
+    drawer.get_by_role("button", name="Close documentation", exact=True).press("Enter")
+    expect(drawer).to_be_hidden()
+
+    assert page.goto(path).ok
+    expect(form.locator("select[name=model]")).to_have_value("linear")
+    expect(residual).to_have_count(0)
+    assert facts.inner_text() == recorded_facts
+    assert history.inner_text() == recorded_history
+    curve.refresh_from_db()
+    assert (curve.model_text, curve.source_reference, curve.points) == (MODEL, SOURCE, points)
     assert not page.console_errors

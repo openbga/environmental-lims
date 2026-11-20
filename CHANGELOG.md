@@ -168,6 +168,10 @@ The same list is shown in the application under What's new.
 
   Open a recorded calibration and choose equal, inverse concentration or inverse concentration squared weighting. The worksheet shows the slope, intercept and difference between each observed and predicted response in the recorded units.
 
+- **Added:** Compare calibration standards with a quadratic fit (2026-11-19, Batches & QC)
+
+  On a recorded calibration, staff can choose a quadratic fit and inspect its coefficients and the residual for each standard. The worksheet shows whether the fitted response changes direction within the recorded concentration range.
+
 - **Added:** Read upgrade notes for the revisions tested in CI (2026-11-19)
 
   Open the GitHub Actions checks run for a candidate to see which migrations the upgrade rehearsed and which locked package versions changed. The application job summary links to both tested commits and the candidate’s recovery and acceptance instructions.

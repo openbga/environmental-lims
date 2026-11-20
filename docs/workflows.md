@@ -245,9 +245,13 @@ batch's Help drawer.
 On an analytical batch, **Record calibration** keeps an instrument-reported curve for one test:
 the source reference, fit/equation description and standard points exactly as entered, with
 concentration and response units. This is separate from equipment maintenance/calibration events.
-On the calibration detail page, use **Linear fit worksheet** to compare the recorded responses
-with a straight line fitted using your selected weighting. The calculated residual is the recorded
-response minus the predicted response. Check the fit against the laboratory's method and SOP. A closed batch still accepts evidence because closing freezes membership only.
+On the calibration detail page, select **Model** and **Weighting** in the **Calibration fit worksheet**,
+then select **Calculate fit**. Linear needs at least two distinct concentrations. Quadratic needs
+at least three and shows the direction of the fitted curve over the recorded concentration range.
+Inverse weighting needs positive concentrations at every point. The residual is the recorded
+response minus the predicted response. Use the worksheet to inspect the fit and follow the
+laboratory's method and SOP for acceptance. A closed batch still accepts evidence because
+closing freezes membership only.
 
 The single-result entry/correction form offers optional **Calibration** and **Calibration
 verification** choices for its batch and test. The check must be a current calibration-verification
