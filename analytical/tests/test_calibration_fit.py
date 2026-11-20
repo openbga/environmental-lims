@@ -262,5 +262,93 @@ def test_quadratic_inverse_weights_require_strictly_positive_concentrations(weig
 
 @pytest.mark.parametrize("model", ["cubic", None, []])
 def test_fit_rejects_unknown_model(model):
-    with pytest.raises(ValidationError, match="Choose a linear or quadratic fit"):
+    with pytest.raises(
+        ValidationError, match="Choose a linear, quadratic or average calibration factor fit"
+    ):
         calculate_fit([point("1", "2"), point("2", "3")], "equal", model=model)
+
+
+@pytest.mark.parametrize("weighting", ["equal", ""])
+def test_average_factor_uses_each_signed_response_and_preserves_original_text(weighting):
+    points = [
+        point("1.00", "-1", "Standard 1"),
+        point("2.000", "6.000", "Standard 2"),
+        point("4e0", "12", "Standard 4"),
+        point("2", "10", "Standard 2 replicate"),
+    ]
+    original = deepcopy(points)
+
+    fit = calculate_fit(points, weighting, model="average_factor")
+
+    assert fit == {
+        "mean_factor": "2.5",
+        "factor_sd": "2.51661147842",  # Sample variance is 19/3.
+        "factor_rsd": "100.664459137",
+        "rows": [
+            dict(original[0], factor="-1", predicted="2.5", residual="-3.5"),
+            dict(original[1], factor="3", predicted="5", residual="1"),
+            dict(original[2], factor="3", predicted="10", residual="2"),
+            dict(original[3], factor="5", predicted="5", residual="5"),
+        ],
+    }
+    assert points == original
+
+
+def test_average_factor_retains_dispersion_and_residuals_at_the_record_limit():
+    points = [
+        point("99999999999999.9999999998", "99999999999999.9999999997"),
+        point("99999999999999.9999999999", "99999999999999.9999999998"),
+    ]
+
+    fit = calculate_fit(points, "equal", model="average_factor")
+
+    assert fit["mean_factor"] == "1.00000000000"
+    assert fit["factor_sd"] == "7.07106781187E-49"
+    assert fit["factor_rsd"] == "7.07106781187E-47"
+    assert [row["factor"] for row in fit["rows"]] == ["1.00000000000"] * 2
+    assert [row["residual"] for row in fit["rows"]] == ["-5.00000000000E-35", "5.00000000000E-35"]
+
+
+def test_average_factor_rounds_sample_standard_deviation_ties_to_even():
+    points = [point("1", "376.5432109875"), point("2", "1000"), point("3", "1870.3703670375")]
+
+    fit = calculate_fit(points, "equal", model="average_factor")
+
+    assert fit["mean_factor"] == "500"
+    assert fit["factor_sd"] == "123.456789012"
+    assert fit["factor_rsd"] == "24.6913578025"
+
+
+@pytest.mark.parametrize(
+    ("responses", "mean", "sd", "rsd"),
+    [
+        (("-1", "2"), "0", "1.41421356237", None),
+        (("-2", "0"), "-1", "1.41421356237", None),
+        (("3", "6"), "3", "0", "0"),
+    ],
+)
+def test_average_factor_reports_rsd_only_for_a_positive_mean(responses, mean, sd, rsd):
+    first, second = responses
+    fit = calculate_fit([point("1", first), point("2", second)], "equal", model="average_factor")
+
+    assert (fit["mean_factor"], fit["factor_sd"], fit["factor_rsd"]) == (mean, sd, rsd)
+
+
+def test_average_factor_requires_every_concentration_to_be_positive():
+    points = [point("1", "2"), point("2", "3"), point("-0e-1000000000", "0")]
+
+    with pytest.raises(ValidationError, match="every concentration to be greater than zero"):
+        calculate_fit(points, "equal", model="average_factor")
+
+
+def test_average_factor_needs_two_distinct_concentrations():
+    points = [point("1.0", "2"), point("1e0", "3")]
+
+    with pytest.raises(ValidationError, match="at least two distinct concentrations"):
+        calculate_fit(points, "equal", model="average_factor")
+
+
+@pytest.mark.parametrize("weighting", ["inverse", "inverse_square", "unsupported", None, []])
+def test_average_factor_rejects_non_equal_weighting(weighting):
+    with pytest.raises(ValidationError, match="Average calibration factor uses equal weighting"):
+        calculate_fit([point("1", "2"), point("2", "3")], weighting, model="average_factor")

@@ -4,8 +4,8 @@
     "analytical:calibration-detail"
   ],
   "title": "Calibration evidence",
-  "purpose": "Inspect the recorded instrument model, calculate a temporary linear or quadratic fit, and trace the result revisions that use this evidence.",
-  "summary": "Inspect a recorded curve, its exact standard points and source, and the result revisions linked to it. Use the read-only worksheet to fit a linear or quadratic model.",
+  "purpose": "Inspect the recorded instrument model, compare temporary calibration fits, and trace the result revisions that use this evidence.",
+  "summary": "Inspect the recorded standard points, source and linked result revisions. The read-only worksheet calculates linear and quadratic fits and the average calibration factor for external standards.",
   "tasks": [
     {
       "title": "Check the curve’s source and points",
@@ -15,11 +15,19 @@
       ]
     },
     {
-      "title": "Fit the recorded standards",
+      "title": "Fit a linear or quadratic model",
       "steps": [
         "In [[Calibration fit worksheet]], choose [[Model]] and [[Weighting]], then select [[Calculate fit]].",
         "Read the [[Equation]] and fitted coefficients. For a quadratic fit, check [[Direction over recorded range]].",
         "Compare the predicted and observed responses and residuals in [[Standard points]]."
+      ]
+    },
+    {
+      "title": "Inspect the average calibration factor",
+      "steps": [
+        "Choose [[Average calibration factor]] under [[Model]]. Leave [[Weighting]] blank or choose [[Unweighted (equal weights)]].",
+        "Select [[Calculate fit]] and review the [[Mean calibration factor]], [[Sample standard deviation]] and [[Relative standard deviation (RSD)]].",
+        "Compare the factors, predicted responses and residuals in [[Standard points]]."
       ]
     },
     {
@@ -39,7 +47,7 @@
   ],
   "good_to_know": [
     "This record is immutable. Recording another curve does not change any existing result or issued report.",
-    "The fit is for inspection. Follow the laboratory’s procedure for method acceptance. Both inverse weightings require positive concentrations at every point.",
+    "The fit is for inspection. Follow the laboratory’s procedure for method acceptance. Average calibration factor and inverse weighting both need every concentration to be positive.",
     "A curve link is optional and explicitly selected for each result revision; it is never inferred for a batch.",
     "A selected verification correction holds submission, approval and release until a new result revision records current evidence.",
     "The people who recorded a selected curve or verification cannot review or release its result."
@@ -87,26 +95,39 @@
     {
       "title": "Calibration fit worksheet",
       "paragraphs": [
-        "Staff who can read the calibration can use the worksheet. The calculation fits response as a function of concentration by least squares with an intercept. It uses every recorded point, including repeated concentrations, in the frozen units.",
-        "A linear fit requires at least two distinct concentrations. A quadratic fit requires at least three. Both inverse weightings require every concentration to be greater than zero. An explicitly empty or unrecognized model or a missing or unrecognized weighting shows a field error. If the points cannot be fitted, Fit unavailable explains why. The recorded points remain visible in each case.",
-        "The worksheet output is temporary and lives on this page. Links from result revisions refer to the frozen instrument evidence. Use the laboratory’s procedure and configured QC checks for method acceptance."
+        "Staff who can read the calibration can use the worksheet. Linear and quadratic fits use least squares with a free intercept. Average calibration factor uses the arithmetic mean of observed response divided by concentration for concentration-based external standards. All three models use every recorded point in the frozen units, including repeated concentrations.",
+        "Linear and average calibration factor calculations need at least two distinct concentrations. A quadratic fit needs at least three. Average calibration factor and either inverse weighting require every concentration to be greater than zero.",
+        "An explicitly empty or unrecognized model or an incompatible weighting shows a field error. When the model cannot use the recorded points, Fit unavailable explains why. The recorded points remain visible in both cases.",
+        "The worksheet output is temporary and displayed with up to 12 significant digits. Predictions and residuals use the unrounded coefficients or mean factor. Links from result revisions refer to the frozen instrument evidence. Use the laboratory’s procedure and configured QC checks for method acceptance."
       ],
       "items": [
         {
           "label": "Model",
-          "description": "Choose Linear for a straight line or Quadratic for a second-degree polynomial. Linear is selected when you first open the worksheet and when you follow a worksheet link that specifies only a weighting."
+          "description": "Choose Linear for a straight line, Quadratic for a second-degree polynomial or Average calibration factor for the arithmetic mean of the standard factors. Linear is selected when you first open the worksheet and when you follow a worksheet link that specifies only a weighting."
         },
         {
           "label": "Weighting",
-          "description": "Choose a weighting for each calculation. Unweighted (equal weights) gives every row the same weight. 1/x (inverse concentration) weights each row by the reciprocal of its concentration. 1/x² (inverse concentration squared) weights each row by the reciprocal of concentration squared."
+          "description": "Unweighted (equal weights) gives every row the same weight. Linear and quadratic fits require a selection and also support 1/x (inverse concentration) and 1/x² (inverse concentration squared). Average calibration factor uses equal weights. For that model, leave Weighting blank or choose Unweighted (equal weights)."
         },
         {
           "label": "Calculate fit",
-          "description": "Calculate using the selected model and weighting. Choose a weighting to see calculated values alongside the recorded evidence. Change either selection and calculate again to compare fits."
+          "description": "Calculate using the selected model and weighting. When the calculation succeeds, its values appear alongside the recorded evidence. Change a selection and calculate again to compare fits."
         },
         {
           "label": "Equation",
-          "description": "A linear fit shows y = slope × x + intercept. A quadratic fit shows y = a × x² + b × x + intercept. Here x is the recorded concentration and y is the predicted instrument response."
+          "description": "A linear fit shows y = slope × x + intercept. A quadratic fit shows y = a × x² + b × x + intercept. Average calibration factor shows y = mean factor × x. Here x is the recorded concentration and y is the predicted instrument response."
+        },
+        {
+          "label": "Mean calibration factor",
+          "description": "The arithmetic mean of the calibration factors, in response units per concentration unit. Every recorded point contributes equally, including replicates."
+        },
+        {
+          "label": "Sample standard deviation",
+          "description": "The spread of the individual standard factors in response units per concentration unit. The worksheet uses the number of points minus one as the divisor in the variance calculation."
+        },
+        {
+          "label": "Relative standard deviation (RSD)",
+          "description": "Sample standard deviation divided by the mean factor and multiplied by 100. The worksheet shows a percentage for a positive mean and an explanation when the mean is zero or negative."
         },
         {
           "label": "Slope / Linear coefficient (b)",
@@ -118,7 +139,7 @@
         },
         {
           "label": "Intercept",
-          "description": "The fitted response at zero concentration, in response units. Calculated values are displayed with up to 12 significant digits. Predictions and residuals use the unrounded coefficients."
+          "description": "For linear and quadratic fits, the fitted response at zero concentration, in response units."
         },
         {
           "label": "Direction over recorded range",
@@ -129,7 +150,7 @@
     {
       "title": "Standard points",
       "paragraphs": [
-        "The record stores 1 to 50 points. The range is an application limit. A successful worksheet fit adds predicted responses and residuals beside the recorded observations."
+        "The record stores 1 to 50 points. The range is an application limit. A successful worksheet fit adds predicted responses and residuals beside the recorded observations. The average calibration factor calculation also shows the factor for each point."
       ],
       "items": [
         {
@@ -143,6 +164,10 @@
         {
           "label": "Observed response",
           "description": "Exact supplied decimal text in the frozen response unit. Signed negative responses are allowed."
+        },
+        {
+          "label": "Calibration factor",
+          "description": "For average calibration factor, the observed response divided by concentration for the point. The table shows it in response units per concentration unit."
         },
         {
           "label": "Predicted response",

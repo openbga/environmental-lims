@@ -77,23 +77,40 @@ class CalibrationForm(forms.Form):
 
 class CalibrationFitForm(forms.Form):
     model = forms.ChoiceField(
-        choices=[("", "Choose model"), ("linear", "Linear"), ("quadratic", "Quadratic")],
+        choices=[
+            ("", "Choose model"),
+            ("linear", "Linear"),
+            ("quadratic", "Quadratic"),
+            ("average_factor", "Average calibration factor"),
+        ],
         initial="linear",
         error_messages={
-            "required": "Choose a linear or quadratic fit.",
-            "invalid_choice": "Choose a linear or quadratic fit.",
+            "required": "Choose a calibration fit model.",
+            "invalid_choice": "Choose a calibration fit model.",
         },
     )
     weighting = forms.ChoiceField(
         label="Weighting",
+        required=False,
         choices=[
             ("", "Choose weighting"),
             ("equal", "Unweighted (equal weights)"),
             ("inverse", "1/x (inverse concentration)"),
             ("inverse_square", "1/x² (inverse concentration squared)"),
         ],
-        error_messages={"required": "Choose a weighting to calculate the fit."},
+        help_text="Choose a weighting for linear or quadratic fits. For average calibration "
+        "factor, leave blank or choose Unweighted (equal weights).",
     )
+
+    def clean_weighting(self):
+        weighting = self.cleaned_data["weighting"]
+        if self.cleaned_data.get("model") == "average_factor":
+            if weighting not in ("", "equal"):
+                raise ValidationError("Average calibration factor uses equal weights.")
+            return "equal"
+        if not weighting:
+            raise ValidationError("Choose a weighting to calculate the fit.")
+        return weighting
 
 
 def evidence_choices(form, *, batch_id, definition):

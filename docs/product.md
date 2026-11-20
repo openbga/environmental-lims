@@ -186,6 +186,21 @@ nowhere zero. Staff apply their method's requirements for levels, model selectio
 The worksheet is for inspection. [US EPA Method 8000D](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P1016J8Z.txt)
 and [US EPA Method 6010D](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P1017DDQ.txt), checked 2026-11-19.
 
+For external standards, staff can also compare the instrument response per unit of recorded
+concentration at each point. Each standard, including a replicate, contributes equally to the
+mean calibration factor. The predicted response is the mean factor times the standard
+concentration. The worksheet shows the sample standard deviation of the factors in the same
+units and, for a positive mean, the relative standard deviation as a percentage. A zero or
+negative mean leaves that percentage unavailable. The worksheet requires two distinct positive
+concentrations to compare levels. The laboratory determines how many levels its method requires.
+
+US EPA SW-846 Method 8000D Rev. 5 (March 2018), sections 11.4.2 and 11.5.1, allows concentration
+as the denominator for an external-standard factor and describes how to evaluate the variation
+among factors. Section 11.5.1 recommends at least five calibration levels for this model. The
+worksheet uses the recorded concentration units throughout. Staff apply the acceptance criteria
+in their method and SOP.
+[US EPA Method 8000D, checked 2026-11-20](https://www.epa.gov/sites/default/files/2015-12/documents/8000d.pdf).
+
 Run sequencing and verification bracketing remain with the laboratory. EPA 200.7 Rev. 4.4
 (1994), sections 9.3.4 and 11.4.4, and SW-846 6010D, sections 10.7–10.8, describe different
 verification arrangements. The 50-point record limit and one optional check per result revision
