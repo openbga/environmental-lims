@@ -273,7 +273,7 @@
     {
       "title": "Recorded calibration evidence",
       "paragraphs": [
-        "A calibration link is optional. It points to the recorded instrument evidence. The calibration record’s Calibration fit worksheet is for inspection only. Follow the laboratory’s procedure for method acceptance, source independence, sequencing and bracketing."
+        "A calibration link is optional. It opens the recorded instrument evidence. In the linked record’s Calibration fit worksheet, linear and average calibration factor fits show each standard’s back-calculated concentration and absolute percent error when available. These are read-only diagnostics. Follow the laboratory’s procedure for method acceptance, source independence, sequencing and bracketing."
       ],
       "items": [
         {

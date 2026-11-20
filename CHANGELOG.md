@@ -172,6 +172,10 @@ The same list is shown in the application under What's new.
 
 ### Medium impact
 
+- **Added:** Compare back-calculated and recorded calibration concentrations (2026-11-20, Batches & QC)
+
+  On a recorded calibration, staff can see the concentration each standard’s observed response gives under a linear, through-origin or average-factor fit. The worksheet shows the absolute percent error against the recorded concentration and explains when either value is unavailable.
+
 - **Added:** Compare calibration standards with a line through the origin (2026-11-20, Batches & QC)
 
   On a recorded calibration, choose Linear through origin when the method calls for a zero intercept. The worksheet shows the fitted slope, predicted response and signed residual for each standard using equal weights.

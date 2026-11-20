@@ -129,7 +129,7 @@
     {
       "title": "Recorded calibration evidence",
       "paragraphs": [
-        "A calibration link is optional. It points to the recorded instrument evidence. The calibration record’s Calibration fit worksheet is for inspection only. Follow the laboratory’s procedure for method acceptance, source independence, sequencing and bracketing."
+        "Open a batch and follow a result’s calibration link when present. The calibration record’s read-only worksheet shows back-calculated concentration and absolute percent error for each standard when available for the selected model. Follow the laboratory’s procedure for method acceptance, source independence, sequencing and bracketing."
       ],
       "items": [
         {
@@ -163,6 +163,7 @@
     "analytical/selectors.py",
     "accounts/roles.py",
     "analytical/templates/analytical/review_list.html",
+    "analytical/templates/analytical/review_batch.html",
     "analytical/tests/test_lists.py",
     "analytical/tests/test_views.py",
     "analytical/calibration.py",

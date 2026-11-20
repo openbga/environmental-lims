@@ -212,6 +212,19 @@ worksheet uses the recorded concentration units throughout. Staff apply the acce
 in their method and SOP.
 [US EPA Method 8000D, checked 2026-11-20](https://www.epa.gov/sites/default/files/2015-12/documents/8000d.pdf).
 
+Staff can use the observed response of each calibration standard to back-calculate its
+concentration for either linear fit or the average external-standard factor. The worksheet
+uses the unrounded slope and intercept, or the unrounded mean factor. A zero slope or factor
+makes the inverse unavailable. A zero recorded concentration can still have a back-calculated
+concentration, but its percent error is undefined. Negative and out-of-range estimates remain
+visible so staff can inspect the fit at the ends of the range.
+
+US EPA SW-846 Method 8000D Rev. 5 (March 2018), section 11.5.4.1, describes comparing
+recalculated and known calibration levels. The worksheet displays the magnitude of their
+difference as a percentage of the recorded concentration. The laboratory applies its method’s
+acceptance criteria. This comparison covers the recorded standards for the selected fit.
+[US EPA Method 8000D, checked 2026-11-20](https://www.epa.gov/sites/default/files/2015-12/documents/8000d.pdf).
+
 For an analytical batch, an analyst can transcribe the instrument's actual injection sequence
 and name the source record. Each run has its own reference within the batch. A position has
 the instrument label and the analyst's classification as a sample, verification, standard,

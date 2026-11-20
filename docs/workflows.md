@@ -263,7 +263,11 @@ Choose **Linear through origin** when the method calls for a fixed zero intercep
 concentration, and at least two concentrations must differ. The worksheet fits the slope to all
 recorded points, including replicates.
 Inverse weighting needs positive concentrations at every point for the free-intercept models. The residual is the recorded
-response minus the predicted response. Use the worksheet to inspect the fit and follow the
+response minus the predicted response. For either linear fit or the average calibration factor,
+compare each standard’s back-calculated concentration with the concentration entered for it.
+Absolute percent error is the size of that difference divided by the entered concentration,
+times 100. A zero slope or mean factor prevents back-calculation. A zero entered concentration
+prevents the percentage comparison. Use the worksheet to inspect the fit and follow the
 laboratory's method and SOP for acceptance. A closed batch still accepts evidence because
 closing freezes membership only.
 

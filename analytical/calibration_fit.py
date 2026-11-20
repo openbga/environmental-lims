@@ -33,6 +33,20 @@ def _display_square_root(value):
     return str(display.plus(working.sqrt(working.divide(numerator, denominator))))
 
 
+def _back_calculation(concentration, response, slope, intercept=0):
+    if not slope:
+        return {"back_calculated": None, "absolute_percent_error": None}
+
+    back_calculated = (response - intercept) / slope
+    percent_error = (
+        100 * abs(back_calculated - concentration) / concentration if concentration else None
+    )
+    return {
+        "back_calculated": _display(back_calculated),
+        "absolute_percent_error": _display(percent_error) if percent_error is not None else None,
+    }
+
+
 def _average_factor_fit(points, observations, concentrations):
     if 0 in concentrations:
         raise ValidationError(
@@ -56,12 +70,14 @@ def _average_factor_fit(points, observations, concentrations):
                 factor=_display(factor),
                 predicted=_display(predicted),
                 residual=_display(y - predicted),
+                **_back_calculation(x, y, mean),
             )
         )
     return {
         "mean_factor": _display(mean),
         "factor_sd": _display_square_root(variance),
         "factor_rsd": _display_square_root(variance * (100 / mean) ** 2) if mean > 0 else None,
+        "back_calculation_unavailable": not mean,
         "rows": rows,
     }
 
@@ -161,8 +177,13 @@ def calculate_fit(points, weighting, model="linear"):
     rows = []
     for point, (x, y) in zip(points, observations, strict=True):
         predicted = (a * x + b) * x + c
-        rows.append(dict(point, predicted=_display(predicted), residual=_display(y - predicted)))
+        row = dict(point, predicted=_display(predicted), residual=_display(y - predicted))
+        if not quadratic:
+            row.update(_back_calculation(x, y, b, c))
+        rows.append(row)
     fit = {"slope": _display(b), "intercept": _display(c), "rows": rows}
     if quadratic:
         fit.update(quadratic=_display(a), trend=_quadratic_trend(a, b, concentrations))
+    else:
+        fit["back_calculation_unavailable"] = not b
     return fit

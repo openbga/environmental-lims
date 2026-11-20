@@ -10,6 +10,8 @@ pytestmark = pytest.mark.django_db(transaction=True)
 
 SOURCE = "Synthetic instrument export 100"
 MODEL = "Instrument fit y = 2.8000 x - 3.1000"
+BACK_CALCULATED = "Back-calculated concentration (ug/L)"
+ABSOLUTE_ERROR = "Absolute percent error (%)"
 
 
 def recorded_curve(reference, points):
@@ -53,10 +55,14 @@ def test_fit_stays_separate_from_recorded_calibration(sign_in_as):
     form = page.get_by_role("region", name="Calibration fit worksheet", exact=True)
     table = page.get_by_role("table", name="Standard points")
     residual = table.get_by_role("columnheader", name="Residual (counts)", exact=True)
+    back_calculated = table.get_by_role("columnheader", name=BACK_CALCULATED, exact=True)
+    error = table.get_by_role("columnheader", name=ABSOLUTE_ERROR, exact=True)
     button = form.get_by_role("button", name="Calculate fit", exact=True)
     weighting = field(form, "Weighting")
     expect(form.locator("select[name=model]")).to_have_value("linear")
     expect(residual).to_have_count(0)
+    expect(back_calculated).to_have_count(0)
+    expect(error).to_have_count(0)
 
     weighting.press("Tab")
     expect(button).to_be_focused()
@@ -71,9 +77,23 @@ def test_fit_stays_separate_from_recorded_calibration(sign_in_as):
         button.press("Enter")
     assert load.value.method == "GET"
     expect(residual).to_be_visible()
-    expect(table.get_by_role("row", name="Blank 0.0000 -1.0000 -0.5 -0.5")).to_be_visible()
-    expect(table.get_by_role("row", name="Low 1.0000 3.0000 2 1")).to_be_visible()
-    expect(table.get_by_role("row", name="High 2.0000 4.0000 4.5 -0.5")).to_be_visible()
+    expect(back_calculated).to_be_visible()
+    expect(error).to_be_visible()
+    expected_blank = "Blank 0.0000 -1.0000 -0.5 -0.5 -0.2 Unavailable at zero concentration"
+    expect(table.get_by_role("row", name=expected_blank, exact=True)).to_be_visible()
+    expect(
+        table.get_by_role("row", name="Low 1.0000 3.0000 2 1 1.4 40", exact=True)
+    ).to_be_visible()
+    expect(
+        table.get_by_role("row", name="High 2.0000 4.0000 4.5 -0.5 1.8 10", exact=True)
+    ).to_be_visible()
+    scroll_area = table.locator("xpath=..")
+    button.press("Tab")
+    expect(scroll_area).to_be_focused()
+    for _ in range(20):
+        page.keyboard.press("ArrowRight")
+    expect(error).to_be_in_viewport(ratio=0.95)
+    expect(table.get_by_role("rowheader", name="Blank", exact=True)).to_be_in_viewport(ratio=0.95)
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
 
     pick(weighting, "inverse")
@@ -83,12 +103,29 @@ def test_fit_stays_separate_from_recorded_calibration(sign_in_as):
         "Inverse weighting requires every concentration to be greater than zero."
     )
     expect(residual).to_have_count(0)
-    expect(table.get_by_role("row", name="Blank 0.0000 -1.0000")).to_be_visible()
+    expect(back_calculated).to_have_count(0)
+    expect(error).to_have_count(0)
+    expect(table.get_by_role("row", name="Blank 0.0000 -1.0000", exact=True)).to_be_visible()
 
     assert page.goto(f"{path}?weighting=equal").ok
     expect(form.locator("select[name=model]")).to_have_value("linear")
     expect(form).to_contain_text("2.5 (counts per ug/L)")
-    expect(table.get_by_role("row", name="Low 1.0000 3.0000 2 1")).to_be_visible()
+    expect(
+        table.get_by_role("row", name="Low 1.0000 3.0000 2 1 1.4 40", exact=True)
+    ).to_be_visible()
+
+    help_button = page.get_by_role("button", name="Help", exact=True)
+    help_button.press("Enter")
+    drawer = page.locator("#vr-documentation")
+    drawer.locator("summary").filter(has=page.get_by_text("Standard points", exact=True)).press(
+        "Enter"
+    )
+    for label in ("Back-calculated concentration", "Absolute percent error"):
+        term = drawer.get_by_text(label, exact=True).and_(drawer.locator("dt"))
+        expect(term).to_be_visible()
+    drawer.get_by_role("button", name="Close documentation", exact=True).press("Enter")
+    expect(drawer).to_be_hidden()
+    expect(help_button).to_be_focused()
 
     assert page.goto(path).ok
     expect(residual).to_have_count(0)
@@ -144,6 +181,8 @@ def test_quadratic_fit_shows_coefficients_and_signed_residuals(sign_in_as):
     expect(form.get_by_text("Increasing", exact=True)).to_be_visible()
     expect(table.get_by_role("columnheader", name="Predicted response (counts)")).to_be_visible()
     expect(residual).to_be_visible()
+    expect(table.get_by_role("columnheader", name=BACK_CALCULATED, exact=True)).to_have_count(0)
+    expect(table.get_by_role("columnheader", name=ABSOLUTE_ERROR, exact=True)).to_have_count(0)
     for row in rows:
         expect(table.get_by_role("row", name=" ".join(row), exact=True)).to_be_visible()
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
@@ -172,13 +211,13 @@ def test_linear_through_origin_shows_fixed_intercept_and_only_recorded_rows(sign
     page = sign_in_as("reviewer")
     # The fitted slope is 4 with a fixed zero intercept, 8 when free, and the mean factor is 3.
     rows = [
-        ("Low", "1.00", "1.000", "4", "-3"),
-        ("Low replicate", "1.0", "3", "4", "-1"),
-        ("High", "2", "10.0", "8", "2"),
+        ("Low", "1.00", "1.000", "4", "-3", "0.25", "75"),
+        ("Low replicate", "1.0", "3", "4", "-1", "0.75", "25"),
+        ("High", "2", "10.0", "8", "2", "2.5", "25"),
     ]
     points = [
         {"standard": standard, "concentration": concentration, "response": observed}
-        for standard, concentration, observed, _, _ in rows
+        for standard, concentration, observed, *_ in rows
     ]
     curve = recorded_curve("SYNTHETIC-ZERO-INTERCEPT-WORKSHEET", points)
     page.set_viewport_size({"width": 390, "height": 844})
@@ -233,9 +272,9 @@ def test_linear_through_origin_shows_fixed_intercept_and_only_recorded_rows(sign
 def test_average_factor_submits_with_keyboard_without_javascript(sign_in_as):
     page = sign_in_as("reviewer")
     rows = [
-        ("Low", "1.00", "1.000", "1", "3", "-2"),
-        ("Low replicate", "1.0", "3", "3", "3", "0"),
-        ("High", "2", "10.0", "5", "6", "4"),
+        ("Low", "1.00", "1.000", "1", "3", "-2", "0.333333333333", "66.6666666667"),
+        ("Low replicate", "1.0", "3", "3", "3", "0", "1", "0"),
+        ("High", "2", "10.0", "5", "6", "4", "3.33333333333", "66.6666666667"),
     ]
     points = [
         {"standard": standard, "concentration": concentration, "response": response}
