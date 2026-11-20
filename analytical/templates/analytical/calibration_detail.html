@@ -20,10 +20,12 @@
       </dl>
     {% endpanel %}
   {% endfill %}
-    {% panel title="Linear fit worksheet" heading_id="fit-heading" id="fit-worksheet" class="mb-3" %}
-      <p>Fit a line with an intercept to all recorded points. The worksheet is for inspection only. Follow your laboratory’s procedure for method acceptance.</p>
+    {% panel title="Calibration fit worksheet" heading_id="fit-heading" id="fit-worksheet" class="mb-3" %}
+      <p>Fit a linear or quadratic model with an intercept to all recorded points. The worksheet is for inspection only. Follow your laboratory’s procedure for method acceptance.</p>
       {# form: filter #}
       <form class="vr-form" method="get" action="{{ request.path }}#fit-worksheet" novalidate>
+        {% form_errors form=fit_form %}
+        {% field field=fit_form.model %}
         {% field field=fit_form.weighting %}
         {% form_actions submit_label="Calculate fit" %}{% endform_actions %}
       </form>
@@ -33,9 +35,18 @@
       {% if fit %}
         <dl class="vr-facts">
           {% fact label="Weighting" value=fit_weighting_label %}
-          {% fact label="Equation" wide=True value="y = slope × x + intercept" %}
-          {% fact label="Slope" %}<span class="vr-id">{{ fit.slope }}</span> ({{ curve.response_unit }} per {{ curve.unit }}){% endfact %}
+          {% if fit.trend %}
+            {% fact label="Equation" wide=True value="y = a × x² + b × x + intercept" %}
+            {% fact label="Quadratic coefficient (a)" %}<span class="vr-id">{{ fit.quadratic }}</span> ({{ curve.response_unit }} per ({{ curve.unit }})²){% endfact %}
+            {% fact label="Linear coefficient (b)" %}<span class="vr-id">{{ fit.slope }}</span> ({{ curve.response_unit }} per {{ curve.unit }}){% endfact %}
+          {% else %}
+            {% fact label="Equation" wide=True value="y = slope × x + intercept" %}
+            {% fact label="Slope" %}<span class="vr-id">{{ fit.slope }}</span> ({{ curve.response_unit }} per {{ curve.unit }}){% endfact %}
+          {% endif %}
           {% fact label="Intercept" %}<span class="vr-id">{{ fit.intercept }}</span> ({{ curve.response_unit }}){% endfact %}
+          {% if fit.trend %}
+            {% fact label="Direction over recorded range" value=fit.trend %}
+          {% endif %}
         </dl>
         <p class="vr-muted">In the equation, x is concentration ({{ curve.unit }}) and y is predicted response ({{ curve.response_unit }}). Residual is observed response minus predicted response. Predictions and residuals use the unrounded coefficients. Calculated values are displayed with up to 12 significant digits.</p>
       {% endif %}

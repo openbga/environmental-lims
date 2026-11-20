@@ -55,7 +55,7 @@ def calibration_create(request, pk):
             "cancel_url": batch_url,
             "submit_label": "Record calibration",
             "config_note": "Record the evidence supplied by the instrument. After recording it, "
-            "you can inspect the points in the read-only linear fit worksheet. "
+            "you can inspect the points in the read-only Calibration fit worksheet. "
             "To correct the evidence, record a new calibration reference.",
         },
     )
@@ -74,14 +74,20 @@ def calibration_detail(request, pk):
     events = AuditEvent.objects.filter(
         object_type="analytical.runcalibration", object_id=str(curve.pk)
     ).select_related("actor")
-    fit_form = CalibrationFitForm(request.GET if "weighting" in request.GET else None)
+    fit_data = None
+    if "model" in request.GET or "weighting" in request.GET:
+        fit_data = request.GET.copy()
+        fit_data.setdefault("model", "linear")  # Weighting-only worksheet links used a line.
+    fit_form = CalibrationFitForm(fit_data)
     fit = None
     fit_weighting_label = None
     fit_errors = []
     if fit_form.is_bound and fit_form.is_valid():
         weighting = fit_form.cleaned_data["weighting"]
         try:
-            fit = calibration_fit.calculate_fit(curve.points, weighting)
+            fit = calibration_fit.calculate_fit(
+                curve.points, weighting, fit_form.cleaned_data["model"]
+            )
         except ValidationError as exc:
             fit_errors = exc.messages
         else:

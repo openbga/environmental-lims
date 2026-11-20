@@ -76,6 +76,14 @@ class CalibrationForm(forms.Form):
 
 
 class CalibrationFitForm(forms.Form):
+    model = forms.ChoiceField(
+        choices=[("", "Choose model"), ("linear", "Linear"), ("quadratic", "Quadratic")],
+        initial="linear",
+        error_messages={
+            "required": "Choose a linear or quadratic fit.",
+            "invalid_choice": "Choose a linear or quadratic fit.",
+        },
+    )
     weighting = forms.ChoiceField(
         label="Weighting",
         choices=[

@@ -4,8 +4,8 @@
     "analytical:calibration-detail"
   ],
   "title": "Calibration evidence",
-  "purpose": "Inspect the recorded instrument model, calculate a temporary linear fit, and trace the result revisions that use this evidence.",
-  "summary": "Inspect a recorded curve, its exact standard points and source, and the result revisions linked to it. Use the read-only worksheet to fit a line to the points.",
+  "purpose": "Inspect the recorded instrument model, calculate a temporary linear or quadratic fit, and trace the result revisions that use this evidence.",
+  "summary": "Inspect a recorded curve, its exact standard points and source, and the result revisions linked to it. Use the read-only worksheet to fit a linear or quadratic model.",
   "tasks": [
     {
       "title": "Check the curve’s source and points",
@@ -15,10 +15,10 @@
       ]
     },
     {
-      "title": "Calculate a linear fit",
+      "title": "Fit the recorded standards",
       "steps": [
-        "In [[Linear fit worksheet]], choose [[Weighting]] and select [[Calculate fit]].",
-        "Read the [[Equation]], [[Slope]] and [[Intercept]] in the worksheet.",
+        "In [[Calibration fit worksheet]], choose [[Model]] and [[Weighting]], then select [[Calculate fit]].",
+        "Read the [[Equation]] and fitted coefficients. For a quadratic fit, check [[Direction over recorded range]].",
         "Compare the predicted and observed responses and residuals in [[Standard points]]."
       ]
     },
@@ -39,7 +39,7 @@
   ],
   "good_to_know": [
     "This record is immutable. Recording another curve does not change any existing result or issued report.",
-    "The fit is for inspection. Follow the laboratory’s procedure for method acceptance. Both inverse choices require positive concentrations at every point.",
+    "The fit is for inspection. Follow the laboratory’s procedure for method acceptance. Both inverse weightings require positive concentrations at every point.",
     "A curve link is optional and explicitly selected for each result revision; it is never inferred for a batch.",
     "A selected verification correction holds submission, approval and release until a new result revision records current evidence.",
     "The people who recorded a selected curve or verification cannot review or release its result."
@@ -85,28 +85,44 @@
       ]
     },
     {
-      "title": "Linear fit worksheet",
+      "title": "Calibration fit worksheet",
       "paragraphs": [
         "Staff who can read the calibration can use the worksheet. The calculation fits response as a function of concentration by least squares with an intercept. It uses every recorded point, including repeated concentrations, in the frozen units.",
-        "At least two distinct concentrations are required. Either inverse weighting requires every concentration to be greater than zero. A missing or unrecognized weighting shows a field error. If the points cannot be fitted, Fit unavailable explains why and the recorded points remain visible.",
+        "A linear fit requires at least two distinct concentrations. A quadratic fit requires at least three. Both inverse weightings require every concentration to be greater than zero. An explicitly empty or unrecognized model or a missing or unrecognized weighting shows a field error. If the points cannot be fitted, Fit unavailable explains why. The recorded points remain visible in each case.",
         "The worksheet output is temporary and lives on this page. Links from result revisions refer to the frozen instrument evidence. Use the laboratory’s procedure and configured QC checks for method acceptance."
       ],
       "items": [
+        {
+          "label": "Model",
+          "description": "Choose Linear for a straight line or Quadratic for a second-degree polynomial. Linear is selected when you first open the worksheet and when you follow a worksheet link that specifies only a weighting."
+        },
         {
           "label": "Weighting",
           "description": "Choose a weighting for each calculation. Unweighted (equal weights) gives every row the same weight. 1/x (inverse concentration) weights each row by the reciprocal of its concentration. 1/x² (inverse concentration squared) weights each row by the reciprocal of concentration squared."
         },
         {
           "label": "Calculate fit",
-          "description": "Calculate using the selected weighting. The page initially shows the recorded evidence and points, with the worksheet ready for a choice. Return to the choices and calculate again to try a different weighting."
+          "description": "Calculate using the selected model and weighting. Choose a weighting to see calculated values alongside the recorded evidence. Change either selection and calculate again to compare fits."
         },
         {
           "label": "Equation",
-          "description": "The selected fit shows the weighting and an equation of the form y = slope × x + intercept. Here x is the recorded concentration and y is predicted instrument response."
+          "description": "A linear fit shows y = slope × x + intercept. A quadratic fit shows y = a × x² + b × x + intercept. Here x is the recorded concentration and y is the predicted instrument response."
         },
         {
-          "label": "Slope / Intercept",
-          "description": "The slope is the fitted change in response per unit of concentration. The intercept is the fitted response at zero concentration. Calculated values are displayed with up to 12 significant digits. Predictions and residuals use the unrounded coefficients."
+          "label": "Slope / Linear coefficient (b)",
+          "description": "The coefficient of concentration, expressed in response units per concentration unit. For a straight line, it gives the change in response per unit of concentration everywhere."
+        },
+        {
+          "label": "Quadratic coefficient (a)",
+          "description": "The coefficient of concentration squared, expressed in response units per squared concentration unit. It describes the curvature and appears only for a quadratic fit."
+        },
+        {
+          "label": "Intercept",
+          "description": "The fitted response at zero concentration, in response units. Calculated values are displayed with up to 12 significant digits. Predictions and residuals use the unrounded coefficients."
+        },
+        {
+          "label": "Direction over recorded range",
+          "description": "For a quadratic fit, the unrounded coefficients determine whether the fitted response increases, decreases, stays constant or turns between the lowest and highest recorded concentrations. A stationary endpoint indicates zero slope at that endpoint."
         }
       ]
     },
@@ -134,7 +150,7 @@
         },
         {
           "label": "Residual",
-          "description": "Observed response minus predicted response, in the frozen response unit. A positive residual means the observed response exceeds the prediction."
+          "description": "Observed response minus predicted response, in the frozen response unit. A positive value means the observation is above the prediction. A negative value means it is below."
         }
       ]
     },
@@ -178,6 +194,7 @@
     "analytical/models.py",
     "analytical/services.py",
     "analytical/tests/test_calibration.py",
+    "analytical/tests/test_calibration_fit.py",
     "analytical/tests/test_calibration_views.py",
     "analytical/templates/analytical/calibration_detail.html"
   ]

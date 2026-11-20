@@ -129,7 +129,7 @@
     {
       "title": "Recorded calibration evidence",
       "paragraphs": [
-        "A calibration link is optional. It points to the recorded instrument evidence. The calibration record’s Linear fit worksheet is for inspection only. Follow the laboratory’s procedure for method acceptance, source independence, sequencing and bracketing."
+        "A calibration link is optional. It points to the recorded instrument evidence. The calibration record’s Calibration fit worksheet is for inspection only. Follow the laboratory’s procedure for method acceptance, source independence, sequencing and bracketing."
       ],
       "items": [
         {

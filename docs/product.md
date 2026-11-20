@@ -162,20 +162,28 @@ and new report snapshots; issued versions remain unchanged. A superseded selecte
 requires a new result revision, and people who recorded the selected curve or check cannot review
 or release that result. Existing configured QC checks still apply.
 
-From 2026-11-19, staff can compare the recorded standards with a straight-line fit on the
-calibration detail page. The worksheet fits response against concentration with a free intercept.
-Staff choose equal weights, inverse concentration (1/x) or inverse concentration squared (1/x²)
-according to their method and SOP. Each recorded point contributes separately, including
-replicates. The line requires two distinct concentrations. Both inverse options require positive
-concentrations throughout. The worksheet uses exact arithmetic and displays the slope, intercept,
-predicted responses and signed residuals (observed minus predicted) to at most 12 significant digits.
-The fit is a read-only calculation. The instrument's model remains the evidence linked to results.
+Staff can compare the recorded standards with a linear or quadratic fit on the calibration
+detail page. Both fit response against concentration with a free intercept. Staff choose equal
+weights, inverse concentration (1/x) or inverse concentration squared (1/x²) according to their
+method and SOP. Each recorded point contributes separately, including replicates. To solve the
+equations, a line needs two distinct concentrations and a quadratic needs three. Both inverse
+options require positive concentrations throughout. Existing links that specify only the
+weighting open the linear fit.
+
+The worksheet shows the coefficients, the predicted response and the signed residual
+(observed minus predicted) for each standard. For a quadratic it also reports the direction of
+response across the recorded concentration range, including a turn inside the range or a
+horizontal tangent at an endpoint. The worksheet calculates from exact values and rounds only
+for display, to at most 12 significant digits. The instrument-reported model remains the
+evidence linked to result revisions.
 
 For US methods, EPA SW-846 6010D Rev. 5 (July 2018), section 10.7, recommends inverse weighting
 for multipoint ICP-OES calibration. EPA SW-846 8000D Rev. 5 (March 2018), section 11.5.2,
-describes all three weighting options for linear regression in chromatography and excludes
-zero-concentration calibration points for that procedure. The laboratory checks its own method's
-point count, standard sources, model and acceptance criteria. [US EPA Method 8000D](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P1016J8Z.txt)
+discusses weighting for linear regression in chromatography and excludes zero-concentration
+points for that procedure. Section 11.5.3 recommends at least six levels for a quadratic and
+advises checking that the slope keeps the same sign throughout the calibration range and is
+nowhere zero. Staff apply their method's requirements for levels, model selection and acceptance.
+The worksheet is for inspection. [US EPA Method 8000D](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P1016J8Z.txt)
 and [US EPA Method 6010D](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P1017DDQ.txt), checked 2026-11-19.
 
 Run sequencing and verification bracketing remain with the laboratory. EPA 200.7 Rev. 4.4
