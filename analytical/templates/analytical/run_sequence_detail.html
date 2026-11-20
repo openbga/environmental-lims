@@ -16,6 +16,7 @@
 {% if not is_current %}
   {% notice tone="neutral" label="Superseded" %}<span id="sequence-superseded">Only the current version can be corrected. <a href="{% url 'analytical:run-sequence-detail' current.pk %}">Go to current version</a>.</span>{% endnotice %}
 {% endif %}
+{% page_toc items=toc %}
 {% record_layout %}
   {% fill lead %}
     {% panel title="Sequence details" heading_id="sequence-details-heading" class="mb-3" %}
@@ -27,6 +28,36 @@
       </dl>
     {% endpanel %}
   {% endfill %}
+  {% panel title="Verification intervals" heading_id="verification-intervals-heading" id="verification-intervals" table=True class="mb-3" %}
+    {% if intervals %}
+      {% panel_section %}
+        <p>Each interval counts injections marked Sample. Check the verification results and your method to determine whether each verification applies.</p>
+        {# form: filter #}
+        <form class="vr-form" method="get" action="{{ request.path }}#verification-intervals" novalidate>
+          {% form_errors form=interval_form %}
+          {% field field=interval_form.max_samples %}
+          {% form_actions submit_label="Compare counts" secondary=True %}
+            {% if interval_form.max_samples.value %}<a class="btn btn-link" href="{{ request.path }}#verification-intervals">Clear comparison</a>{% endif %}
+          {% endform_actions %}
+        </form>
+      {% endpanel_section %}
+      <div class="vr-table-wrap"><table class="table vr-table" aria-labelledby="verification-intervals-heading">
+        <thead><tr>
+          <th scope="col">Earlier verification</th><th scope="col">Later verification</th>
+          <th scope="col" class="text-end">Sample injections</th>
+          {% if max_samples %}<th scope="col">Count comparison</th>{% endif %}
+        </tr></thead>
+        <tbody>{% for interval in intervals %}<tr>
+          <th scope="row">{% if interval.earlier %}<span class="vr-id">#{{ interval.earlier.position }}</span> <span class="vr-preserve-space">{{ interval.earlier.label }}</span>{% else %}No earlier verification{% endif %}</th>
+          <td>{% if interval.later %}<span class="vr-id">#{{ interval.later.position }}</span> <span class="vr-preserve-space">{{ interval.later.label }}</span>{% else %}No later verification{% endif %}</td>
+          <td class="text-end vr-id">{{ interval.sample_count }}</td>
+          {% if max_samples %}<td>{% if interval.sample_count > max_samples %}{% status label="Over maximum" tone="warning" plain=True %}{% else %}At or below maximum{% endif %}</td>{% endif %}
+        </tr>{% endfor %}</tbody>
+      </table></div>
+    {% else %}
+      {% empty_state kind="empty" title="No intervals to compare" body="This sequence contains a single verification injection." %}
+    {% endif %}
+  {% endpanel %}
   {% panel title="Injections" heading_id="injections-heading" count=rows|length table=True class="mb-3" %}
     {% panel_section %}<p class="vr-form-note">For each sample, the table shows the closest recorded verification on either side. Use your method and lab SOP to determine applicability and acceptance.</p>{% endpanel_section %}
     <div class="vr-table-wrap"><table class="table vr-table" aria-labelledby="injections-heading">

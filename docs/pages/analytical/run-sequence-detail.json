@@ -3,13 +3,21 @@
   "routes": ["analytical:run-sequence-detail"],
   "title": "Injection sequence",
   "purpose": "Inspect a version of the actual recorded instrument injection order for an analytical batch.",
-  "summary": "Inspect a recorded instrument run in injection order, find the nearest recorded verification on each side of a sample, and open earlier versions.",
+  "summary": "Inspect a recorded instrument run, find the verifications around a sample, and compare sample injection counts with the maximum in your method or SOP. You can open any version of the sequence.",
   "tasks": [
     {
       "title": "Find verification positions around a sample",
       "steps": [
         "Find the sample injection by [[Position]] or [[Instrument label]].",
         "Read [[Verification before]] and [[Verification after]] for the nearest recorded position and label on each side."
+      ]
+    },
+    {
+      "title": "Check sample counts between verifications",
+      "steps": [
+        "Select [[Verification intervals]] under [[On this page]] to see the counts for this version.",
+        "Enter the maximum from your method or SOP in [[Maximum sample injections]] and select [[Compare counts]].",
+        "Read [[Count comparison]] with the earlier and later verification positions. Check any missing verification against the source record."
       ]
     },
     {
@@ -30,6 +38,7 @@
   "good_to_know": [
     "[[None recorded]] means there is no verification on that side of the sample in this version.",
     "Use your method and lab SOP to judge which verification applies, how often it is required and whether it is acceptable.",
+    "Repeated injections of the same sample each count once. Standards, blanks and other injections stay visible in [[Injections]] and contribute zero to the count.",
     "Only the latest version can be corrected. Every earlier version retains its own source reference, rows and authorship.",
     "Instrument labels come from the source transcription. Identify the sample using that record when the same label appears more than once."
   ],
@@ -42,6 +51,18 @@
         {"label": "Source reference", "description": "Identifier of the instrument record used for the version you are viewing."},
         {"label": "Recorded by / Recorded at", "description": "Staff member who saved the version and the date and time in the laboratory’s time zone."},
         {"label": "Reason for correction", "description": "The explanation saved when this version corrected the previous one. Version 1 has no correction reason."}
+      ]
+    },
+    {
+      "title": "Verification intervals",
+      "items": [
+        {"label": "On this page", "description": "Jump to Sequence details, Verification intervals, Injections or Version history for the open version."},
+        {"label": "Earlier verification / Later verification", "description": "The position and instrument label of each verification bordering an interval. No earlier verification or No later verification identifies an open end. With no recorded verifications, one row covers the whole run."},
+        {"label": "Sample injections", "description": "Count of positions marked Sample in that interval, including repeated injections. Consecutive verifications have a count of zero. Rows before the first or after the last verification appear whenever those parts of the sequence contain injections of any kind."},
+        {"label": "Maximum sample injections / Compare counts", "description": "Optional positive whole number. Enter the maximum your method or SOP uses for sample injections and select Compare counts. An invalid entry stays in the field with an error. The recorded counts are still shown."},
+        {"label": "Count comparison", "description": "Over maximum means the interval contains more sample injections than you entered. At or below maximum includes an exact match. Both apply only to counts, including at open ends. Review the source, analyte, verification results and your method to decide whether the checks apply and are acceptable."},
+        {"label": "Clear comparison", "description": "Return to the counts alone on the same version. The maximum applies to this view and changes no sequence, QC record or release decision."},
+        {"label": "No intervals to compare", "description": "A single verification with no other injections has no interval. You can inspect its position and label in Injections."}
       ]
     },
     {
@@ -65,11 +86,13 @@
   "sources": [
     "accounts/roles.py",
     "analytical/urls.py",
+    "analytical/run_sequence_forms.py",
     "analytical/run_sequence_views.py",
     "analytical/run_sequences.py",
     "analytical/models.py",
     "analytical/templates/analytical/run_sequence_detail.html",
     "analytical/templates/analytical/_run_sequence_version_link.html",
-    "analytical/tests/test_run_sequence_views.py"
+    "analytical/tests/test_run_sequence_views.py",
+    "analytical/tests/test_run_sequences.py"
   ]
 }

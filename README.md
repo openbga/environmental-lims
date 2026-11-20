@@ -26,8 +26,9 @@ records; it does not certify compliance or accreditation.
   method calls for a zero intercept, staff can fit an unweighted line through the origin. For external
   standards, they can also inspect the mean calibration factor and the variation among standards.
   On an analytical batch, staff can inspect the actual injection order alongside the nearest
-  recorded verification before and after each sample. Analysts can correct a transcription and
-  retain the earlier version.
+  recorded verification before and after each sample. Staff can count sample injections between
+  verifications and compare each interval with a maximum they enter. Analysts can correct a
+  transcription and retain the earlier version.
   Analysts can open returned results from the dashboard, oldest return first, and see why each needs correction.
 - **Reporting:** explicit release authorization, versioned immutable PDF reports that print the
   laboratory's address, logo and certificate numbers, amendments and a client portal where each

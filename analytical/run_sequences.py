@@ -146,3 +146,21 @@ def sequence_rows(injections):
             {**row, "before": before if is_sample else None, "after": after if is_sample else None}
         )
     return rows
+
+
+def verification_intervals(injections):
+    """Count sample-kind injections between successive verification positions."""
+    intervals = []
+    earlier = None
+    sample_count = 0
+    for row in injections:
+        if row["kind"] == InjectionKind.SAMPLE:
+            sample_count += 1
+        elif row["kind"] == InjectionKind.VERIFICATION:
+            if earlier is not None or row["position"] > 1:
+                intervals.append({"earlier": earlier, "later": row, "sample_count": sample_count})
+            earlier = row
+            sample_count = 0
+    if injections and (earlier is None or earlier["position"] < injections[-1]["position"]):
+        intervals.append({"earlier": earlier, "later": None, "sample_count": sample_count})
+    return intervals

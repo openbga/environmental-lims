@@ -180,6 +180,10 @@ The same list is shown in the application under What's new.
 
   On a recorded calibration, staff can see how much instrument response each external standard produces per unit of concentration. The worksheet shows the mean factor, the variation among standards and the residual for each point.
 
+- **Added:** Compare sample counts between instrument verifications (2026-11-20, Batches & QC)
+
+  Open a recorded injection sequence to see how many sample injections fall between verifications, before the first or after the last. Enter a maximum to find intervals that exceed it. Missing verifications stay visible in both current and earlier versions.
+
 - **Added:** Compare calibration standards with a linear fit (2026-11-19, Batches & QC)
 
   Open a recorded calibration and choose equal, inverse concentration or inverse concentration squared weighting. The worksheet shows the slope, intercept and difference between each observed and predicted response in the recorded units.

@@ -13,7 +13,7 @@ from accounts.roles import require_role
 from . import run_sequences, services
 from .forms import add_service_errors
 from .models import Batch, RunSequence
-from .run_sequence_forms import RunSequenceForm
+from .run_sequence_forms import RunSequenceForm, VerificationIntervalForm
 from .views import _render, _staff
 
 
@@ -106,6 +106,8 @@ def run_sequence_detail(request, pk):
     )
     current = versions[-1]
     kinds = dict(run_sequences.InjectionKind.choices)
+    interval_form = VerificationIntervalForm(request.GET if "max_samples" in request.GET else None)
+    max_samples = interval_form.cleaned_data["max_samples"] if interval_form.is_valid() else None
     rows = run_sequences.sequence_rows(sequence.injections)
     for row in rows:
         row["kind_label"] = kinds[row["kind"]]
@@ -119,5 +121,14 @@ def run_sequence_detail(request, pk):
             "is_current": sequence.pk == current.pk,
             "versions": versions,
             "rows": rows,
+            "intervals": run_sequences.verification_intervals(sequence.injections),
+            "interval_form": interval_form,
+            "max_samples": max_samples,
+            "toc": [
+                ("sequence-details-heading", "Sequence details"),
+                ("verification-intervals-heading", "Verification intervals"),
+                ("injections-heading", "Injections"),
+                ("version-history-heading", "Version history"),
+            ],
         },
     )

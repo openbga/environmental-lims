@@ -1,4 +1,4 @@
-"""Transcription form for recorded instrument injection order."""
+"""Transcription and review forms for recorded instrument injection order."""
 
 from django import forms
 from django.core.exceptions import ValidationError
@@ -66,3 +66,12 @@ class RunSequenceForm(forms.Form):
                 raise ValidationError(f"Enter a whole-number position on line {number}.")
             rows.append({"position": int(position), "kind": kind, "label": label})
         return rows
+
+
+class VerificationIntervalForm(forms.Form):
+    max_samples = forms.IntegerField(
+        label="Maximum sample injections",
+        required=False,
+        min_value=1,
+        help_text="Enter a positive whole number from your method or SOP to compare the counts.",
+    )
