@@ -5,7 +5,12 @@ from django.db import DatabaseError, transaction
 
 from analytical import run_sequences, services
 from analytical.models import Batch, QCSample, ResultRevision, RunSequence
-from analytical.run_sequences import MAX_INJECTIONS, record_sequence, sequence_rows
+from analytical.run_sequences import (
+    MAX_INJECTIONS,
+    record_sequence,
+    sequence_rows,
+    verification_intervals,
+)
 from core.models import AuditEvent
 from laboratory.tests.test_concurrency import Hold, race
 
@@ -60,6 +65,33 @@ def test_display_uses_nearest_verifications_in_recorded_order():
     ]
     no_verification = injection()
     assert sequence_rows([no_verification]) == [{**no_verification, "before": None, "after": None}]
+
+
+@pytest.mark.parametrize(
+    ("kinds", "expected"),
+    [
+        (["sample", "blank", "sample"], [(None, None, 2)]),
+        (["standard"], [(None, None, 0)]),
+        (["verification"], []),
+        (["verification", "verification"], [(1, 2, 0)]),
+        (
+            ["blank", "verification", "sample", "other", "sample", "verification", "standard"],
+            [(None, 2, 0), (2, 6, 2), (6, None, 0)],
+        ),
+    ],
+)
+def test_verification_intervals_count_only_sample_positions(kinds, expected):
+    # Every label is the same. Only the recorded position and type determine the intervals.
+    injections = [injection(position, kind) for position, kind in enumerate(kinds, 1)]
+    intervals = verification_intervals(injections)
+    assert intervals == [
+        {
+            "earlier": injections[earlier - 1] if earlier else None,
+            "later": injections[later - 1] if later else None,
+            "sample_count": count,
+        }
+        for earlier, later, count in expected
+    ]
 
 
 @pytest.mark.parametrize(

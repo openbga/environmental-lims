@@ -6,6 +6,7 @@ from django.urls import reverse
 
 from analytical import services
 from analytical.models import Batch, RunSequence
+from core.models import AuditEvent
 from receipt.models import RequestedTest
 
 from .conftest import make_user
@@ -105,7 +106,54 @@ def test_transcription_correction_and_read_only_history(client, batch, analyst, 
     assert b"Superseded" in old.content
     assert current_url.encode() in old.content
     assert old.context["rows"][2]["after"] is None
+    assert old.context["intervals"][-1]["later"] is None
+    assert detail.context["intervals"][-1]["later"] == current.injections[3]
     assert client.post(current_url, FORM_DATA).status_code == 405
+
+
+def test_reviewer_compares_counts_without_changing_records(client, batch, analyst, reviewer):
+    client.force_login(analyst)
+    data = {
+        **FORM_DATA,
+        "injections": (
+            "1,sample,SYN-A\n2,sample,SYN-A\n3,verification,SYN-CHECK\n"
+            "4,blank,SYN-BLANK\n5,sample,SYN-A"
+        ),
+    }
+    assert client.post(sequence_url("create", batch.pk), data).status_code == 302
+    record = batch.run_sequences.get()
+    detail = sequence_url("detail", record.pk)
+    client.force_login(reviewer)
+    audit_count = AuditEvent.objects.count()
+    response = client.get(detail, {"max_samples": "1"})
+    assert response.status_code == 200
+    assert response.context["max_samples"] == 1
+    intervals = response.context["intervals"]
+    assert [interval["sample_count"] for interval in intervals] == [2, 1]
+    for value in ["0", "-1", "1.5", "typo"]:
+        response = client.get(detail, {"max_samples": value})
+        assert response.context["interval_form"].errors["max_samples"]
+        assert response.context["interval_form"]["max_samples"].value() == value
+        assert response.context["max_samples"] is None
+        assert response.context["intervals"] == intervals
+    for query in [{}, {"max_samples": ""}]:
+        response = client.get(detail, query)
+        assert not response.context["interval_form"].errors
+        assert response.context["max_samples"] is None
+        assert response.context["intervals"] == intervals
+    assert AuditEvent.objects.count() == audit_count
+    assert batch.run_sequences.count() == 1
+    record.refresh_from_db()
+    assert record.version == 1
+
+
+def test_single_verification_has_no_interval(client, batch, analyst):
+    client.force_login(analyst)
+    data = {**FORM_DATA, "injections": "1,verification,SYN-CHECK"}
+    assert client.post(sequence_url("create", batch.pk), data).status_code == 302
+    detail = client.get(sequence_url("detail", batch.run_sequences.get().pk))
+    assert b"No intervals to compare" in detail.content
+    assert b'name="max_samples"' not in detail.content
 
 
 def test_invalid_and_stale_submissions_keep_analyst_input(client, batch, analyst):
@@ -180,7 +228,7 @@ def test_role_boundary_applies_to_direct_pages_and_forms(client, batch, analyst,
     no_role = make_user("sequence-no-role")
     for user, may_read in ((reviewer, True), (portal, False), (no_role, False)):
         client.force_login(user)
-        assert client.get(detail).status_code == (200 if may_read else 403)
+        assert client.get(detail, {"max_samples": "1"}).status_code == (200 if may_read else 403)
         for url in (create, correct):
             assert client.get(url, headers={"X-VR-Form": "1"}).status_code == 403
             assert client.post(url, FORM_DATA, headers={"X-VR-Form": "1"}).status_code == 403

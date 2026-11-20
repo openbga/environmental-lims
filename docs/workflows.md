@@ -244,8 +244,10 @@ batch's Help drawer.
 
 On an analytical batch, **Record injection sequence** transcribes a completed run from an
 identified source. Use the instrument labels, including repeat injections. Staff can inspect
-the nearest verification on each side of a sample. Check the original run and the method
-before using that observation. To correct a transcription, open its current version and give
+the nearest verification on each side of a sample. Under **Verification intervals**, check
+how many sample injections fall between verifications and whether either end is missing.
+Enter the maximum from your method or SOP to compare the counts for this version.
+Check the original run and the method before using that observation. To correct a transcription, open its current version and give
 a reason. Previous versions stay available.
 
 ### Recorded run calibration

@@ -18,7 +18,7 @@ INJECTIONS = "\n".join(
         f"2,verification,{OPENING_CHECK}",
         "3,blank,Instrument blank",
         f"4,sample,{REPEAT_VIAL}",
-        "5,other,Wash",
+        "5,sample,Effluent replicate",
         "6,verification,Mid-run verification",
         "7,standard,Calibration standard",
         "8,sample,Last sample",
@@ -100,6 +100,21 @@ def test_record_and_correct_injection_sequence_for_review(page, demo):
     expect(last_sample.get_by_role("cell").last).to_have_text("#9 Closing verification")
 
     page.set_viewport_size({"width": 390, "height": 844})
+    intervals = page.get_by_role("table", name="Verification intervals", exact=True)
+    maximum = field(page, "Maximum sample injections")
+    expect(maximum).to_be_empty()
+    expect(intervals.get_by_role("columnheader", name="Count comparison")).to_have_count(0)
+    maximum.fill("1")
+    page.get_by_role("button", name="Compare counts", exact=True).press("Enter")
+    leading = intervals.get_by_role("row").filter(has_text="No earlier verification")
+    expect(leading).to_contain_text("At or below maximum")
+    middle = intervals.get_by_role("row").filter(has_text="Opening").filter(has_text="Mid-run")
+    expect(middle).to_contain_text("Over maximum")
+    expect(middle.get_by_role("cell", name="2", exact=True)).to_be_visible()
+    expect(intervals.get_by_text("No later verification", exact=True)).to_have_count(0)
+    page.get_by_role("link", name="Clear comparison", exact=True).press("Enter")
+    expect(maximum).to_be_empty()
+    expect(intervals.get_by_role("columnheader", name="Count comparison")).to_have_count(0)
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
     scroll_area = table.locator("xpath=..")
     assert scroll_area.evaluate("el => el.scrollWidth > el.clientWidth")
@@ -112,6 +127,7 @@ def test_record_and_correct_injection_sequence_for_review(page, demo):
     expect(drawer).to_be_visible()
     expect(drawer).to_contain_text("Verification before")
     expect(drawer).to_contain_text("Verification after")
+    expect(drawer).to_contain_text("Maximum sample injections")
     drawer.get_by_role("button", name="Close documentation", exact=True).press("Enter")
     expect(drawer).to_be_hidden()
 
@@ -121,6 +137,9 @@ def test_record_and_correct_injection_sequence_for_review(page, demo):
     expect(page.get_by_text("Superseded", exact=True).first).to_be_visible()
     expect(last_sample.get_by_role("cell").last).to_have_text("None recorded")
     expect(table.get_by_text("Closing verification", exact=True)).to_have_count(0)
+    trailing = intervals.get_by_role("row").filter(has_text="No later verification")
+    expect(trailing).to_contain_text("Mid-run verification")
+    expect(trailing.get_by_role("cell", name="1", exact=True)).to_be_visible()
     history.get_by_role("link", name="Version 2", exact=True).click()
     expect(page).to_have_url(corrected_url)
     assert not page.console_errors

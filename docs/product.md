@@ -221,12 +221,17 @@ Closing a batch freezes its membership. Analysts can still record sequence evide
 a transcription with a reason. Each version retains its entries, author, source and timestamp.
 
 Staff can find the nearest earlier and later injections marked as verifications for each
-sample in that version. A missing side is visible. The laboratory checks the original run,
-the applicable analyte, the verification results and the method's requirements. Instrument
+sample in that version. Staff can also count sample injections between consecutive verifications
+and in any positions before the first or after the last verification. Repeated sample
+injections count individually. Consecutive verifications have zero samples between them.
+A run without a verification shows one interval with both ends missing. Staff can enter a
+maximum sample count for comparison. The worksheet shows missing ends independently of
+the count and saves no decision. The laboratory checks the original run, the applicable
+analyte, the verification results and the method's requirements. Instrument
 labels alone do not establish a link to a sample, a QC observation or a result revision.
 For example, US EPA SW-846 Method 6010D, Rev. 5 (July 2018), section 10.8.5, specifies checks
-during the run and at its end. The sequence worksheet records placement without applying
-method-specific frequency or acceptance criteria.
+during the run and at its end. The laboratory supplies the applicable frequency and
+acceptance criteria.
 [US EPA Method 6010D, checked 2026-11-20](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P1017DDQ.txt).
 
 Method-specific verification bracketing remains with the laboratory. EPA 200.7 Rev. 4.4
