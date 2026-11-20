@@ -267,7 +267,11 @@ response minus the predicted response. For either linear fit or the average cali
 compare each standard’s back-calculated concentration with the concentration entered for it.
 Absolute percent error is the size of that difference divided by the entered concentration,
 times 100. A zero slope or mean factor prevents back-calculation. A zero entered concentration
-prevents the percentage comparison. Use the worksheet to inspect the fit and follow the
+prevents the percentage comparison. For a free-intercept line or an average calibration factor,
+read **Relative standard error (RSE)** to inspect the error across the whole fit. Every recorded
+point contributes, including replicates. A line needs more than two points and an average
+factor needs more than one. A zero recorded concentration or a fit that cannot be inverted
+leaves the statistic unavailable. Use the worksheet to inspect the fit and follow the
 laboratory's method and SOP for acceptance. A closed batch still accepts evidence because
 closing freezes membership only.
 

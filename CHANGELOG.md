@@ -188,6 +188,10 @@ The same list is shown in the application under What's new.
 
   Open a recorded injection sequence to see how many sample injections fall between verifications, before the first or after the last. Enter a maximum to find intervals that exceed it. Missing verifications stay visible in both current and earlier versions.
 
+- **Added:** Inspect relative standard error across calibration standards (2026-11-20, Batches & QC)
+
+  The calibration fit worksheet shows relative standard error for a free-intercept line or an average calibration factor. Staff can compare the whole fit with their method’s criteria alongside the error for each recorded standard.
+
 - **Added:** Compare calibration standards with a linear fit (2026-11-19, Batches & QC)
 
   Open a recorded calibration and choose equal, inverse concentration or inverse concentration squared weighting. The worksheet shows the slope, intercept and difference between each observed and predicted response in the recorded units.

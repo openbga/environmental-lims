@@ -19,6 +19,7 @@ def point(concentration, response, standard="Test standard"):
         "residual",
         "back_calculated",
         "percent_error",
+        "rse",
     ),
     [
         # Exact slope and intercept are 50/19 and 30/19, respectively.
@@ -30,6 +31,7 @@ def point(concentration, response, standard="Test standard"):
             ["-0.210526315789", "1.15789473684", "-0.105263157895", "-0.842105263158"],
             ["0.92", "2.44", "3.96", "1.68"],
             ["8", "22", "1", "16"],
+            "20.0624026477",  # sqrt((8² + 22² + 1² + 16²) / 2).
         ),
         # Exact slope and intercept are 46/17 and 24/17, respectively.
         (
@@ -40,6 +42,7 @@ def point(concentration, response, standard="Test standard"):
             ["-0.117647058824", "1.17647058824", "-0.235294117647", "-0.823529411765"],
             ["0.956521739130", "2.43478260870", "3.91304347826", "1.69565217391"],
             ["4.34782608696", "21.7391304348", "2.17391304348", "15.2173913043"],
+            "19.0760095378",  # 100 × sqrt(77) / 46.
         ),
         # Exact slope and intercept are 53/19 and 24/19, respectively.
         (
@@ -50,11 +53,12 @@ def point(concentration, response, standard="Test standard"):
             ["-0.0526315789474", "1.15789473684", "-0.421052631579", "-0.842105263158"],
             ["0.981132075472", "2.41509433962", "3.84905660377", "1.69811320755"],
             ["1.88679245283", "20.7547169811", "3.77358490566", "15.0943396226"],
+            "18.3901780091",  # 100 × sqrt(95) / 53.
         ),
     ],
 )
 def test_fit_uses_each_recorded_point_and_preserves_original_text(
-    weighting, slope, intercept, predicted, residual, back_calculated, percent_error
+    weighting, slope, intercept, predicted, residual, back_calculated, percent_error, rse
 ):
     points = [
         point("1.00", "4", "Standard 1"),
@@ -70,6 +74,7 @@ def test_fit_uses_each_recorded_point_and_preserves_original_text(
         "slope": slope,
         "intercept": intercept,
         "back_calculation_unavailable": False,
+        "rse": {"percent": rse, "reason": None, "points": 4, "terms": 2, "degrees_of_freedom": 2},
         "rows": [
             dict(
                 row, predicted=fit_y, residual=dy, back_calculated=fit_x, absolute_percent_error=pct
@@ -95,6 +100,11 @@ def test_fit_distinguishes_adjacent_concentrations_at_the_record_limit(weighting
     assert fit["intercept"] == "-1.00000000000E+14"
     assert [row["predicted"] for row in fit["rows"]] == ["1", "1.0000000001"]
     assert [row["residual"] for row in fit["rows"]] == ["0", "0"]
+    assert fit["rse"]["percent"] is None
+    assert (
+        fit["rse"]["reason"] == "there are too few recorded points for the number of fitted terms"
+    )
+    assert fit["rse"]["degrees_of_freedom"] == 0
 
 
 @pytest.mark.parametrize(
@@ -144,6 +154,47 @@ def test_zero_recorded_concentration_still_has_a_signed_back_calculation():
         "44.4444444444",
         "11.1111111111",
     ]
+    assert fit["rse"]["percent"] is None
+    assert fit["rse"]["reason"] == "a recorded concentration is zero"
+    assert fit["rse"]["degrees_of_freedom"] == 1
+
+
+@pytest.mark.parametrize("weighting", ["equal", "inverse", "inverse_square"])
+def test_rse_is_zero_for_an_exact_fit(weighting):
+    fit = calculate_fit([point("1", "3"), point("2", "5"), point("4", "9")], weighting)
+
+    assert fit["rse"]["percent"] == "0"
+
+
+def test_linear_rse_uses_unrounded_inverses_at_the_record_limit():
+    points = [
+        point("99999999999999.9999999997", "1.00"),
+        point("99999999999999.9999999998", "1.0000000001"),
+        point("99999999999999.9999999999", "1.0000000004"),
+    ]
+
+    fit = calculate_fit(points, "equal")
+
+    assert [row["back_calculated"] for row in fit["rows"]] == ["1.00000000000E+14"] * 3
+    assert fit["rse"]["percent"] == "4.08248290464E-23"
+
+
+@pytest.mark.parametrize(
+    ("model", "rse"),
+    [
+        ("linear", "212.132034356"),  # sqrt((150² + 150²) / 1).
+        ("average_factor", "150"),  # sqrt((150² + 150²) / 2).
+    ],
+)
+def test_rse_keeps_signed_inverses_and_negative_fit_parameters(model, rse):
+    points = [point("1", "1"), point("1", "-5"), point("2", "-4")]
+
+    fit = calculate_fit(points, "equal", model=model)
+
+    assert [row["back_calculated"] for row in fit["rows"]] == ["-0.5", "2.5", "2"]
+    assert fit["rse"]["percent"] == rse
+    if model == "average_factor":
+        assert fit["factor_rsd"] is None
 
 
 def test_back_calculation_uses_the_unrounded_intercept():
@@ -424,6 +475,7 @@ def test_exactly_linear_quadratic_fit_does_not_back_calculate():
     assert fit["quadratic"] == "0"
     assert fit["slope"] == "-1"
     assert "back_calculation_unavailable" not in fit
+    assert "rse" not in fit
     assert all(
         "back_calculated" not in row and "absolute_percent_error" not in row for row in fit["rows"]
     )
@@ -463,6 +515,13 @@ def test_average_factor_uses_each_signed_response_and_preserves_original_text(we
         "factor_sd": "2.51661147842",  # Sample variance is 19/3.
         "factor_rsd": "100.664459137",
         "back_calculation_unavailable": False,
+        "rse": {
+            "percent": "100.664459137",
+            "reason": None,
+            "points": 4,
+            "terms": 1,
+            "degrees_of_freedom": 3,
+        },
         "rows": [
             dict(
                 original[0],
@@ -512,6 +571,7 @@ def test_average_factor_retains_dispersion_and_residuals_at_the_record_limit():
     assert fit["mean_factor"] == "1.00000000000"
     assert fit["factor_sd"] == "7.07106781187E-49"
     assert fit["factor_rsd"] == "7.07106781187E-47"
+    assert fit["rse"]["percent"] == "7.07106781187E-47"
     assert [row["factor"] for row in fit["rows"]] == ["1.00000000000"] * 2
     assert [row["residual"] for row in fit["rows"]] == ["-5.00000000000E-35", "5.00000000000E-35"]
     assert [row["back_calculated"] for row in fit["rows"]] == ["1.00000000000E+14"] * 2

@@ -12,6 +12,8 @@ SOURCE = "Synthetic instrument export 100"
 MODEL = "Instrument fit y = 2.8000 x - 3.1000"
 BACK_CALCULATED = "Back-calculated concentration (ug/L)"
 ABSOLUTE_ERROR = "Absolute percent error (%)"
+RSE = "Relative standard error (RSE)"
+RSE_DF = "RSE degrees of freedom"
 
 
 def recorded_curve(reference, points):
@@ -63,6 +65,7 @@ def test_fit_stays_separate_from_recorded_calibration(sign_in_as):
     expect(residual).to_have_count(0)
     expect(back_calculated).to_have_count(0)
     expect(error).to_have_count(0)
+    expect(form.get_by_text(RSE, exact=True)).to_have_count(0)
 
     weighting.press("Tab")
     expect(button).to_be_focused()
@@ -79,6 +82,9 @@ def test_fit_stays_separate_from_recorded_calibration(sign_in_as):
     expect(residual).to_be_visible()
     expect(back_calculated).to_be_visible()
     expect(error).to_be_visible()
+    expect(form.get_by_text(RSE, exact=True)).to_be_visible()
+    expect(form).to_contain_text("Unavailable because a recorded concentration is zero.")
+    expect(form).to_contain_text("3 recorded points − 2 fitted terms = 1")
     expected_blank = "Blank 0.0000 -1.0000 -0.5 -0.5 -0.2 Unavailable at zero concentration"
     expect(table.get_by_role("row", name=expected_blank, exact=True)).to_be_visible()
     expect(
@@ -117,6 +123,12 @@ def test_fit_stays_separate_from_recorded_calibration(sign_in_as):
     help_button = page.get_by_role("button", name="Help", exact=True)
     help_button.press("Enter")
     drawer = page.locator("#vr-documentation")
+    drawer.locator("summary").filter(
+        has=page.get_by_text("Calibration fit worksheet", exact=True)
+    ).press("Enter")
+    for label in (RSE, RSE_DF):
+        term = drawer.get_by_text(label, exact=True).and_(drawer.locator("dt"))
+        expect(term).to_be_visible()
     drawer.locator("summary").filter(has=page.get_by_text("Standard points", exact=True)).press(
         "Enter"
     )
@@ -179,6 +191,7 @@ def test_quadratic_fit_shows_coefficients_and_signed_residuals(sign_in_as):
     expect(form).to_contain_text("3 (counts per ug/L)")
     expect(form).to_contain_text("-1 (counts)")
     expect(form.get_by_text("Increasing", exact=True)).to_be_visible()
+    expect(form.get_by_text(RSE, exact=True)).to_have_count(0)
     expect(table.get_by_role("columnheader", name="Predicted response (counts)")).to_be_visible()
     expect(residual).to_be_visible()
     expect(table.get_by_role("columnheader", name=BACK_CALCULATED, exact=True)).to_have_count(0)
@@ -243,6 +256,7 @@ def test_linear_through_origin_shows_fixed_intercept_and_only_recorded_rows(sign
     expect(form).to_contain_text("4 (counts per ug/L)")
     expect(form).to_contain_text("0 (counts), fixed")
     expect(form).to_contain_text("Unweighted (equal weights)")
+    expect(form.get_by_text(RSE, exact=True)).to_have_count(0)
     expect(residual).to_be_visible()
     expect(table.get_by_role("row")).to_have_count(len(rows) + 1)
     for row in rows:
@@ -263,6 +277,13 @@ def test_linear_through_origin_shows_fixed_intercept_and_only_recorded_rows(sign
     expect(residual).to_have_count(0)
     for row in rows:
         expect(table.get_by_role("row", name=" ".join(row[:3]), exact=True)).to_be_visible()
+
+    pick(model, label="Linear")
+    button.press("Enter")
+    expect(weighting_select).to_have_value("inverse")
+    rse = form.get_by_text(RSE, exact=True).locator("xpath=following-sibling::dd")
+    expect(rse).to_have_text("17.6776695297%")
+    expect(form).to_contain_text("3 recorded points − 2 fitted terms = 1")
     curve.refresh_from_db()
     assert (curve.model_text, curve.source_reference, curve.points) == (MODEL, SOURCE, points)
     assert not page.console_errors
@@ -308,6 +329,9 @@ def test_average_factor_submits_with_keyboard_without_javascript(sign_in_as):
     expect(form).to_contain_text("3 (counts per ug/L)")
     expect(form).to_contain_text("2 (counts per ug/L)")
     expect(form).to_contain_text("66.6666666667%")
+    rse = form.get_by_text(RSE, exact=True).locator("xpath=following-sibling::dd")
+    expect(rse).to_have_text("66.6666666667%")
+    expect(form).to_contain_text("3 recorded points − 1 fitted term = 2")
     expect(factor).to_be_visible()
     for row in rows:
         expect(table.get_by_role("row", name=" ".join(row), exact=True)).to_be_visible()
