@@ -166,9 +166,7 @@ def test_fit_requires_a_choice_and_keeps_evidence_and_result_links(lab, analyst,
     assert AuditEvent.objects.count() == audit_count
 
 
-def test_quadratic_fit_displays_coefficients_direction_and_signed_residuals(
-    lab, analyst, reviewer, client
-):
+def test_quadratic_fit_displays_direction_and_per_standard_inverses(lab, analyst, reviewer, client):
     batch, result = setup_run(lab, analyst)
     points = [
         {"standard": "SYN-STD-1", "concentration": "1.00", "response": "2.000"},
@@ -203,21 +201,61 @@ def test_quadratic_fit_displays_coefficients_direction_and_signed_residuals(
         "Increasing",
         "Predicted response (counts)",
         "Residual (counts)",
+        f"Back-calculated concentration ({curve.unit})",
+        "Absolute percent error (%)",
         "Instrument-reported linear fit; synthetic",
         ">1.00</td>",
         ">2.000</td>",
         ">-1</td>",
         ">1</td>",
+        ">2.79128784748</td>",
+        ">6.95707175074</td>",
         "Result revisions using this calibration",
     ):
         assert shown in html
-    assert "Back-calculated concentration (" not in html
-    assert "Absolute percent error (%)" not in html
+    assert (
+        'id="refit-point-reason-4">The observed response is outside the fitted response range.</td>'
+        in html
+    )
+    assert html.count('aria-describedby="refit-point-reason-4">Unavailable</td>') == 1
+    assert 'id="refit-unavailable-reason"' not in html
     assert "Relative standard error (RSE)" not in worksheet_html(response)
     assert client.post(url, {"model": "quadratic", "weighting": "equal"}).status_code == 405
     assert RunCalibration.objects.values().get(pk=curve.pk) == curve_fields
     assert result.revisions.values().get() == revision
     assert AuditEvent.objects.count() == audit_count
+
+
+@pytest.mark.parametrize(
+    ("responses", "reason"),
+    [
+        (("1", "0", "1"), "The fitted curve turns within the recorded concentration range."),
+        (("3", "3", "3"), "The fitted response is constant."),
+    ],
+)
+def test_quadratic_fit_explains_when_all_inverses_are_unavailable(
+    lab, analyst, reviewer, client, responses, reason
+):
+    batch, _ = setup_run(lab, analyst)
+    points = [
+        {"standard": f"SYN-{x}", "concentration": str(x), "response": response}
+        for x, response in enumerate(responses, start=1)
+    ]
+    curve = record(lab, analyst, batch, points=points)
+    client.force_login(reviewer)
+
+    response = client.get(
+        reverse("analytical:calibration-detail", args=[curve.pk]),
+        {"model": "quadratic", "weighting": "equal"},
+    )
+
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert f'id="refit-unavailable-reason">{reason}' in html
+    assert html.count(reason) == 1
+    assert html.count('aria-describedby="refit-unavailable-reason">Unavailable</td>') == 6
+    assert "Predicted response (counts)" in html
+    assert "Residual (counts)" in html
 
 
 def test_linear_through_origin_fits_all_rows_and_keeps_evidence_read_only(

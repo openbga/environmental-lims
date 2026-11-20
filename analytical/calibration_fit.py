@@ -2,6 +2,7 @@
 
 from decimal import ROUND_HALF_EVEN, Context, Decimal
 from fractions import Fraction
+from math import isqrt
 
 from django.core.exceptions import ValidationError
 
@@ -33,11 +34,7 @@ def _display_square_root(value):
     return str(display.plus(working.sqrt(working.divide(numerator, denominator))))
 
 
-def _back_calculation(concentration, response, slope, intercept=0):
-    if not slope:
-        return {"back_calculated": None, "absolute_percent_error": None}
-
-    back_calculated = (response - intercept) / slope
+def _display_back_calculation(concentration, back_calculated):
     percent_error = (
         100 * abs(back_calculated - concentration) / concentration if concentration else None
     )
@@ -45,6 +42,66 @@ def _back_calculation(concentration, response, slope, intercept=0):
         "back_calculated": _display(back_calculated),
         "absolute_percent_error": _display(percent_error) if percent_error is not None else None,
     }
+
+
+def _back_calculation(concentration, response, slope, intercept=0):
+    if not slope:
+        return {"back_calculated": None, "absolute_percent_error": None}
+    return _display_back_calculation(concentration, (response - intercept) / slope)
+
+
+def _display_quadratic_inverse(concentration, response, coefficients, increasing):
+    a, b, c = coefficients
+    vertex = -b / (2 * a)
+    # The sign of f'(x) = 2a(x - vertex) identifies the root on the recorded branch.
+    branch = 1 if (a > 0) == increasing else -1
+    distance_squared = (b**2 + 4 * a * (response - c)) / (4 * a**2)
+    numerator = isqrt(distance_squared.numerator)
+    denominator = isqrt(distance_squared.denominator)
+    if (
+        numerator**2 == distance_squared.numerator
+        and denominator**2 == distance_squared.denominator
+    ):
+        return _display_back_calculation(
+            concentration, vertex + branch * Fraction(numerator, denominator)
+        )
+
+    # Enclose the irrational root with exact fractions until both ends round alike
+    # for concentration and percent error. The root cannot equal a decimal rounding tie.
+    bits = 64
+    while True:
+        scale = 1 << bits
+        distance = isqrt((distance_squared.numerator << (2 * bits)) // distance_squared.denominator)
+        near = vertex + branch * Fraction(distance, scale)
+        far = near + Fraction(branch, scale)
+        lower, upper = sorted((near, far))
+        # Error is monotone on either side of the recorded concentration.
+        if not lower < concentration < upper:
+            displayed = _display_back_calculation(concentration, lower)
+            if displayed == _display_back_calculation(concentration, upper):
+                return displayed
+        bits *= 2
+
+
+def _quadratic_back_calculation(concentration, response, coefficients, response_endpoints, reason):
+    first_response, last_response = response_endpoints
+    if reason is None and not min(response_endpoints) <= response <= max(response_endpoints):
+        reason = "The observed response is outside the fitted response range."
+    if reason is not None:
+        return {
+            "back_calculated": None,
+            "absolute_percent_error": None,
+            "back_calculation_reason": reason,
+        }
+
+    a, b, c = coefficients
+    if a:
+        values = _display_quadratic_inverse(
+            concentration, response, coefficients, first_response < last_response
+        )
+    else:
+        values = _back_calculation(concentration, response, b, c)
+    return dict(values, back_calculation_reason=None)
 
 
 def _relative_standard_error(observations, slope, intercept=0, *, terms, coefficient_label):
@@ -140,20 +197,23 @@ def _coefficients(weighted_points, quadratic):
     return a, b, c
 
 
-def _quadratic_trend(a, b, concentrations):
-    at_lower = 2 * a * min(concentrations) + b
-    at_upper = 2 * a * max(concentrations) + b
+def _quadratic_trend(a, b, lower, upper):
+    at_lower = 2 * a * lower + b
+    at_upper = 2 * a * upper + b
     if at_lower * at_upper < 0:
-        return "Turns within the recorded range"
+        return (
+            "Turns within the recorded range",
+            "The fitted curve turns within the recorded concentration range.",
+        )
     if not at_lower and not at_upper:
-        return "Constant"
+        return "Constant", "The fitted response is constant."
 
     direction = "Increasing" if max(at_lower, at_upper) > 0 else "Decreasing"
     if not at_lower:
-        return f"{direction} (stationary at the lower endpoint)"
+        return f"{direction} (stationary at the lower endpoint)", None
     if not at_upper:
-        return f"{direction} (stationary at the upper endpoint)"
-    return direction
+        return f"{direction} (stationary at the upper endpoint)", None
+    return direction, None
 
 
 def calculate_fit(points, weighting, model="linear"):
@@ -205,16 +265,23 @@ def calculate_fit(points, weighting, model="linear"):
         weighted_points = [(1 / x**power, x, y) for x, y in observations]
         a, b, c = _coefficients(weighted_points, quadratic)
 
+    if quadratic:
+        lower, upper = min(concentrations), max(concentrations)
+        trend, reason = _quadratic_trend(a, b, lower, upper)
+        response_endpoints = ((a * lower + b) * lower + c, (a * upper + b) * upper + c)
+
     rows = []
     for point, (x, y) in zip(points, observations, strict=True):
         predicted = (a * x + b) * x + c
         row = dict(point, predicted=_display(predicted), residual=_display(y - predicted))
-        if not quadratic:
+        if quadratic:
+            row.update(_quadratic_back_calculation(x, y, (a, b, c), response_endpoints, reason))
+        else:
             row.update(_back_calculation(x, y, b, c))
         rows.append(row)
     fit = {"slope": _display(b), "intercept": _display(c), "rows": rows}
     if quadratic:
-        fit.update(quadratic=_display(a), trend=_quadratic_trend(a, b, concentrations))
+        fit.update(quadratic=_display(a), trend=trend, back_calculation_reason=reason)
     else:
         fit["back_calculation_unavailable"] = not b
     if model == "linear":

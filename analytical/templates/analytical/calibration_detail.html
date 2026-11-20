@@ -68,15 +68,17 @@
           {% if fit_model == "average_factor" %}Each factor is observed response divided by concentration. Every row, including replicates, counts equally in the mean. Predictions and residuals use the unrounded mean factor.
           {% else %}Predictions and residuals use the unrounded coefficients.{% endif %}
           Calculated values are displayed with up to 12 significant digits.</p>
-        {% if fit_model != "quadratic" %}
+        {% if fit_model == "quadratic" %}
+          <p class="vr-muted">Back-calculation finds the concentration that matches the observed response within the recorded concentration range of an increasing or decreasing fit. Absolute percent error expresses the size of the difference from the recorded concentration as a percentage of that concentration.</p>
+        {% else %}
           <p class="vr-muted">Back-calculated concentration comes from solving the fitted equation using each observed response. Absolute percent error is the size of the difference from the recorded concentration, divided by the recorded concentration and multiplied by 100. Both use the unrounded fit.</p>
         {% endif %}
       {% endif %}
     {% endpanel %}
     {% panel title="Standard points" heading_id="points-heading" count=points|length table=True flush=True class="mb-3" %}
-      {% if fit.back_calculation_unavailable %}
+      {% if fit.back_calculation_reason or fit.back_calculation_unavailable %}
         {% panel_section %}
-          <p class="vr-muted" id="refit-unavailable-reason">Back-calculated concentration and absolute percent error are unavailable because the {% if fit_model == "average_factor" %}mean calibration factor{% else %}fitted slope{% endif %} is zero.</p>
+          <p class="vr-muted" id="refit-unavailable-reason">{% if fit.back_calculation_reason %}{{ fit.back_calculation_reason }} Back-calculated concentrations and percent errors are unavailable.{% else %}Back-calculated concentration and absolute percent error are unavailable because the {% if fit_model == "average_factor" %}mean calibration factor{% else %}fitted slope{% endif %} is zero.{% endif %}</p>
         {% endpanel_section %}
       {% endif %}
       <div class="vr-table-wrap" role="region" aria-label="Scrollable standard points" tabindex="0"><table class="table vr-table" aria-labelledby="points-heading">
@@ -90,10 +92,8 @@
           {% if fit %}
             <th scope="col" class="text-end">Predicted response ({{ curve.response_unit }})</th>
             <th scope="col" class="text-end">Residual ({{ curve.response_unit }})</th>
-            {% if fit_model != "quadratic" %}
-              <th scope="col" class="text-end">Back-calculated concentration ({{ curve.unit }})</th>
-              <th scope="col" class="text-end">Absolute percent error (%)</th>
-            {% endif %}
+            <th scope="col" class="text-end">Back-calculated concentration ({{ curve.unit }})</th>
+            <th scope="col" class="text-end">Absolute percent error (%)</th>
           {% endif %}
         </tr></thead>
         <tbody>{% for point in points %}
@@ -107,17 +107,18 @@
             {% if fit %}
               <td class="text-end vr-id">{{ point.predicted }}</td>
               <td class="text-end vr-id">{{ point.residual }}</td>
-              {% if fit_model != "quadratic" %}
-                {% if fit.back_calculation_unavailable %}
-                  <td class="text-end vr-muted" aria-describedby="refit-unavailable-reason">Unavailable</td>
-                  <td class="text-end vr-muted" aria-describedby="refit-unavailable-reason">Unavailable</td>
+              {% if fit.back_calculation_reason or fit.back_calculation_unavailable %}
+                <td class="text-end vr-muted" aria-describedby="refit-unavailable-reason">Unavailable</td>
+                <td class="text-end vr-muted" aria-describedby="refit-unavailable-reason">Unavailable</td>
+              {% elif point.back_calculation_reason %}
+                <td class="text-end text-wrap vr-muted" id="refit-point-reason-{{ forloop.counter }}">{{ point.back_calculation_reason }}</td>
+                <td class="text-end vr-muted" aria-describedby="refit-point-reason-{{ forloop.counter }}">Unavailable</td>
+              {% else %}
+                <td class="text-end vr-id">{{ point.back_calculated }}</td>
+                {% if point.absolute_percent_error is None %}
+                  <td class="text-end text-wrap vr-muted">Unavailable at zero concentration</td>
                 {% else %}
-                  <td class="text-end vr-id">{{ point.back_calculated }}</td>
-                  {% if point.absolute_percent_error is None %}
-                    <td class="text-end text-wrap vr-muted">Unavailable at zero concentration</td>
-                  {% else %}
-                    <td class="text-end vr-id">{{ point.absolute_percent_error }}</td>
-                  {% endif %}
+                  <td class="text-end vr-id">{{ point.absolute_percent_error }}</td>
                 {% endif %}
               {% endif %}
             {% endif %}

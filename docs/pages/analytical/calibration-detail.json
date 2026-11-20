@@ -20,7 +20,7 @@
         "In [[Calibration fit worksheet]], choose [[Model]] and [[Weighting]]. For [[Linear through origin]], leave [[Weighting]] blank or choose [[Unweighted (equal weights)]].",
         "Select [[Calculate fit]].",
         "Read the [[Equation]] and fitted coefficients. For [[Linear]], check [[Relative standard error (RSE)]]. For [[Quadratic]], check [[Direction over recorded range]].",
-        "Compare predicted response and residuals in [[Standard points]]. For either linear model, also check [[Back-calculated concentration]] and [[Absolute percent error]]."
+        "In [[Standard points]], compare predicted responses, residuals, [[Back-calculated concentration]] and [[Absolute percent error]]."
       ]
     },
     {
@@ -50,7 +50,7 @@
   "good_to_know": [
     "This record is immutable. Recording another curve does not change any existing result or issued report.",
     "Follow your method and laboratory SOP for model selection and acceptance. [[Linear through origin]], [[Average calibration factor]] and inverse weighting need all concentrations to be positive.",
-    "A zero slope or mean factor prevents back-calculation. A zero recorded concentration prevents percent error for that point and [[Relative standard error (RSE)]] for the whole fit.",
+    "In [[Quadratic]], a turning or constant curve blocks back-calculation. A response outside the fitted response range blocks it for that point.",
     "A selected verification correction holds submission, approval and release until a new result revision records current evidence.",
     "The people who recorded a selected curve or verification cannot review or release its result."
   ],
@@ -161,7 +161,7 @@
       "title": "Standard points",
       "paragraphs": [
         "The record stores 1 to 50 points. The range is an application limit. A successful worksheet fit adds predicted responses and residuals beside the recorded observations. Average calibration factor also shows the factor for each point.",
-        "Linear, Linear through origin and Average calibration factor also show back-calculated concentrations and percent errors for each original row, including replicates. Quadratic fits show forward values only, even when the quadratic coefficient is zero. Before a successful fit, the table shows the recorded points."
+        "A successful fit adds columns for back-calculated concentration and absolute percent error for each original row, including replicates. When either value is unavailable, the table gives the reason. Before a successful fit, the table shows the recorded points."
       ],
       "items": [
         {
@@ -190,11 +190,11 @@
         },
         {
           "label": "Back-calculated concentration",
-          "description": "Use the observed response to solve for concentration in the frozen concentration unit. Subtract the fitted intercept, then divide by the slope. For Linear through origin, divide by the slope directly. For Average calibration factor, divide by the mean factor. A negative slope or mean factor can be used, and the calculated concentration can be negative. A zero slope or mean factor leaves the value unavailable."
+          "description": "Use the observed response to solve for concentration in the frozen concentration unit. For Linear, subtract the fitted intercept and divide by the slope. For Linear through origin, divide by the slope directly. For Average calibration factor, divide by the mean factor. A negative slope or mean factor can be used, and the calculated concentration can be negative. A zero slope or mean factor leaves the value unavailable for these models. For Quadratic, the response must increase or decrease in a single direction across the recorded concentration range. A stationary endpoint is allowed. Each observed response must lie between or exactly on the fitted responses at the lowest and highest recorded concentrations. This range also applies when the quadratic coefficient is zero and the fitted response is a straight line."
         },
         {
           "label": "Absolute percent error",
-          "description": "The absolute difference between the unrounded back-calculated concentration and the recorded concentration, divided by the recorded concentration and multiplied by 100. The value is unavailable at a zero recorded concentration or when the slope or mean factor is zero. Predictions and residuals remain visible for these fits."
+          "description": "The absolute difference between the unrounded back-calculated concentration and the recorded concentration, divided by the recorded concentration and multiplied by 100. A zero recorded concentration or an unavailable back-calculated concentration leaves this value unavailable. Predicted responses and residuals remain visible."
         }
       ]
     },
