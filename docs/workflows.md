@@ -258,6 +258,10 @@ concentration and response units. This is separate from equipment maintenance/ca
 On the calibration detail page, select **Model** and **Weighting** in the **Calibration fit worksheet**,
 then select **Calculate fit**. Linear needs at least two distinct concentrations. Quadratic needs
 at least three and shows the direction of the fitted curve over the recorded concentration range.
+For **Linear** and **Quadratic**, read **Coefficient of determination (R²)** alongside the
+standard residuals. R² uses the selected weighting and includes each replicate. When all
+observed responses are equal, there is no response variation to compare and R² is unavailable.
+
 Choose **Linear through origin** when the method calls for a fixed zero intercept. Leave
 **Weighting** blank or choose **Unweighted (equal weights)**. Every point must have a positive
 concentration, and at least two concentrations must differ. The worksheet fits the slope to all

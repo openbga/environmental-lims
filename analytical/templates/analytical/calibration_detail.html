@@ -57,6 +57,11 @@
             {% fact label="Slope" %}<span class="vr-id">{{ fit.slope }}</span> ({{ curve.response_unit }} per {{ curve.unit }}){% endfact %}
             {% fact label="Intercept" %}<span class="vr-id">{{ fit.intercept }}</span> ({{ curve.response_unit }}){% if fit_model == "linear_origin" %}, fixed{% endif %}{% endfact %}
           {% endif %}
+          {% if "r_squared" in fit %}
+            {% fact label="Coefficient of determination (R²)" wide=True %}
+              {% if fit.r_squared is None %}Unavailable because all recorded responses are equal.{% else %}<span class="vr-id">{{ fit.r_squared }}</span>{% endif %}
+            {% endfact %}
+          {% endif %}
           {% if fit.rse %}
             {% fact label="Relative standard error (RSE)" wide=True %}
               {% if fit.rse.reason %}Unavailable because {{ fit.rse.reason }}.{% else %}<span class="vr-id">{{ fit.rse.percent }}</span>%{% endif %}
@@ -68,6 +73,9 @@
           {% if fit_model == "average_factor" %}Each factor is observed response divided by concentration. Every row, including replicates, counts equally in the mean. Predictions and residuals use the unrounded mean factor.
           {% else %}Predictions and residuals use the unrounded coefficients.{% endif %}
           Calculated values are displayed with up to 12 significant digits.</p>
+        {% if "r_squared" in fit %}
+          <p class="vr-muted">R² measures the share of variation in observed responses around their weighted mean explained by the fit. It uses the selected weights and counts each recorded point separately, including replicates.</p>
+        {% endif %}
         {% if fit_model == "quadratic" %}
           <p class="vr-muted">Back-calculation finds the concentration that matches the observed response within the recorded concentration range of an increasing or decreasing fit. Absolute percent error expresses the size of the difference from the recorded concentration as a percentage of that concentration.</p>
         {% else %}

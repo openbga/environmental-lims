@@ -21,8 +21,9 @@ records; it does not certify compliance or accreditation.
   and mapped CSV/TSV or XLSX worksheet imports, results calculated from bench readings that are kept
   with the result and rounded by the laboratory's own rule (dilutions, solids by weight, preparation factors and dry-weight
   correction for soil, alkalinity and EDTA hardness titrations, BOD bottle worksheets), QC evaluation, independent review, control charts and MDL studies.
-  Staff can compare recorded calibration standards with a linear or quadratic fit, inspect each residual,
-  and see whether a quadratic changes direction across the recorded concentrations. When their
+  Staff can inspect each calibration standard’s residual and the coefficient of determination (R²)
+  for a linear or quadratic fit with a fitted intercept. The worksheet also shows whether a
+  quadratic changes direction across the recorded concentrations. When their
   method calls for a zero intercept, staff can fit an unweighted line through the origin. For external
   standards, they can also inspect the mean calibration factor and the variation among standards.
   Staff can compare each standard’s back-calculated concentration with its recorded concentration

@@ -19,6 +19,7 @@ def point(concentration, response, standard="Test standard"):
         "residual",
         "back_calculated",
         "percent_error",
+        "r_squared",
         "rse",
     ),
     [
@@ -31,6 +32,7 @@ def point(concentration, response, standard="Test standard"):
             ["-0.210526315789", "1.15789473684", "-0.105263157895", "-0.842105263158"],
             ["0.92", "2.44", "3.96", "1.68"],
             ["8", "22", "1", "16"],
+            "0.939849624060",  # 125/133.
             "20.0624026477",  # sqrt((8² + 22² + 1² + 16²) / 2).
         ),
         # Exact slope and intercept are 46/17 and 24/17, respectively.
@@ -42,6 +44,7 @@ def point(concentration, response, standard="Test standard"):
             ["-0.117647058824", "1.17647058824", "-0.235294117647", "-0.823529411765"],
             ["0.956521739130", "2.43478260870", "3.91304347826", "1.69565217391"],
             ["4.34782608696", "21.7391304348", "2.17391304348", "15.2173913043"],
+            "0.928884986831",  # 1058/1139.
             "19.0760095378",  # 100 × sqrt(77) / 46.
         ),
         # Exact slope and intercept are 53/19 and 24/19, respectively.
@@ -53,12 +56,13 @@ def point(concentration, response, standard="Test standard"):
             ["-0.0526315789474", "1.15789473684", "-0.421052631579", "-0.842105263158"],
             ["0.981132075472", "2.41509433962", "3.84905660377", "1.69811320755"],
             ["1.88679245283", "20.7547169811", "3.77358490566", "15.0943396226"],
+            "0.918273945734",  # 2809/3059.
             "18.3901780091",  # 100 × sqrt(95) / 53.
         ),
     ],
 )
 def test_fit_uses_each_recorded_point_and_preserves_original_text(
-    weighting, slope, intercept, predicted, residual, back_calculated, percent_error, rse
+    weighting, slope, intercept, predicted, residual, back_calculated, percent_error, r_squared, rse
 ):
     points = [
         point("1.00", "4", "Standard 1"),
@@ -74,6 +78,7 @@ def test_fit_uses_each_recorded_point_and_preserves_original_text(
         "slope": slope,
         "intercept": intercept,
         "back_calculation_unavailable": False,
+        "r_squared": r_squared,
         "rse": {"percent": rse, "reason": None, "points": 4, "terms": 2, "degrees_of_freedom": 2},
         "rows": [
             dict(
@@ -100,6 +105,7 @@ def test_fit_distinguishes_adjacent_concentrations_at_the_record_limit(weighting
     assert fit["intercept"] == "-1.00000000000E+14"
     assert [row["predicted"] for row in fit["rows"]] == ["1", "1.0000000001"]
     assert [row["residual"] for row in fit["rows"]] == ["0", "0"]
+    assert fit["r_squared"] == "1"
     assert fit["rse"]["percent"] is None
     assert (
         fit["rse"]["reason"] == "there are too few recorded points for the number of fitted terms"
@@ -130,11 +136,57 @@ def test_equal_weights_allow_zero_concentration_and_flat_negative_response():
 
     assert fit["slope"] == "0"
     assert fit["intercept"] == "-2"
+    assert fit["r_squared"] is None
     assert [(row["predicted"], row["residual"]) for row in fit["rows"]] == [("-2", "0")] * 2
     assert fit["back_calculation_unavailable"]
     assert all(
         row["back_calculated"] is row["absolute_percent_error"] is None for row in fit["rows"]
     )
+
+
+@pytest.mark.parametrize("model", ["linear", "quadratic"])
+def test_r_squared_is_zero_when_variable_responses_fit_a_constant(model):
+    points = [point("0", "-1"), point("1", "3"), point("2", "-3"), point("3", "1")]
+
+    fit = calculate_fit(points, "equal", model=model)
+
+    assert fit["r_squared"] == "0"
+
+
+@pytest.mark.parametrize(
+    ("model", "r_squared"),
+    [("linear", "0.852631578947"), ("quadratic", "0.905263157895")],  # 81/95 and 86/95.
+)
+def test_r_squared_preserves_response_differences_smaller_than_display_precision(model, r_squared):
+    points = [
+        point("1", "99999999999999.9999999996"),
+        point("2", "99999999999999.9999999997"),
+        point("3", "99999999999999.9999999997"),
+        point("4", "99999999999999.9999999999"),
+    ]
+
+    fit = calculate_fit(points, "equal", model=model)
+
+    assert [row["predicted"] for row in fit["rows"]] == ["1.00000000000E+14"] * 4
+    assert fit["r_squared"] == r_squared
+
+
+def test_r_squared_rounds_display_midpoints_to_even():
+    signal = 999_999
+    points = [
+        point(concentration, str(mean + error))
+        for concentration, mean, deviations in (
+            ("1", -signal, (999_999, 1_995)),
+            ("2", signal, (127, 62)),
+        )
+        for deviation in deviations
+        for error in (-2 * deviation, 2 * deviation)
+    ]
+
+    fit = calculate_fit(points, "equal")
+
+    # The symmetric pairs give R² = signal² / (signal² + Σ deviations²) = 0.4999990000005.
+    assert fit["r_squared"] == "0.499999000000"
 
 
 def test_zero_recorded_concentration_still_has_a_signed_back_calculation():
@@ -359,7 +411,15 @@ def test_fit_rejects_unknown_weighting(weighting):
 
 
 @pytest.mark.parametrize(
-    ("weighting", "coefficients", "predicted", "residual", "back_calculated", "percent_error"),
+    (
+        "weighting",
+        "coefficients",
+        "predicted",
+        "residual",
+        "back_calculated",
+        "percent_error",
+        "r_squared",
+    ),
     [
         (
             "equal",
@@ -374,6 +434,7 @@ def test_fit_rejects_unknown_weighting(weighting):
             ],
             [None, "2.37561212873", "2.78547827913", None, "1.88942741181"],
             [None, "18.7806064365", "7.15072402906", None, "5.52862940970"],
+            "0.966229838710",  # 1917/1984.
         ),
         (
             "inverse",
@@ -388,6 +449,7 @@ def test_fit_rejects_unknown_weighting(weighting):
             ],
             [None, "2.33393118776", "2.74955087163", None, "1.85944300043"],
             [None, "16.6965593882", "8.34830427899", None, "7.02784997867"],
+            "0.962607891975",  # 61450/63837.
         ),
         (
             "inverse_square",
@@ -402,11 +464,12 @@ def test_fit_rejects_unknown_weighting(weighting):
             ],
             [None, "2.30234010070", "2.72589074892", None, "1.83105446095"],
             [None, "15.1170050349", "9.13697503589", None, "8.44727695250"],
+            "0.958989268490",  # 264869/276196.
         ),
     ],
 )
 def test_quadratic_fit_weights_every_observation_including_replicates(
-    weighting, coefficients, predicted, residual, back_calculated, percent_error
+    weighting, coefficients, predicted, residual, back_calculated, percent_error, r_squared
 ):
     points = [
         point("1.00", "2", "Standard 1"),
@@ -422,6 +485,7 @@ def test_quadratic_fit_weights_every_observation_including_replicates(
     assert (fit["quadratic"], fit["slope"], fit["intercept"]) == coefficients
     assert fit["trend"] == "Increasing"
     assert fit["back_calculation_reason"] is None
+    assert fit["r_squared"] == r_squared
     assert fit["rows"] == [
         dict(
             row,
@@ -508,6 +572,7 @@ def test_quadratic_fit_trend_and_inverse_use_the_recorded_concentration_range(
 
     assert fit["trend"] == trend
     assert fit["back_calculation_reason"] == reason
+    assert fit["r_squared"] == (None if trend == "Constant" else "1")
     assert [row["back_calculation_reason"] for row in fit["rows"]] == [reason] * 3
     assert [row["back_calculated"] for row in fit["rows"]] == (
         [None, None, None] if reason else ["1", "2", "0"]
