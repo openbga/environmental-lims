@@ -177,6 +177,18 @@ horizontal tangent at an endpoint. The worksheet calculates from exact values an
 for display, to at most 12 significant digits. The instrument-reported model remains the
 evidence linked to result revisions.
 
+For linear and quadratic fits with a fitted intercept, staff can see the coefficient of
+determination (R²). It measures the fraction of variation in the observed responses explained
+by the fit. The worksheet calculates 1 − (weighted residual sum of squares / weighted total
+sum of squares). The total is measured around the weighted mean response, with each
+recorded replicate included. When all observed responses are equal,
+the total is zero and R² is undefined.
+[Weighted, centered total sum of squares and R²](https://www.statsmodels.org/stable/_modules/statsmodels/regression/linear_model.html#RegressionResults).
+
+US EPA Method 8000D discusses R² for linear and nonlinear calibrations. Staff interpret it
+alongside the residuals and their method’s acceptance criteria.
+[US EPA SW-846 Method 8000D Rev. 5, March 2018, §§11.5.2.2 and 11.5.3.1, checked 2026-11-20](https://www.epa.gov/sites/default/files/2015-12/documents/8000d.pdf#page=37).
+
 For US methods, EPA SW-846 6010D Rev. 5 (July 2018), section 10.7, recommends inverse weighting
 for multipoint ICP-OES calibration. EPA SW-846 8000D Rev. 5 (March 2018), section 11.5.2,
 discusses weighting for linear regression in chromatography and excludes zero-concentration

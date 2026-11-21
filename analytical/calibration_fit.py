@@ -197,6 +197,20 @@ def _coefficients(weighted_points, quadratic):
     return a, b, c
 
 
+def _r_squared(weighted_points, predictions):
+    total_weight = sum(weight for weight, _, _ in weighted_points)
+    mean = sum(weight * y for weight, _, y in weighted_points) / total_weight
+    total_squared_deviation = sum(weight * (y - mean) ** 2 for weight, _, y in weighted_points)
+    if not total_squared_deviation:
+        return None
+
+    squared_residuals = sum(
+        weight * (y - predicted) ** 2
+        for (weight, _, y), predicted in zip(weighted_points, predictions, strict=True)
+    )
+    return _display(1 - squared_residuals / total_squared_deviation)
+
+
 def _quadratic_trend(a, b, lower, upper):
     at_lower = 2 * a * lower + b
     at_upper = 2 * a * upper + b
@@ -270,9 +284,9 @@ def calculate_fit(points, weighting, model="linear"):
         trend, reason = _quadratic_trend(a, b, lower, upper)
         response_endpoints = ((a * lower + b) * lower + c, (a * upper + b) * upper + c)
 
+    predictions = [(a * x + b) * x + c for x, _ in observations]
     rows = []
-    for point, (x, y) in zip(points, observations, strict=True):
-        predicted = (a * x + b) * x + c
+    for point, (x, y), predicted in zip(points, observations, predictions, strict=True):
         row = dict(point, predicted=_display(predicted), residual=_display(y - predicted))
         if quadratic:
             row.update(_quadratic_back_calculation(x, y, (a, b, c), response_endpoints, reason))
@@ -280,6 +294,8 @@ def calculate_fit(points, weighting, model="linear"):
             row.update(_back_calculation(x, y, b, c))
         rows.append(row)
     fit = {"slope": _display(b), "intercept": _display(c), "rows": rows}
+    if not linear_origin:
+        fit["r_squared"] = _r_squared(weighted_points, predictions)
     if quadratic:
         fit.update(quadratic=_display(a), trend=trend, back_calculation_reason=reason)
     else:

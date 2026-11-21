@@ -15,6 +15,9 @@ from receipt.models import RequestedTest
 
 pytestmark = pytest.mark.django_db
 
+R_SQUARED = "Coefficient of determination (R²)"
+R_SQUARED_UNAVAILABLE = "Unavailable because all recorded responses are equal."
+
 
 def setup_run(lab, analyst):
     batch = services.create_batch(actor=analyst, method=lab["method"], matrix="water")
@@ -134,6 +137,7 @@ def test_fit_requires_a_choice_and_keeps_evidence_and_result_links(lab, analyst,
     assert b"Back-calculated concentration (" not in initial.content
     assert b"Absolute percent error (%)" not in initial.content
     assert "Relative standard error (RSE)" not in worksheet_html(initial)
+    assert R_SQUARED not in worksheet_html(initial)
     slopes = set()
     for weighting in ("equal", "inverse", "inverse_square"):
         response = client.get(url, {"weighting": weighting})
@@ -146,12 +150,16 @@ def test_fit_requires_a_choice_and_keeps_evidence_and_result_links(lab, analyst,
         if weighting == "equal":
             assert fit["slope"] == "3"
             assert 'class="vr-id">16.1440701613</span>%' in worksheet
+            assert f'<dt>{R_SQUARED}</dt><dd><span class="vr-id">0.964285714286</span></dd>' in (
+                worksheet
+            )
         assert "y = slope × x + intercept" in response.content.decode()
         assert b"Predicted response (counts)" in response.content
         assert b"Residual (counts)" in response.content
         assert f"Back-calculated concentration ({curve.unit})" in response.content.decode()
         assert b"Absolute percent error (%)" in response.content
         assert "Relative standard error (RSE)" in worksheet
+        assert R_SQUARED in worksheet
         assert "3 recorded points − 2 fitted terms = 1" in worksheet
         assert b"SYNTHETIC instrument record 01" in response.content
         assert b"Instrument-reported linear fit; synthetic" in response.content
@@ -219,7 +227,9 @@ def test_quadratic_fit_displays_direction_and_per_standard_inverses(lab, analyst
     )
     assert html.count('aria-describedby="refit-point-reason-4">Unavailable</td>') == 1
     assert 'id="refit-unavailable-reason"' not in html
-    assert "Relative standard error (RSE)" not in worksheet_html(response)
+    worksheet = worksheet_html(response)
+    assert "Relative standard error (RSE)" not in worksheet
+    assert f'<dt>{R_SQUARED}</dt><dd><span class="vr-id">0.967975830816</span></dd>' in worksheet
     assert client.post(url, {"model": "quadratic", "weighting": "equal"}).status_code == 405
     assert RunCalibration.objects.values().get(pk=curve.pk) == curve_fields
     assert result.revisions.values().get() == revision
@@ -227,14 +237,14 @@ def test_quadratic_fit_displays_direction_and_per_standard_inverses(lab, analyst
 
 
 @pytest.mark.parametrize(
-    ("responses", "reason"),
+    ("responses", "reason", "r_squared_value"),
     [
-        (("1", "0", "1"), "The fitted curve turns within the recorded concentration range."),
-        (("3", "3", "3"), "The fitted response is constant."),
+        (("1", "0", "1"), "The fitted curve turns within the recorded concentration range.", "1"),
+        (("3", "3", "3"), "The fitted response is constant.", None),
     ],
 )
 def test_quadratic_fit_explains_when_all_inverses_are_unavailable(
-    lab, analyst, reviewer, client, responses, reason
+    lab, analyst, reviewer, client, responses, reason, r_squared_value
 ):
     batch, _ = setup_run(lab, analyst)
     points = [
@@ -256,6 +266,12 @@ def test_quadratic_fit_explains_when_all_inverses_are_unavailable(
     assert html.count('aria-describedby="refit-unavailable-reason">Unavailable</td>') == 6
     assert "Predicted response (counts)" in html
     assert "Residual (counts)" in html
+    shown = (
+        R_SQUARED_UNAVAILABLE
+        if r_squared_value is None
+        else f'<span class="vr-id">{r_squared_value}</span>'
+    )
+    assert f"<dt>{R_SQUARED}</dt><dd>{shown}</dd>" in worksheet_html(response)
 
 
 def test_linear_through_origin_fits_all_rows_and_keeps_evidence_read_only(
@@ -296,6 +312,7 @@ def test_linear_through_origin_fits_all_rows_and_keeps_evidence_read_only(
         assert shown in html
     assert "Calibration factor (counts per" not in html
     assert "Relative standard error (RSE)" not in worksheet_html(response)
+    assert R_SQUARED not in worksheet_html(response)
     for weighting in ("", "equal"):
         response = client.get(url, {**params, "weighting": weighting})
         assert response.context["fit"] == fit
@@ -337,6 +354,7 @@ def test_fit_errors_keep_recorded_points_visible(lab, analyst, client):
         assert b"Predicted response (counts)" not in response.content
         assert b"Back-calculated concentration (" not in response.content
         assert b"Absolute percent error (%)" not in response.content
+        assert R_SQUARED not in worksheet_html(response)
         assert b"SYN-BLANK" in response.content and b"-0.0200" in response.content
         if weighting.startswith("inverse"):
             assert b"Fit unavailable" in response.content
@@ -435,6 +453,7 @@ def test_average_factor_uses_each_point_and_keeps_evidence_read_only(
         assert shown in html
     worksheet = worksheet_html(implicit)
     assert "Relative standard error (RSE)" in worksheet
+    assert R_SQUARED not in worksheet
     assert "3 recorded points − 1 fitted term = 2" in worksheet
     assert worksheet.count('class="vr-id">66.6666666667</span>%') == 2
     assert client.post(url, params).status_code == 405
@@ -544,14 +563,17 @@ def test_linear_refit_explains_the_error_at_zero_concentration(lab, analyst, rev
 
 
 @pytest.mark.parametrize(
-    ("model", "responses", "reason"),
+    ("model", "responses", "reason", "r_squared_shown"),
     [
-        ("linear", ("3", "3", "3"), "fitted slope"),
-        ("linear_origin", ("-2", "1"), "fitted slope"),
-        ("average_factor", ("-1", "2"), "mean calibration factor"),
+        ("linear", ("3", "3", "3"), "fitted slope", R_SQUARED_UNAVAILABLE),
+        ("linear", ("1", "2", "1"), "fitted slope", '<span class="vr-id">0</span>'),
+        ("linear_origin", ("-2", "1"), "fitted slope", None),
+        ("average_factor", ("-1", "2"), "mean calibration factor", None),
     ],
 )
-def test_flat_fit_explains_the_unavailable_refit(lab, analyst, client, model, responses, reason):
+def test_flat_fit_explains_the_unavailable_refit(
+    lab, analyst, client, model, responses, reason, r_squared_shown
+):
     batch, _ = setup_run(lab, analyst)
     points = [
         {"standard": f"SYN-{x}", "concentration": str(x), "response": response}
@@ -578,10 +600,14 @@ def test_flat_fit_explains_the_unavailable_refit(lab, analyst, client, model, re
     assert html.count('aria-describedby="refit-unavailable-reason">Unavailable</td>') == (
         2 * len(responses)
     )
+    worksheet = worksheet_html(response)
     if model != "linear_origin":
-        worksheet = worksheet_html(response)
         assert "Relative standard error (RSE)" in worksheet
         assert f"Unavailable because the {reason} is zero." in worksheet
+    if r_squared_shown is None:
+        assert R_SQUARED not in worksheet
+    else:
+        assert f"<dt>{R_SQUARED}</dt><dd>{r_squared_shown}</dd>" in worksheet
     assert not response.context["fit_errors"]
 
 

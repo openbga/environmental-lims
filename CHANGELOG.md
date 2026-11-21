@@ -196,6 +196,10 @@ The same list is shown in the application under What's new.
 
   The calibration fit worksheet shows relative standard error for a free-intercept line or an average calibration factor. Staff can compare the whole fit with their method’s criteria alongside the error for each recorded standard.
 
+- **Added:** Inspect the coefficient of determination for calibration fits (2026-11-20, Batches & QC)
+
+  Choose Linear or Quadratic on the calibration fit worksheet to see how much of the variation in recorded responses the fit explains. The coefficient of determination (R²) uses the selected weighting and includes each replicate. If all responses are equal, the worksheet explains why R² is unavailable.
+
 - **Added:** Compare calibration standards with a linear fit (2026-11-19, Batches & QC)
 
   Open a recorded calibration and choose equal, inverse concentration or inverse concentration squared weighting. The worksheet shows the slope, intercept and difference between each observed and predicted response in the recorded units.
