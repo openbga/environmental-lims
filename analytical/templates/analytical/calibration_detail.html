@@ -57,6 +57,11 @@
             {% fact label="Slope" %}<span class="vr-id">{{ fit.slope }}</span> ({{ curve.response_unit }} per {{ curve.unit }}){% endfact %}
             {% fact label="Intercept" %}<span class="vr-id">{{ fit.intercept }}</span> ({{ curve.response_unit }}){% if fit_model == "linear_origin" %}, fixed{% endif %}{% endfact %}
           {% endif %}
+          {% if "pearson_r" in fit %}
+            {% fact label="Pearson correlation coefficient (r)" wide=True %}
+              {% if fit.pearson_r is None %}Unavailable because all recorded responses are equal.{% else %}<span class="vr-id">{{ fit.pearson_r }}</span>{% endif %}
+            {% endfact %}
+          {% endif %}
           {% if "r_squared" in fit %}
             {% fact label="Coefficient of determination (R²)" wide=True %}
               {% if fit.r_squared is None %}Unavailable because all recorded responses are equal.{% else %}<span class="vr-id">{{ fit.r_squared }}</span>{% endif %}
@@ -73,6 +78,9 @@
           {% if fit_model == "average_factor" %}Each factor is observed response divided by concentration. Every row, including replicates, counts equally in the mean. Predictions and residuals use the unrounded mean factor.
           {% else %}Predictions and residuals use the unrounded coefficients.{% endif %}
           Calculated values are displayed with up to 12 significant digits.</p>
+        {% if "pearson_r" in fit %}
+          <p class="vr-muted">Pearson r measures the direction and strength of the linear relationship between concentration and observed response. It ranges from −1 to +1, and each recorded point, including replicates, counts equally.</p>
+        {% endif %}
         {% if "r_squared" in fit %}
           <p class="vr-muted">R² measures the share of variation in observed responses around their weighted mean explained by the fit. It uses the selected weights and counts each recorded point separately, including replicates.</p>
         {% endif %}

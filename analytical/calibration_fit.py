@@ -208,7 +208,7 @@ def _r_squared(weighted_points, predictions):
         weight * (y - predicted) ** 2
         for (weight, _, y), predicted in zip(weighted_points, predictions, strict=True)
     )
-    return _display(1 - squared_residuals / total_squared_deviation)
+    return 1 - squared_residuals / total_squared_deviation
 
 
 def _quadratic_trend(a, b, lower, upper):
@@ -295,7 +295,16 @@ def calculate_fit(points, weighting, model="linear"):
         rows.append(row)
     fit = {"slope": _display(b), "intercept": _display(c), "rows": rows}
     if not linear_origin:
-        fit["r_squared"] = _r_squared(weighted_points, predictions)
+        r_squared = _r_squared(weighted_points, predictions)
+        fit["r_squared"] = _display(r_squared) if r_squared is not None else None
+        if model == "linear" and weighting == "equal":
+            # For unweighted least squares with a free intercept, R² = r²
+            # and Pearson r has the same sign as the fitted slope.
+            if r_squared is None:
+                fit["pearson_r"] = None
+            else:
+                magnitude = _display_square_root(r_squared)
+                fit["pearson_r"] = f"-{magnitude}" if b < 0 else magnitude
     if quadratic:
         fit.update(quadratic=_display(a), trend=trend, back_calculation_reason=reason)
     else:

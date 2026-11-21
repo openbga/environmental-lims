@@ -22,7 +22,8 @@ records; it does not certify compliance or accreditation.
   with the result and rounded by the laboratory's own rule (dilutions, solids by weight, preparation factors and dry-weight
   correction for soil, alkalinity and EDTA hardness titrations, BOD bottle worksheets), QC evaluation, independent review, control charts and MDL studies.
   Staff can inspect each calibration standard’s residual and the coefficient of determination (R²)
-  for a linear or quadratic fit with a fitted intercept. The worksheet also shows whether a
+  for a linear or quadratic fit with a fitted intercept. An unweighted linear fit also shows
+  Pearson correlation (r), including the sign of the relationship. The worksheet shows whether a
   quadratic changes direction across the recorded concentrations. When their
   method calls for a zero intercept, staff can fit an unweighted line through the origin. For external
   standards, they can also inspect the mean calibration factor and the variation among standards.

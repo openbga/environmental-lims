@@ -16,7 +16,8 @@ from receipt.models import RequestedTest
 pytestmark = pytest.mark.django_db
 
 R_SQUARED = "Coefficient of determination (R²)"
-R_SQUARED_UNAVAILABLE = "Unavailable because all recorded responses are equal."
+PEARSON_R = "Pearson correlation coefficient (r)"
+CONSTANT_RESPONSE = "Unavailable because all recorded responses are equal."
 
 
 def setup_run(lab, analyst):
@@ -138,6 +139,7 @@ def test_fit_requires_a_choice_and_keeps_evidence_and_result_links(lab, analyst,
     assert b"Absolute percent error (%)" not in initial.content
     assert "Relative standard error (RSE)" not in worksheet_html(initial)
     assert R_SQUARED not in worksheet_html(initial)
+    assert PEARSON_R not in worksheet_html(initial)
     slopes = set()
     for weighting in ("equal", "inverse", "inverse_square"):
         response = client.get(url, {"weighting": weighting})
@@ -153,6 +155,11 @@ def test_fit_requires_a_choice_and_keeps_evidence_and_result_links(lab, analyst,
             assert f'<dt>{R_SQUARED}</dt><dd><span class="vr-id">0.964285714286</span></dd>' in (
                 worksheet
             )
+            assert f'<dt>{PEARSON_R}</dt><dd><span class="vr-id">0.981980506062</span></dd>' in (
+                worksheet
+            )
+        else:
+            assert PEARSON_R not in worksheet
         assert "y = slope × x + intercept" in response.content.decode()
         assert b"Predicted response (counts)" in response.content
         assert b"Residual (counts)" in response.content
@@ -229,6 +236,7 @@ def test_quadratic_fit_displays_direction_and_per_standard_inverses(lab, analyst
     assert 'id="refit-unavailable-reason"' not in html
     worksheet = worksheet_html(response)
     assert "Relative standard error (RSE)" not in worksheet
+    assert PEARSON_R not in worksheet
     assert f'<dt>{R_SQUARED}</dt><dd><span class="vr-id">0.967975830816</span></dd>' in worksheet
     assert client.post(url, {"model": "quadratic", "weighting": "equal"}).status_code == 405
     assert RunCalibration.objects.values().get(pk=curve.pk) == curve_fields
@@ -267,7 +275,7 @@ def test_quadratic_fit_explains_when_all_inverses_are_unavailable(
     assert "Predicted response (counts)" in html
     assert "Residual (counts)" in html
     shown = (
-        R_SQUARED_UNAVAILABLE
+        CONSTANT_RESPONSE
         if r_squared_value is None
         else f'<span class="vr-id">{r_squared_value}</span>'
     )
@@ -565,7 +573,7 @@ def test_linear_refit_explains_the_error_at_zero_concentration(lab, analyst, rev
 @pytest.mark.parametrize(
     ("model", "responses", "reason", "r_squared_shown"),
     [
-        ("linear", ("3", "3", "3"), "fitted slope", R_SQUARED_UNAVAILABLE),
+        ("linear", ("3", "3", "3"), "fitted slope", CONSTANT_RESPONSE),
         ("linear", ("1", "2", "1"), "fitted slope", '<span class="vr-id">0</span>'),
         ("linear_origin", ("-2", "1"), "fitted slope", None),
         ("average_factor", ("-1", "2"), "mean calibration factor", None),
@@ -606,8 +614,10 @@ def test_flat_fit_explains_the_unavailable_refit(
         assert f"Unavailable because the {reason} is zero." in worksheet
     if r_squared_shown is None:
         assert R_SQUARED not in worksheet
+        assert PEARSON_R not in worksheet
     else:
         assert f"<dt>{R_SQUARED}</dt><dd>{r_squared_shown}</dd>" in worksheet
+        assert f"<dt>{PEARSON_R}</dt><dd>{r_squared_shown}</dd>" in worksheet
     assert not response.context["fit_errors"]
 
 
