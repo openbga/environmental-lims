@@ -74,11 +74,13 @@ def test_fit_uses_each_recorded_point_and_preserves_original_text(
 
     fit = calculate_fit(points, weighting)
 
+    correlation = {"pearson_r": "0.969458417912"} if weighting == "equal" else {}
     assert fit == {
         "slope": slope,
         "intercept": intercept,
         "back_calculation_unavailable": False,
         "r_squared": r_squared,
+        **correlation,
         "rse": {"percent": rse, "reason": None, "points": 4, "terms": 2, "degrees_of_freedom": 2},
         "rows": [
             dict(
@@ -126,6 +128,7 @@ def test_fit_rounds_for_display_only_and_breaks_ties_to_even(response, displayed
     fit = calculate_fit([point("0", "0"), point("1", response)], "equal")
 
     assert fit["slope"] == displayed
+    assert fit["pearson_r"] == ("-1" if response.startswith("-") else "1")
     assert fit["rows"][1]["predicted"] == displayed
     assert fit["rows"][1]["response"] == response
     assert fit["rows"][1]["residual"] == "0"
@@ -137,6 +140,7 @@ def test_equal_weights_allow_zero_concentration_and_flat_negative_response():
     assert fit["slope"] == "0"
     assert fit["intercept"] == "-2"
     assert fit["r_squared"] is None
+    assert fit["pearson_r"] is None
     assert [(row["predicted"], row["residual"]) for row in fit["rows"]] == [("-2", "0")] * 2
     assert fit["back_calculation_unavailable"]
     assert all(
@@ -151,13 +155,27 @@ def test_r_squared_is_zero_when_variable_responses_fit_a_constant(model):
     fit = calculate_fit(points, "equal", model=model)
 
     assert fit["r_squared"] == "0"
+    if model == "linear":
+        assert fit["pearson_r"] == "0"
+    else:
+        assert "pearson_r" not in fit
+
+
+def test_pearson_r_keeps_the_negative_slope_sign_with_replicate_standards():
+    points = [point("1", "-4"), point("2", "-8"), point("4", "-12"), point("2", "-6")]
+
+    fit = calculate_fit(points, "equal")
+
+    assert fit["pearson_r"] == "-0.969458417912"  # −√(125/133).
 
 
 @pytest.mark.parametrize(
-    ("model", "r_squared"),
-    [("linear", "0.852631578947"), ("quadratic", "0.905263157895")],  # 81/95 and 86/95.
+    ("model", "r_squared", "pearson_r"),
+    [("linear", "0.852631578947", "0.923380516877"), ("quadratic", "0.905263157895", None)],
 )
-def test_r_squared_preserves_response_differences_smaller_than_display_precision(model, r_squared):
+def test_fit_statistics_preserve_response_differences_below_display_precision(
+    model, r_squared, pearson_r
+):
     points = [
         point("1", "99999999999999.9999999996"),
         point("2", "99999999999999.9999999997"),
@@ -169,6 +187,11 @@ def test_r_squared_preserves_response_differences_smaller_than_display_precision
 
     assert [row["predicted"] for row in fit["rows"]] == ["1.00000000000E+14"] * 4
     assert fit["r_squared"] == r_squared
+    if pearson_r is not None:
+        # √(81/95) differs at the last digit from taking the root of the displayed R².
+        assert fit["pearson_r"] == pearson_r
+    else:
+        assert "pearson_r" not in fit
 
 
 def test_r_squared_rounds_display_midpoints_to_even():

@@ -261,6 +261,9 @@ at least three and shows the direction of the fitted curve over the recorded con
 For **Linear** and **Quadratic**, read **Coefficient of determination (R²)** alongside the
 standard residuals. R² uses the selected weighting and includes each replicate. When all
 observed responses are equal, there is no response variation to compare and R² is unavailable.
+For **Linear** with **Unweighted (equal weights)**, read **Pearson correlation coefficient (r)**
+to see the direction and strength of the linear association between concentration and response.
+A negative r means response tends to decrease as concentration increases.
 
 Choose **Linear through origin** when the method calls for a fixed zero intercept. Leave
 **Weighting** blank or choose **Unweighted (equal weights)**. Every point must have a positive

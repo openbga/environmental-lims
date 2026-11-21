@@ -188,6 +188,15 @@ recorded replicate included. When all observed responses are equal,
 the total is zero and R² is undefined.
 [Weighted, centered total sum of squares and R²](https://www.statsmodels.org/stable/_modules/statsmodels/regression/linear_model.html#RegressionResults).
 
+For an unweighted linear fit with a fitted intercept, the worksheet also reports the signed
+Pearson correlation coefficient (r) between recorded concentration and observed response.
+Each recorded standard, including a replicate, contributes once. A negative value indicates
+that response tends to decrease as concentration increases. A value of zero indicates no
+linear association. Constant responses leave the correlation undefined. Staff interpret r under
+their method and SOP. US EPA Method 8000D discusses this use of r for unweighted linear
+regression with both coefficients fitted. [US EPA SW-846 Method 8000D Rev. 5, March 2018,
+§11.5.2.2, checked 2026-11-21](https://www.epa.gov/sites/default/files/2015-12/documents/8000d.pdf#page=37).
+
 US EPA Method 8000D discusses R² for linear and nonlinear calibrations. Staff interpret it
 alongside the residuals and their method’s acceptance criteria.
 [US EPA SW-846 Method 8000D Rev. 5, March 2018, §§11.5.2.2 and 11.5.3.1, checked 2026-11-20](https://www.epa.gov/sites/default/files/2015-12/documents/8000d.pdf#page=37).

@@ -5,7 +5,7 @@
   ],
   "title": "Calibration evidence",
   "purpose": "Inspect the recorded instrument model, compare temporary calibration fits, and trace the result revisions that use this evidence.",
-  "summary": "Inspect the recorded standards, source and linked result revisions. Compare linear and quadratic fits or the average calibration factor. Review R², relative standard error and back-calculated concentrations where available.",
+  "summary": "Inspect the recorded standards, source and linked result revisions. Compare linear and quadratic fits or the average calibration factor. Review Pearson r, R², relative standard error and back-calculated concentrations where available.",
   "tasks": [
     {
       "title": "Check the curve’s source and points",
@@ -18,7 +18,7 @@
       "title": "Fit a linear or quadratic model",
       "steps": [
         "In [[Calibration fit worksheet]], choose [[Model]] and [[Weighting]]. For [[Linear through origin]], leave [[Weighting]] blank or choose [[Unweighted (equal weights)]].",
-        "Select [[Calculate fit]]. Read the [[Equation]] and fitted coefficients.",
+        "Select [[Calculate fit]]. Read the [[Equation]], fitted coefficients and, for [[Linear]] with equal weights, the [[Pearson correlation coefficient (r)]].",
         "Check [[Coefficient of determination (R²)]] for [[Linear]] and [[Quadratic]], [[Relative standard error (RSE)]] for Linear, and [[Direction over recorded range]] for Quadratic.",
         "In [[Standard points]], compare predicted responses, residuals, [[Back-calculated concentration]] and [[Absolute percent error]]."
       ]
@@ -130,6 +130,10 @@
         {
           "label": "Relative standard deviation (RSD)",
           "description": "Sample standard deviation divided by the mean factor and multiplied by 100. For a positive mean this equals the RSE because each relative concentration error equals its factor’s deviation from the mean divided by the mean. The worksheet shows an explanation when the mean is zero or negative."
+        },
+        {
+          "label": "Pearson correlation coefficient (r)",
+          "description": "A unitless measure of the strength and direction of the linear relationship between concentration and observed response. It appears only for Linear with Unweighted (equal weights). The coefficient ranges from −1 to +1 and has the same sign as the fitted slope. Each recorded point, including replicates, counts separately. Identical observed responses leave r undefined. With varying responses, zero means there is no linear correlation. The worksheet calculates r from the unrounded fit. Apply your method and laboratory SOP for acceptance."
         },
         {
           "label": "Coefficient of determination (R²)",

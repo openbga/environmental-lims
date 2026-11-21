@@ -176,6 +176,10 @@ The same list is shown in the application under What's new.
 
   The GitHub Actions upgrade summary includes new or revised technical notes from the candidate changelog. Open a note’s source at the tested revision to see the change it describes.
 
+- **Added:** See the direction and strength of calibration correlation (2026-11-21, Batches & QC)
+
+  Choose Linear and Unweighted (equal weights) on the calibration fit worksheet to see the Pearson correlation coefficient (r) for the recorded standards. A negative value means response tends to fall as concentration increases. If all responses are equal, the worksheet explains why correlation is unavailable.
+
 - **Added:** Compare back-calculated and recorded calibration concentrations (2026-11-20, Batches & QC)
 
   On a recorded calibration, staff can see the concentration each standard’s observed response gives under a linear, through-origin or average-factor fit. The worksheet shows the absolute percent error against the recorded concentration and explains when either value is unavailable.
