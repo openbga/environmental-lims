@@ -130,7 +130,8 @@ and the check compares their bytes with the stored files. A pull
 request into `main` uses its base commit, and a push to `main` uses the previous tip. The
 application job publishes upgrade notes in the workflow run summary after preservation and
 download checks pass. The notes identify both checkout commits, the candidate’s forward migration
-plan on the populated database, and changes to package versions in the two lockfiles.
+plan on the populated database, changes to package versions in the two lockfiles, and new or
+revised technical notes from the candidate’s changelog entries.
 
 CI also runs the checks above, the browser journeys, and a container smoke test that
 builds the Docker image, migrates a disposable PostgreSQL database, renders a PDF, runs the

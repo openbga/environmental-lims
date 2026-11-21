@@ -81,7 +81,11 @@ jobs:
         run: |
           .venv/bin/python scripts/ci/upgrade_notes.py --baseline .upgrade-baseline --candidate . \
             --repository "$GITHUB_REPOSITORY" --plan "$RUNNER_TEMP/upgrade-plan.json" >> "$GITHUB_STEP_SUMMARY"
+          # Changelog text in the log is data, including any workflow-command syntax.
+          marker=$(uuidgen)
+          echo "::stop-commands::$marker"
           cat "$GITHUB_STEP_SUMMARY"
+          echo "::$marker::"
 
   browser:
     runs-on: ubuntu-latest

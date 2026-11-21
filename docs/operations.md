@@ -227,8 +227,12 @@ Open the GitHub Actions `checks` run for the revision you plan to deploy. Its ap
 job summary gives the starting and candidate commits. Compare the starting commit with
 your installation. For a pull request, the candidate is the merge commit GitHub tested.
 
-Use the migration list and changes to locked package versions to plan the upgrade. Follow
-the recovery link in the summary for rollback considerations at that revision. The rehearsal
+Use the migration list and changes to locked package versions to plan the upgrade. Read the
+new or revised changelog technical notes for setup and rollback instructions. Each note links
+to its entry at the tested candidate commit. If the starting revision predates changelog
+entries, the summary includes all candidate technical notes for reference. Check the migration
+list to see which migrations this rehearsal applied. Follow the recovery link for rollback
+considerations at that revision. The rehearsal
 checks a populated synthetic installation. Run acceptance on your own installation after
 applying the migrations.
 
