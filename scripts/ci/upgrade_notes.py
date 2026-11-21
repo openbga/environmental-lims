@@ -4,9 +4,15 @@ import argparse
 import json
 import re
 import subprocess
+import sys
 import tomllib
 from collections import defaultdict
+from html import escape
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from core.changelog import parse_entry, sort_key  # noqa: E402
 
 
 def git_output(checkout, *args):
@@ -22,6 +28,52 @@ def locked_versions(checkout, commit):
             continue  # The checkout itself is not a dependency.
         versions[package["name"]].add(package["version"])
     return versions
+
+
+def changelog_blobs(checkout, commit):
+    """Index committed entry files by blob ID without opening unchanged entries."""
+    has_catalog = False
+    blobs = {}
+    tree = git_output(
+        checkout, "ls-tree", "-r", "-t", "-z", "--full-tree", commit, "--", "changelog.d"
+    )
+    for record in tree.split("\0"):
+        if not record:
+            continue
+        metadata, filename = record.split("\t", 1)
+        mode, kind, blob = metadata.split()
+        if kind == "tree" and filename == "changelog.d":
+            has_catalog = True
+        directory, _, name = filename.rpartition("/")
+        if (
+            mode.startswith("100")
+            and directory == "changelog.d"
+            and name.endswith(".md")
+            and name.lower() != "readme.md"
+        ):
+            blobs[name] = blob
+    return has_catalog, blobs
+
+
+def changed_technical_notes(baseline_checkout, baseline, candidate_checkout, candidate):
+    has_baseline_catalog, before = changelog_blobs(baseline_checkout, baseline)
+    _, after = changelog_blobs(candidate_checkout, candidate)
+    entries = []
+    for name, blob in after.items():
+        old_blob = before.get(name)
+        if blob == old_blob:
+            continue
+        entry = parse_entry(name, text=git_output(candidate_checkout, "cat-file", "blob", blob))
+        if not entry.notes:
+            continue
+        if old_blob:
+            old = parse_entry(
+                name, text=git_output(baseline_checkout, "cat-file", "blob", old_blob)
+            )
+            if old.notes == entry.notes:
+                continue
+        entries.append(entry)
+    return has_baseline_catalog, sorted(entries, key=sort_key)
 
 
 def read_plan(path):
@@ -57,7 +109,7 @@ def dependency_rows(before, after):
     return rows
 
 
-def render_notes(baseline, candidate, repository, plan, rows):
+def render_notes(baseline, candidate, repository, plan, rows, has_baseline_catalog, entries):
     base_url = f"https://github.com/{repository}"
     before = f"{base_url}/blob/{baseline}"
     after = f"{base_url}/blob/{candidate}"
@@ -102,8 +154,30 @@ def render_notes(baseline, candidate, repository, plan, rows):
         lines += rows
     else:
         lines.append("No locked dependency versions changed.")
+    lines += ["", "## Changelog technical notes", ""]
+    if not has_baseline_catalog:
+        lines += [
+            "The baseline predates the changelog. The candidate's technical notes are listed",
+            "for reference and may describe changes already in the baseline. See the migration",
+            "plan above for what Django applied during this rehearsal.",
+            "",
+        ]
+        if not entries:
+            lines += ["The candidate contains no technical notes.", ""]
+    elif entries:
+        lines += ["These notes were added or revised between the tested commits.", ""]
+    else:
+        lines += ["No technical notes were added or revised.", ""]
+    for entry in entries:
+        entry_url = f"{after}/changelog.d/{entry.id}.md"
+        # HTML blocks preserve the changelog's plain text without parsing it as Markdown.
+        title = escape(entry.title, quote=False)
+        lines += [f'<h3><a href="{entry_url}">{title}</a></h3>', "", "<blockquote>"]
+        for paragraph in re.split(r"\n(?:[ \t]*\n)+", entry.notes):
+            text = escape(paragraph, quote=False).replace("\n", "<br>")
+            lines.append(f"<p>{text}</p>")
+        lines += ["</blockquote>", ""]
     lines += [
-        "",
         "## Deployment references",
         "",
         f"- [Candidate changelog]({after}/CHANGELOG.md)",
@@ -131,10 +205,23 @@ def main():
         candidate = git_output(args.candidate, "rev-parse", "--verify", "HEAD").strip()
         before = locked_versions(args.baseline, baseline)
         after = locked_versions(args.candidate, candidate)
+        has_baseline_catalog, entries = changed_technical_notes(
+            args.baseline, baseline, args.candidate, candidate
+        )
     except (OSError, ValueError, subprocess.CalledProcessError) as exc:
         parser.error(str(exc))
 
-    print(render_notes(baseline, candidate, args.repository, plan, dependency_rows(before, after)))
+    print(
+        render_notes(
+            baseline,
+            candidate,
+            args.repository,
+            plan,
+            dependency_rows(before, after),
+            has_baseline_catalog,
+            entries,
+        )
+    )
 
 
 if __name__ == "__main__":

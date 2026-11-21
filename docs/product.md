@@ -123,8 +123,11 @@ revisions and worksheet readings, the prepared invoice draft and its charges, an
 report snapshots and files. A client must be able to download the same original and amended
 PDFs after the upgrade. Since 2026-11-19, the successful rehearsal provides upgrade notes for
 the two commits it tested. Deployers can inspect the migrations, changes to locked package
-versions, and recovery instructions for that candidate. Publishing the first tagged release
-and its maintainer-reviewed notes remains on the roadmap.
+versions and recovery instructions for that candidate. The notes include new or revised
+technical guidance from the candidate changelog, with links to the tested revision. When
+the baseline predates changelog entries, all candidate technical notes are available for
+reference. Publishing the first tagged release and its maintainer-reviewed notes remains on
+the roadmap.
 
 Instrument-file support uses explicit long/wide CSV/TSV mappings and, from 2026-11-15,
 plain XLSX worksheets. An analyst names the visible worksheet for each upload and previews

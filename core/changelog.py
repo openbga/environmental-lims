@@ -83,12 +83,15 @@ class Group:
         return sum(len(entries) for _, _, entries in self.sections)
 
 
-def parse_entry(path):
+def parse_entry(path, *, text=None):
+    """Parse an entry file, optionally supplying its text from a committed source tree."""
     path = Path(path)
     name = path.name
     if not FILE_NAME.match(name):
         raise ChangelogError(f"{name}: the file name must be YYYY-MM-DD-short-slug.md")
-    text = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+    if text is None:
+        text = path.read_text(encoding="utf-8")
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
     lines = text.split("\n")
     if not lines or lines[0].strip() != "---":
         raise ChangelogError(f"{name}: must start with a '---' front matter line")

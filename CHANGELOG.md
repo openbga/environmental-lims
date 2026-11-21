@@ -6,7 +6,7 @@ What was added or changed in OpenBGA Environmental LIMS, newest first. Changes a
 grouped by the calendar month they were merged in and ranked from high to low impact.
 The same list is shown in the application under What's new.
 
-## November 2026 (2026-11-11 to 2026-11-20)
+## November 2026 (2026-11-11 to 2026-11-21)
 
 ### High impact
 
@@ -171,6 +171,10 @@ The same list is shown in the application under What's new.
   > No migration. New optional settings, documented in `docs/operations.md` and `.env.example`: `CONTENT_SECURITY_POLICY` (replaces the default policy), `MAX_REQUEST_BODY_BYTES` (12 MiB by default), `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS` and `ALLAUTH_TRUSTED_CLIENT_IP_HEADER` (set it only where the platform supplies a client-address header that clients cannot forge). A deployment that adds its own scripts or embeds content may need to adjust the policy.
 
 ### Medium impact
+
+- **Changed:** Read changelog technical notes for a rehearsed upgrade (2026-11-21)
+
+  The GitHub Actions upgrade summary includes new or revised technical notes from the candidate changelog. Open a note’s source at the tested revision to see the change it describes.
 
 - **Added:** Compare back-calculated and recorded calibration concentrations (2026-11-20, Batches & QC)
 
