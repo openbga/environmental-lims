@@ -592,6 +592,13 @@ def test_quadratic_fit_weights_every_observation_including_replicates(
     assert fit["trend"] == "Increasing"
     assert fit["back_calculation_reason"] is None
     assert fit["r_squared"] == r_squared
+    assert fit["rse"] == {
+        "percent": None,
+        "reason": "a recorded response is outside the fitted response range",
+        "points": 5,
+        "terms": 3,
+        "degrees_of_freedom": 2,
+    }
     assert fit["rows"] == [
         dict(
             row,
@@ -678,6 +685,141 @@ def test_quadratic_fit_preserves_rank_and_direction_at_the_record_limit(weightin
         "1.00000000000E-22",
         "4.14213562373E-23",
     ]
+    assert fit["rse"]["percent"] == "7.65366864730E-23"
+
+
+@pytest.mark.parametrize(
+    ("weighting", "rse"),
+    [("equal", "16.1045407632"), ("inverse", "14.5445180523"), ("inverse_square", "13.9448554705")],
+)
+def test_quadratic_rse_uses_weights_only_in_the_fit_and_counts_each_replicate(weighting, rse):
+    points = [
+        point(x, y) for x, y in [("1", "2"), ("2", "4"), ("2.0", "6"), ("3", "12"), ("4", "17")]
+    ]
+
+    fit = calculate_fit(points, weighting, "quadratic")
+
+    assert fit["rse"] == {
+        "percent": rse,
+        "reason": None,
+        "points": 5,
+        "terms": 3,
+        "degrees_of_freedom": 2,
+    }
+
+
+def test_quadratic_rse_sums_rational_inverse_errors_including_the_range_endpoint():
+    points = [
+        point(x, y) for x, y in [("1", "1"), ("5", "25"), ("8", "64"), ("5", "1"), ("5", "49")]
+    ]
+
+    fit = calculate_fit(points, "equal", "quadratic")
+
+    assert fit["quadratic"] == "1"
+    assert [row["back_calculated"] for row in fit["rows"]] == ["1", "5", "8", "1", "7"]
+    assert fit["rse"]["percent"] == "63.2455532034"  # sqrt((80² + 40²) / 2).
+
+
+def test_quadratic_rse_handles_a_rational_squared_error_from_an_irrational_inverse():
+    points = [
+        point(x, y)
+        for x, y in [("1", "14"), ("13", "49"), ("20", "841"), ("21", "1"), ("32", "961")]
+    ]
+
+    fit = calculate_fit(points, "equal", "quadratic")
+
+    # The fitted curve is (x − 1)². At x = 1, the squared relative error is exactly 14.
+    assert fit["trend"] == "Increasing (stationary at the lower endpoint)"
+    assert [row["back_calculated"] for row in fit["rows"]] == [
+        "4.74165738677",
+        "8",
+        "30",
+        "2",
+        "32",
+    ]
+    assert fit["rse"]["percent"] == "275.830773287"
+
+
+@pytest.mark.parametrize(
+    ("deviation", "rse"),
+    [("123.4567890125", "0.0000123456789012"), ("123.4567890135", "0.0000123456789014")],
+)
+def test_quadratic_rse_rounds_exact_midpoints_and_keeps_three_terms_for_a_straight_line(
+    deviation, rse
+):
+    middle = Decimal("1000000000")
+    points = [
+        point("1", "1"),
+        point(str(middle), str(middle)),
+        point(str(middle), str(middle + Decimal(deviation))),
+        point(str(middle), str(middle - Decimal(deviation))),
+        point("2000000000", "2000000000"),
+    ]
+
+    fit = calculate_fit(points, "equal", "quadratic")
+
+    assert fit["quadratic"] == "0"
+    assert fit["rse"]["terms"] == 3
+    assert fit["rse"]["degrees_of_freedom"] == 2
+    assert fit["rse"]["percent"] == rse
+
+
+@pytest.mark.parametrize(
+    ("upper_response", "rse"),
+    [
+        ("9999999999999.9999999999", "12.3456789013"),
+        ("10000000000000.0000000001", "12.3456789012"),
+    ],
+)
+def test_quadratic_rse_resolves_irrational_results_on_both_sides_of_a_midpoint(upper_response, rse):
+    points = [
+        point("1", "1"),
+        point("1e12", "1e12"),
+        point("1e13", upper_response),
+        point("1e12", "1123456789012.5"),
+        point("1e12", "876543210987.5"),
+    ]
+
+    fit = calculate_fit(points, "equal", "quadratic")
+
+    # With an upper response of 1e13 the RSE is exactly 12.34567890125.
+    assert fit["rse"]["percent"] == rse
+
+
+@pytest.mark.parametrize(
+    ("points", "reason"),
+    [
+        ([("1", "1"), ("2", "4"), ("3", "9"), ("4", "16")], None),
+        (
+            [("1", "1"), ("2", "4"), ("3", "9")],
+            "there are too few recorded points for the number of fitted terms",
+        ),
+        (
+            [("0", "0"), ("1", "1"), ("2", "4"), ("3", "9")],
+            "a recorded concentration is zero",
+        ),
+        (
+            [("1", "3"), ("2", "3"), ("3", "3"), ("4", "3")],
+            "the fitted response is constant",
+        ),
+        (
+            [("1", "1"), ("2", "0"), ("3", "1"), ("4", "4")],
+            "the fitted curve turns within the recorded concentration range",
+        ),
+    ],
+)
+def test_quadratic_rse_reports_zero_for_an_exact_fit_or_explains_when_it_is_unavailable(
+    points, reason
+):
+    fit = calculate_fit([point(x, y) for x, y in points], "equal", "quadratic")
+
+    assert fit["rse"] == {
+        "percent": "0" if reason is None else None,
+        "reason": reason,
+        "points": len(points),
+        "terms": 3,
+        "degrees_of_freedom": len(points) - 3,
+    }
 
 
 @pytest.mark.parametrize(
@@ -812,7 +954,7 @@ def test_exactly_linear_quadratic_fit_inverts_only_within_the_recorded_range():
     assert fit["trend"] == "Decreasing"
     assert fit["back_calculation_reason"] is None
     assert "back_calculation_unavailable" not in fit
-    assert "rse" not in fit
+    assert fit["rse"]["reason"] == "a recorded concentration is zero"
     outside = "The observed response is outside the fitted response range."
     assert [row["back_calculation_reason"] for row in fit["rows"]] == [
         None,

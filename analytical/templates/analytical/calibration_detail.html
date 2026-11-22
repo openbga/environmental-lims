@@ -88,6 +88,7 @@
         {% endif %}
         {% if fit_model == "quadratic" %}
           <p class="vr-muted">Back-calculation finds the concentration that matches the observed response within the recorded concentration range of an increasing or decreasing fit. Absolute percent error expresses the size of the difference from the recorded concentration as a percentage of that concentration.</p>
+          <p class="vr-muted">RSE uses unrounded back-calculated concentrations. Every recorded point, including replicates, must have a back-calculated concentration and a nonzero recorded concentration.</p>
         {% else %}
           <p class="vr-muted">Back-calculated concentration comes from solving the fitted equation using each observed response. Absolute percent error is the size of the difference from the recorded concentration, divided by the recorded concentration and multiplied by 100. Both use the unrounded fit.</p>
         {% endif %}

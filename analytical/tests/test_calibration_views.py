@@ -339,7 +339,11 @@ def test_quadratic_fit_displays_direction_and_per_standard_inverses(lab, analyst
     assert html.count('aria-describedby="refit-point-reason-4">Unavailable</td>') == 1
     assert 'id="refit-unavailable-reason"' not in html
     worksheet = worksheet_html(response)
-    assert "Relative standard error (RSE)" not in worksheet
+    assert "Relative standard error (RSE)" in worksheet
+    assert (
+        "Unavailable because a recorded response is outside the fitted response range." in worksheet
+    )
+    assert "4 recorded points − 3 fitted terms = 1" in worksheet
     assert PEARSON_R not in worksheet
     assert f'<dt>{R_SQUARED}</dt><dd><span class="vr-id">0.967975830816</span></dd>' in worksheet
     assert client.post(url, {"model": "quadratic", "weighting": "equal"}).status_code == 405
@@ -363,6 +367,7 @@ def test_quadratic_fit_explains_when_all_inverses_are_unavailable(
         {"standard": f"SYN-{x}", "concentration": str(x), "response": response}
         for x, response in enumerate(responses, start=1)
     ]
+    points.append({**points[-1], "standard": "SYN-3-REPLICATE"})
     curve = record(lab, analyst, batch, points=points)
     client.force_login(reviewer)
 
@@ -375,7 +380,7 @@ def test_quadratic_fit_explains_when_all_inverses_are_unavailable(
     html = response.content.decode()
     assert f'id="refit-unavailable-reason">{reason}' in html
     assert html.count(reason) == 1
-    assert html.count('aria-describedby="refit-unavailable-reason">Unavailable</td>') == 6
+    assert html.count('aria-describedby="refit-unavailable-reason">Unavailable</td>') == 8
     assert "Predicted response (counts)" in html
     assert "Residual (counts)" in html
     shown = (
@@ -383,7 +388,11 @@ def test_quadratic_fit_explains_when_all_inverses_are_unavailable(
         if r_squared_value is None
         else f'<span class="vr-id">{r_squared_value}</span>'
     )
-    assert f"<dt>{R_SQUARED}</dt><dd>{shown}</dd>" in worksheet_html(response)
+    worksheet = worksheet_html(response)
+    assert f"<dt>{R_SQUARED}</dt><dd>{shown}</dd>" in worksheet
+    assert "Relative standard error (RSE)" in worksheet
+    assert f"Unavailable because {reason[0].lower() + reason[1:]}" in worksheet
+    assert "4 recorded points − 3 fitted terms = 1" in worksheet
 
 
 def test_linear_through_origin_fits_all_rows_and_keeps_evidence_read_only(
@@ -725,24 +734,25 @@ def test_flat_fit_explains_the_unavailable_refit(
     assert not response.context["fit_errors"]
 
 
-def test_linear_rse_explains_insufficient_degrees_of_freedom(lab, analyst, client):
+@pytest.mark.parametrize(("model", "terms"), [("linear", 2), ("quadratic", 3)])
+def test_rse_explains_insufficient_degrees_of_freedom(lab, analyst, client, model, terms):
     batch, _ = setup_run(lab, analyst)
     points = [
-        {"standard": "SYN-LOW", "concentration": "1", "response": "3"},
-        {"standard": "SYN-HIGH", "concentration": "2", "response": "5"},
+        {"standard": f"SYN-{x}", "concentration": str(x), "response": str(x**2)}
+        for x in range(1, terms + 1)
     ]
     curve = record(lab, analyst, batch, points=points)
     client.force_login(analyst)
 
     response = client.get(
         reverse("analytical:calibration-detail", args=[curve.pk]),
-        {"model": "linear", "weighting": "equal"},
+        {"model": model, "weighting": "equal"},
     )
 
     assert response.status_code == 200
     worksheet = worksheet_html(response)
     assert "Relative standard error (RSE)" in worksheet
-    assert "2 recorded points − 2 fitted terms = 0" in worksheet
+    assert f"{terms} recorded points − {terms} fitted terms = 0" in worksheet
     assert (
         "Unavailable because there are too few recorded points for the number of fitted terms."
         in worksheet

@@ -270,16 +270,22 @@ unavailable for that standard. The limits apply to the current worksheet view. T
 makes the acceptance decision under its own method and SOP.
 [US EPA Method 8000D Rev. 5, March 2018, §11.5.4.1, checked 2026-11-21](https://www.epa.gov/sites/default/files/2015-12/documents/8000d.pdf#page=39).
 
-For a free-intercept linear fit or an average external-standard factor, staff can inspect
-the relative standard error across the recorded calibration points. US EPA SW-846 Method
-8000D Rev. 5 (March 2018), section 11.5.4.2, defines it as a percentage. The worksheet sums
+For a free-intercept linear fit, a quadratic fit or an average external-standard factor, staff
+can inspect the relative standard error across the recorded calibration points. US EPA SW-846
+Method 8000D Rev. 5 (March 2018), section 11.5.4.2, defines it as a percentage. The worksheet sums
 the squared relative concentration errors, divides by the number of points minus the number
-of fitted terms, takes the square root and multiplies by 100. The line has two fitted terms
-and the average factor has one. Each replicate counts as a point. The selected weights affect
-the fitted line. Each point contributes once to the error calculation using the unrounded fit.
-A zero recorded concentration, a zero slope or mean factor, or too few points for a positive
-denominator makes the statistic unavailable. Staff apply their method's acceptance criteria.
-[US EPA Method 8000D, checked 2026-11-20](https://www.epa.gov/sites/default/files/2015-12/documents/8000d.pdf#page=40).
+of fitted terms, takes the square root and multiplies by 100. The average factor has one fitted term,
+the line has two and the quadratic has three, even when its quadratic coefficient is zero. Each
+replicate counts as a point. The selected weights affect the fitted coefficients. Each point
+contributes once to the error calculation using the unrounded fit. RSE requires nonzero
+recorded concentrations and positive degrees of freedom. For a line, its slope must be
+nonzero, and for an average-factor fit, its mean factor must be nonzero.
+
+A quadratic needs at least four recorded points across at least three distinct concentrations
+for this statistic. Every standard must have a nonzero recorded concentration and a unique
+back-calculated concentration in the recorded range. If any standard lacks either, staff can
+still inspect individual rows and see why the overall statistic is unavailable. Staff apply
+their method's acceptance criteria. [US EPA Method 8000D Rev. 5, March 2018, §11.5.4.2, checked 2026-11-22](https://www.epa.gov/sites/default/files/2015-12/documents/8000d.pdf#page=40).
 
 For an analytical batch, an analyst can transcribe the instrument's actual injection sequence
 and name the source record. Each run has its own reference within the batch. A position has

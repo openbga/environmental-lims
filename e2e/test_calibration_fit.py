@@ -278,7 +278,9 @@ def test_quadratic_fit_shows_coefficients_residuals_and_guarded_inverses(sign_in
     expect(form.get_by_text("Increasing", exact=True)).to_be_visible()
     r_squared = form.get_by_text(R_SQUARED, exact=True).locator("xpath=following-sibling::dd")
     expect(r_squared).to_have_text("0.994592924455")
-    expect(form.get_by_text(RSE, exact=True)).to_have_count(0)
+    rse = form.get_by_text(RSE, exact=True).locator("xpath=following-sibling::dd")
+    expect(rse).to_contain_text("Unavailable because")
+    expect(form).to_contain_text("7 recorded points − 3 fitted terms = 4")
     expect(table.get_by_role("columnheader", name="Predicted response (counts)")).to_be_visible()
     expect(residual).to_be_visible()
     expect(table.get_by_role("columnheader", name=BACK_CALCULATED, exact=True)).to_be_visible()
@@ -300,6 +302,11 @@ def test_quadratic_fit_shows_coefficients_residuals_and_guarded_inverses(sign_in
     expect(drawer).to_contain_text("Direction over recorded range")
     expect(drawer).to_contain_text("Inspect the average calibration factor")
     expect(drawer).to_contain_text("Relative standard deviation (RSD)")
+    drawer.locator("summary").filter(
+        has=page.get_by_text("Calibration fit worksheet", exact=True)
+    ).press("Enter")
+    expect(drawer.get_by_text("unique inverse within the recorded range")).to_be_visible()
+    expect(drawer.get_by_text("Quadratic uses three", exact=False)).to_be_visible()
     drawer.locator("summary").filter(has=page.get_by_text("Standard points", exact=True)).press(
         "Enter"
     )
@@ -314,6 +321,29 @@ def test_quadratic_fit_shows_coefficients_residuals_and_guarded_inverses(sign_in
     assert history.inner_text() == recorded_history
     curve.refresh_from_db()
     assert (curve.model_text, curve.source_reference, curve.points) == (MODEL, SOURCE, points)
+    assert not page.console_errors
+
+
+@pytest.mark.browser_context_args(color_scheme="dark")
+def test_quadratic_rse_uses_each_recorded_point(sign_in_as):
+    page = sign_in_as("reviewer")
+    # Symmetric residuals at level 2 leave the weighted fit at 2x² + 3x − 1.
+    points = [
+        {"standard": "Level 1", "concentration": "1", "response": "4"},
+        {"standard": "Level 2", "concentration": "2", "response": "12"},
+        {"standard": "Level 2 replicate", "concentration": "2", "response": "14"},
+        {"standard": "Level 3", "concentration": "3", "response": "26"},
+    ]
+    curve = recorded_curve("SYNTHETIC-QUADRATIC-RSE", points)
+    page.set_viewport_size({"width": 1280, "height": 860})
+    path = f"/analytical/calibrations/{curve.pk}/"
+    assert page.goto(f"{path}?model=quadratic&weighting=inverse_square#fit-results").ok
+
+    worksheet = page.get_by_role("region", name="Calibration fit worksheet", exact=True)
+    rse = worksheet.get_by_text(RSE, exact=True).locator("xpath=following-sibling::dd")
+    expect(rse).to_have_text("6.43264264107%")
+    expect(worksheet).to_contain_text("4 recorded points − 3 fitted terms = 1")
+    expect(worksheet).to_contain_text("RSE uses unrounded back-calculated concentrations.")
     assert not page.console_errors
 
 
