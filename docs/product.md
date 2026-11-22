@@ -120,7 +120,9 @@ Status, 2026-11-15: milestones 1 to 3 are implemented, with the limits in [Workf
 For the first stable release, CI rehearses the upgrade of a synthetic installation from
 `main` (added 2026-11-18). The candidate must preserve custody and audit events, result
 revisions and worksheet readings, the prepared invoice draft and its charges, and issued
-report snapshots and files. A client must be able to download the same original and amended
+report snapshots and files. It must also preserve QC samples and their observation history,
+including the original failed measurement, the corrective action recorded against it and
+the correction that superseded it. A client must be able to download the same original and amended
 PDFs after the upgrade. Since 2026-11-19, the successful rehearsal provides upgrade notes for
 the two commits it tested. Deployers can inspect the migrations, changes to locked package
 versions and recovery instructions for that candidate. The notes include new or revised

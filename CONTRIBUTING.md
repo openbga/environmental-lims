@@ -125,7 +125,9 @@ installation command. On Apple Silicon run the last command as
 Every pull request rehearses an upgrade on a disposable PostgreSQL database. CI installs
 `main` with its own locked dependencies and seeds a synthetic working week and an invoice draft.
 The candidate then applies its migrations to that database and checks the existing records,
-including exact results and invoice charges. A client downloads an original and amended PDF
+including exact results and invoice charges. The rehearsal also compares QC samples, all their
+measurement revisions and recorded corrective actions. Its synthetic correction retains a link
+to the original failed observation, which remains the target of the corrective action. A client downloads an original and amended PDF
 and the check compares their bytes with the stored files. A pull
 request into `main` uses its base commit, and a push to `main` uses the previous tip. The
 application job publishes upgrade notes in the workflow run summary after preservation and

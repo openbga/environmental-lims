@@ -178,7 +178,9 @@ for new input and new reports; changing it does not reinterpret stored timestamp
 Keep demo seeding separate from a real laboratory database.
 
 The project's CI rehearses upgrades from a populated `main` installation and checks that
-synthetic laboratory history and issued PDFs survive the migration. Open the successful GitHub Actions
+synthetic laboratory history and issued PDFs survive the migration. For quality control (QC),
+the rehearsal checks that a failed observation, its corrective action and the corrected
+observation retain their values and links. Open the successful GitHub Actions
 `checks` run and read the application job summary for the two tested commits, the database
 migrations, changes to locked package versions and technical notes added or revised in the
 candidate changelog. Each note links to its source at the tested revision. The same summary

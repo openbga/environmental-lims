@@ -3,17 +3,31 @@
 import hashlib
 import json
 import os
+from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
 
 from django.db import transaction
-from django.db.models import JSONField, TextField
+from django.db.models import F, JSONField, TextField
 from django.db.models.functions import Cast
 from django.test import Client, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.models import User
-from analytical.models import Result, ResultRevision, ResultWorksheet, WorksheetReading
+from analytical import services as bench
+from analytical.models import (
+    QCCorrectiveAction,
+    QCMeasurement,
+    QCSample,
+    QCType,
+    Result,
+    ResultRevision,
+    ResultWorksheet,
+    WorksheetReading,
+)
+from analytical.qc import FAIL, PASS, BatchQC, evaluate_stored
+from catalog.models import TestDefinition
 from commercial import invoices
 from commercial.management.commands.seed_commercial_demo import PRICE_LIST
 from commercial.models import InvoiceDraft, InvoiceDraftLine, PriceList
@@ -23,6 +37,7 @@ from receipt.models import CustodyEvent, Order, RequestedTest
 from reporting.models import Report, ReportFile, ReportVersion
 
 FEE_DESCRIPTION = "Synthetic upgrade verification fee"
+QC_SAMPLE_LABEL = "Synthetic upgrade LCS"
 
 
 def require(condition, message):
@@ -30,9 +45,62 @@ def require(condition, message):
         raise SystemExit(message)
 
 
+def prepare_qc_history():
+    actor = User.objects.get(username="demo_analyst")
+    definition = TestDefinition.objects.select_related("method").get(
+        method__code="DEMO-METALS-AQ",
+        method__version="demo-1",
+        matrix="water",
+        analyte__name="Lead",
+    )
+    # Keep this rehearsal in a dedicated batch with no client results or reports.
+    batch = bench.create_batch(
+        actor=actor,
+        method=definition.method,
+        matrix=definition.matrix,
+        notes="Synthetic QC reanalysis for the populated upgrade check.",
+    )
+    sample = bench.add_qc_sample(
+        actor=actor, batch_id=batch.pk, qc_type=QCType.LCS, label=QC_SAMPLE_LABEL
+    )
+    now = timezone.now()
+    measurement_inputs = dict(
+        actor=actor,
+        qc_sample_id=sample.pk,
+        definition_id=definition.pk,
+        reporting_limit_applied=format(definition.reporting_limit, "f"),
+        spike_value="20.0",
+    )
+    failed = bench.record_qc_measurement(
+        observed_text="26.0", analysis_started_at=now - timedelta(minutes=30), **measurement_inputs
+    )
+    finding = next(
+        (
+            issue
+            for issue in BatchQC.load(batch).issues(definition)
+            if issue.code == "failed" and issue.measurement_id == failed.pk
+        ),
+        None,
+    )
+    require(finding is not None, "The synthetic LCS must produce a QC failure.")
+    bench.record_corrective_action(
+        actor=actor,
+        batch_id=batch.pk,
+        target_key=finding.key,
+        disposition=QCCorrectiveAction.Disposition.REANALYZE,
+        note="Synthetic: repeat the laboratory control sample after the failed recovery.",
+    )
+    bench.record_qc_measurement(
+        observed_text="20.0",
+        analysis_started_at=now,
+        reason="Synthetic: recorded the repeat LCS observation after reanalysis.",
+        **measurement_inputs,
+    )
+
+
 @transaction.atomic
 def prepare():
-    """Create a real baseline draft with its source lines and a manual fee."""
+    """Create an invoice draft and a QC reanalysis with baseline services."""
     actor = User.objects.get(username="demo_project_manager")
     order = Order.objects.get(coc_reference="DEMO-COC-001")
     draft = invoices.create_invoice_draft(
@@ -51,7 +119,31 @@ def prepare():
         unit_price=Decimal("4.25"),
         reason="Synthetic manual fee for the populated upgrade check.",
     )
-    print("Prepared a synthetic invoice draft with priced tests and a manual fee.")
+    prepare_qc_history()
+    print("Prepared a synthetic invoice draft and a failed QC observation with a reanalysis.")
+
+
+def require_qc_history():
+    correction = (
+        QCMeasurement.objects.filter(
+            qc_sample__label=QC_SAMPLE_LABEL,
+            qc_sample__qc_type=QCType.LCS,
+            is_current=True,
+            supersedes__is_current=False,
+            supersedes__qc_sample_id=F("qc_sample_id"),
+            supersedes__definition_id=F("definition_id"),
+            supersedes__corrective_actions__disposition=QCCorrectiveAction.Disposition.REANALYZE,
+        )
+        .select_related("qc_sample__batch", "supersedes__qc_sample__batch")
+        .first()
+    )
+    require(
+        correction is not None
+        and evaluate_stored(correction.supersedes).status == FAIL
+        and evaluate_stored(correction).status == PASS,
+        "The baseline needs a failed QC observation with a linked reanalysis disposition "
+        "and a passing correction.",
+    )
 
 
 def pdf_hash(data):
@@ -102,6 +194,9 @@ def collections(draft):
         "result revisions": ResultRevision.objects.all(),
         "result worksheets": ResultWorksheet.objects.all(),
         "worksheet readings": WorksheetReading.objects.all(),
+        "QC samples": QCSample.objects.all(),
+        "QC measurements": QCMeasurement.objects.all(),
+        "QC corrective actions": QCCorrectiveAction.objects.all(),
         "issued reports": Report.objects.filter(latest_version__gt=0),
         "issued report versions": ReportVersion.objects.all(),
         "issued report files": ReportFile.objects.all(),
@@ -189,6 +284,7 @@ def main():
     querysets = collections(draft)
 
     if mode == "capture":
+        require_qc_history()
         manifest = {label: collect(queryset) for label, queryset in querysets.items()}
         for label, evidence in manifest.items():
             require(evidence["rows"], f"Baseline has no {label}.")
