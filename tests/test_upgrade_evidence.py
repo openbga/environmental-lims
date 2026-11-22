@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 from django.core.management import call_command
 from django.db import transaction
+from django.test import Client
+from django.urls import reverse
 
 from analytical.models import QCCorrectiveAction, QCMeasurement, QCSample
 from receipt.subcontract_models import Subcontract, SubcontractResult
@@ -15,7 +17,9 @@ def test_upgrade_evidence_preserves_qc_and_subcontract_history(monkeypatch, tmp_
     monkeypatch.setenv("DEMO_PASSWORD", "synthetic-upgrade-test-password")
     call_command("seed_demo", full=True, verbosity=0)
     evidence_path = tmp_path / "evidence.json"
+    counts_path = tmp_path / "verified-counts.json"
     monkeypatch.setenv("UPGRADE_EVIDENCE_PATH", str(evidence_path))
+    monkeypatch.setenv("UPGRADE_VERIFIED_COUNTS_PATH", str(counts_path))
     script = Path(__file__).resolve().parents[1] / "scripts/ci/upgrade_evidence.py"
 
     def run(mode):
@@ -33,6 +37,7 @@ def test_upgrade_evidence_preserves_qc_and_subcontract_history(monkeypatch, tmp_
     assert action.qc_sample_id == failed.qc_sample_id == correction.qc_sample_id
 
     run("capture")
+    assert not counts_path.exists()
     manifest = json.loads(evidence_path.read_text(encoding="utf-8"))
     for name, model in (
         ("QC samples", QCSample),
@@ -45,11 +50,33 @@ def test_upgrade_evidence_preserves_qc_and_subcontract_history(monkeypatch, tmp_
             str(pk) for pk in model.objects.values_list("pk", flat=True)
         }
     run("verify")
+    assert json.loads(counts_path.read_text(encoding="utf-8")) == {
+        label: len(evidence["rows"]) for label, evidence in manifest.items()
+    }
 
     original, corrected = SubcontractResult.objects.filter(
         subcontract__external_reference=prepared["SUBCONTRACT_REFERENCE"]
     ).order_by("number")
     assert (original.observed_text, corrected.observed_text) == ("4.200", "4.100")
+    failed_counts_path = tmp_path / "failed-counts.json"
+    monkeypatch.setenv("UPGRADE_VERIFIED_COUNTS_PATH", str(failed_counts_path))
+    source_url = reverse("receipt:subcontract-source-download", args=[corrected.pk])
+    get = Client.get
+
+    def corrupt_download(client, path, **kwargs):
+        response = get(client, path, **kwargs)
+        if path == source_url:
+            response.content = b"different bytes"
+        return response
+
+    with monkeypatch.context() as download:
+        download.setattr(Client, "get", corrupt_download)
+        with pytest.raises(
+            SystemExit, match="Staff download differs from the stored external source"
+        ):
+            run("verify")
+    assert not failed_counts_path.exists()
+
     # Hash the bytes as well as the stored digest. Substitute only the historical
     # source PDF in the baseline projection, without modifying the immutable row.
     historical_pdf = SubcontractResult.objects.filter(pk=original.pk).extra(
@@ -88,5 +115,6 @@ def test_upgrade_evidence_preserves_qc_and_subcontract_history(monkeypatch, tmp_
     correction.delete()
     with pytest.raises(SystemExit, match=r"QC measurements: 1 missing, 0 added, and 0 changed"):
         run("verify")
+    assert not failed_counts_path.exists()
     with pytest.raises(SystemExit, match="The baseline needs a failed QC observation"):
         run("capture")

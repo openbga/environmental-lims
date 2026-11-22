@@ -184,10 +184,11 @@ the rehearsal checks that a failed observation, its corrective action and the co
 observation retain their values and links. For subcontracted work, it checks the external
 laboratory’s original and corrected source PDFs and the transcription cited by each issued
 report version. Open the successful GitHub Actions `checks` run and read the application
-job summary for the two tested commits, the database
-migrations, changes to locked package versions and technical notes added or revised in the
-candidate changelog. Each note links to its source at the tested revision. The same summary
-links to the candidate’s recovery and acceptance instructions.
+job summary for the two tested commits, verified record counts, database migrations,
+changes to locked package versions and technical notes added or revised in the candidate
+changelog. To keep a copy, download the upgrade rehearsal artifact from that run.
+It contains the same Markdown report, with links to the candidate’s changelog entries,
+recovery instructions and acceptance checks.
 
 After installing, and after each upgrade, run
 `python manage.py run_acceptance --operator "Your Name" --output /path/to/new-directory` and keep

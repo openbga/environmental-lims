@@ -88,6 +88,22 @@ def read_plan(path):
     return plan
 
 
+def read_verified_counts(path):
+    counts = json.loads(path.read_text(encoding="utf-8"))
+    if (
+        not isinstance(counts, dict)
+        or not counts
+        or any(
+            not re.fullmatch(r"[A-Za-z]+(?: [A-Za-z]+)*", label)
+            or type(count) is not int
+            or count <= 0
+            for label, count in counts.items()
+        )
+    ):
+        raise ValueError("Expected a JSON object mapping record categories to positive integers.")
+    return counts
+
+
 def format_versions(versions):
     return ", ".join(f"`{version}`" for version in sorted(versions)) or "—"
 
@@ -109,7 +125,9 @@ def dependency_rows(before, after):
     return rows
 
 
-def render_notes(baseline, candidate, repository, plan, rows, has_baseline_catalog, entries):
+def render_notes(
+    baseline, candidate, repository, plan, rows, has_baseline_catalog, entries, verified_counts=None
+):
     base_url = f"https://github.com/{repository}"
     before = f"{base_url}/blob/{baseline}"
     after = f"{base_url}/blob/{candidate}"
@@ -133,9 +151,20 @@ def render_notes(baseline, candidate, repository, plan, rows, has_baseline_catal
         "",
         f"[Compare the tested source trees]({base_url}/compare/{baseline}..{candidate})",
         "",
-        "## Django migrations",
-        "",
     ]
+    if verified_counts:
+        lines += [
+            "## Verified records",
+            "",
+            "| Record category | Matched baseline rows |",
+            "| --- | ---: |",
+        ]
+        lines += [
+            f"| {label} | {verified_counts[label]} |"
+            for label in sorted(verified_counts, key=lambda label: (label.casefold(), label))
+        ]
+        lines.append("")
+    lines += ["## Django migrations", ""]
     if plan:
         lines += ["Django applied these migrations in order.", ""]
         lines += [f"{index}. `{app}.{name}`" for index, (app, name) in enumerate(plan, start=1)]
@@ -198,6 +227,7 @@ def main():
     parser.add_argument("--baseline", required=True, type=Path, help="baseline Git checkout")
     parser.add_argument("--candidate", required=True, type=Path, help="candidate Git checkout")
     parser.add_argument("--plan", required=True, type=Path, help="rehearsed migration plan JSON")
+    parser.add_argument("--verified-counts", type=Path, help="verified baseline record counts JSON")
     parser.add_argument("--repository", default="openbga/environmental-lims", metavar="OWNER/REPO")
     args = parser.parse_args()
     if not re.fullmatch(r"[A-Za-z0-9-]+/[A-Za-z0-9_.-]+", args.repository):
@@ -205,6 +235,9 @@ def main():
 
     try:
         plan = read_plan(args.plan)
+        verified_counts = (
+            read_verified_counts(args.verified_counts) if args.verified_counts else None
+        )
         baseline = git_output(args.baseline, "rev-parse", "--verify", "HEAD").strip()
         candidate = git_output(args.candidate, "rev-parse", "--verify", "HEAD").strip()
         before = locked_versions(args.baseline, baseline)
@@ -224,6 +257,7 @@ def main():
             dependency_rows(before, after),
             has_baseline_catalog,
             entries,
+            verified_counts,
         )
     )
 

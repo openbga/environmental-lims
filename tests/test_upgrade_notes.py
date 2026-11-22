@@ -134,9 +134,57 @@ def test_reports_no_pending_migrations_or_version_or_note_changes(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert "No migrations were pending on the populated baseline." in result.stdout
+    assert "## Verified records" not in result.stdout
     assert "No locked dependency versions changed." in result.stdout
     assert "No technical notes were added or revised." in result.stdout
     assert "The baseline predates the changelog." not in result.stdout
+
+
+def test_reports_verified_baseline_record_counts_in_category_order(tmp_path):
+    candidate = tmp_path / "candidate"
+    checkout(candidate, "example-project")
+    plan = tmp_path / "plan.json"
+    plan.write_text("[]", encoding="utf-8")
+    counts = tmp_path / "verified-counts.json"
+    counts.write_text('{"QC measurements": 3, "custody events": 8}', encoding="utf-8")
+
+    result = run_notes(candidate, candidate, plan, "--verified-counts", str(counts))
+
+    assert result.returncode == 0, result.stderr
+    assert (
+        "## Verified records\n\n"
+        "| Record category | Matched baseline rows |\n"
+        "| --- | ---: |\n"
+        "| custody events | 8 |\n"
+        "| QC measurements | 3 |\n" in result.stdout
+    )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "[]",
+        "{}",
+        '{"": 1}',
+        '{"QC | measurements": 1}',
+        '{"QC measurements": 0}',
+        '{"QC measurements": -1}',
+        '{"QC measurements": true}',
+        '{"QC measurements": 1.0}',
+        '{"QC measurements": "1"}',
+    ],
+)
+def test_rejects_invalid_verified_counts_before_emitting_notes(tmp_path, payload):
+    plan = tmp_path / "plan.json"
+    plan.write_text("[]", encoding="utf-8")
+    counts = tmp_path / "verified-counts.json"
+    counts.write_text(payload, encoding="utf-8")
+
+    result = run_notes(tmp_path, tmp_path, plan, "--verified-counts", str(counts))
+
+    assert result.returncode != 0
+    assert "Expected a JSON object mapping record categories to positive integers." in result.stderr
+    assert not result.stdout
 
 
 def test_reports_only_new_and_revised_committed_technical_notes(tmp_path):

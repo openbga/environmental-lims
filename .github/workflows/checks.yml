@@ -10,8 +10,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   application:
-    # The suite renders real PDFs and takes 10 to 20 minutes depending on the runner.
-    timeout-minutes: 30
+    # Allow time for the populated upgrade and its report after the PDF-heavy test suite.
+    timeout-minutes: 45
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -61,6 +61,7 @@ jobs:
           DATABASE_URL: postgresql://roots:roots@127.0.0.1:5432/roots_upgrade
           DEMO_PASSWORD: disposable-ci-only-upgrade
           UPGRADE_EVIDENCE_PATH: ${{ runner.temp }}/upgrade-evidence.json
+          UPGRADE_VERIFIED_COUNTS_PATH: ${{ runner.temp }}/upgrade-counts.json
         run: |
           echo "Upgrade from $(git -C .upgrade-baseline rev-parse HEAD) to $(git rev-parse HEAD)"
           evidence="$PWD/scripts/ci/upgrade_evidence.py"
@@ -80,12 +81,21 @@ jobs:
       - name: Publish notes for the rehearsed upgrade
         run: |
           .venv/bin/python scripts/ci/upgrade_notes.py --baseline .upgrade-baseline --candidate . \
-            --repository "$GITHUB_REPOSITORY" --plan "$RUNNER_TEMP/upgrade-plan.json" >> "$GITHUB_STEP_SUMMARY"
+            --repository "$GITHUB_REPOSITORY" --plan "$RUNNER_TEMP/upgrade-plan.json" \
+            --verified-counts "$RUNNER_TEMP/upgrade-counts.json" > "$RUNNER_TEMP/upgrade-notes.md"
+          cat "$RUNNER_TEMP/upgrade-notes.md" >> "$GITHUB_STEP_SUMMARY"
           # Changelog text in the log is data, including any workflow-command syntax.
           marker=$(uuidgen)
           echo "::stop-commands::$marker"
           cat "$GITHUB_STEP_SUMMARY"
           echo "::$marker::"
+
+      - name: Upload the rehearsed upgrade notes
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: upgrade-rehearsal-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/upgrade-notes.md
+          if-no-files-found: error
 
   browser:
     runs-on: ubuntu-latest

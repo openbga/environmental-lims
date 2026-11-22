@@ -459,6 +459,7 @@ def main():
         counts = ", ".join(f"{len(item['rows'])} {label}" for label, item in manifest.items())
         print(f"Captured baseline fingerprints for {counts}.")
     else:
+        verified_counts = {}
         for label, queryset in querysets.items():
             expected = manifest[label]
             before = expected["rows"]
@@ -472,9 +473,13 @@ def main():
                 f"Preservation failed for {label}: {len(missing)} missing, {len(added)} added, "
                 f"and {len(changed)} changed against {len(before)} baseline rows.",
             )
+            verified_counts[label] = len(after)
         verify_downloads(
             *amendment_for_client(manifest["issued report versions"]["rows"]), subcontract_sources()
         )
+        if counts_path := os.environ.get("UPGRADE_VERIFIED_COUNTS_PATH"):
+            with Path(counts_path).open("x", encoding="utf-8") as out:
+                json.dump(verified_counts, out, sort_keys=True)
         print("Preserved all recorded baseline data after migration.")
 
 
