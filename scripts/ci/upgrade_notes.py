@@ -122,6 +122,8 @@ def render_notes(baseline, candidate, repository, plan, rows, has_baseline_catal
         "worksheets, issued reports and files, and the invoice draft and its lines.",
         "It also verified QC samples, observations and corrective actions. The correction and",
         "the reanalysis disposition still linked to the original failed observation.",
+        "For the subcontracted test, staff downloaded the original and corrected source PDFs.",
+        "Both matched their stored bytes, and each issued version cited its reviewed result.",
         "The original and amended client PDF downloads matched their stored bytes.",
         "",
         "| Installation | Tested commit |",

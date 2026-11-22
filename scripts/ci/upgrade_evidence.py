@@ -5,6 +5,7 @@ import json
 import os
 from datetime import timedelta
 from decimal import Decimal
+from html import escape
 from pathlib import Path
 
 from django.db import transaction
@@ -13,6 +14,7 @@ from django.db.models.functions import Cast
 from django.test import Client, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from weasyprint import HTML
 
 from accounts.models import User
 from analytical import services as bench
@@ -34,10 +36,16 @@ from commercial.models import InvoiceDraft, InvoiceDraftLine, PriceList
 from core.management.commands.seed_demo import DEMO_LAB_NAME
 from core.models import AuditEvent, Lab
 from receipt.models import CustodyEvent, Order, RequestedTest
+from receipt.services import receive_sample
+from receipt.subcontract_models import Subcontract, SubcontractResult
+from receipt.subcontracts import dispatch_subcontract, enter_external_result, review_external_result
+from reporting.content import assemble
 from reporting.models import Report, ReportFile, ReportVersion
+from reporting.services import create_report, release_report
 
 FEE_DESCRIPTION = "Synthetic upgrade verification fee"
 QC_SAMPLE_LABEL = "Synthetic upgrade LCS"
+SUBCONTRACT_REFERENCE = "SYN-UPGRADE-EXTERNAL"
 
 
 def require(condition, message):
@@ -98,9 +106,100 @@ def prepare_qc_history():
     )
 
 
+def prepare_subcontract_history(project, manager):
+    custodian = User.objects.get(username="demo_custodian")
+    analyst = User.objects.get(username="demo_analyst")
+    reviewer = User.objects.get(username="demo_reviewer")
+    approver = User.objects.get(username="demo_approver")
+    definition = TestDefinition.objects.get(
+        method__code="DEMO-METALS-AQ",
+        method__version="demo-1",
+        matrix="water",
+        analyte__name="Lead",
+    )
+    now = timezone.now()
+    sample = receive_sample(
+        actor=custodian,
+        project=project,
+        coc_reference=SUBCONTRACT_REFERENCE,
+        tests=[definition],
+        container_description="Synthetic bottle",
+        container_condition="Intact",
+        relinquished_by="Example Courier",
+        client_sample_id="SYN-EXT-01",
+        matrix="water",
+        source_type="surface_water",
+        collection_type="grab",
+        collected_at=now - timedelta(hours=4),
+        collector_name="Example Collector",
+        collection_location="Synthetic Test Creek",
+        received_at=now - timedelta(hours=3),
+        cooler_temperature=Decimal("4.2"),
+        coolant="wet_ice",
+        seal_condition="Intact",
+        preservation_check="Recorded for demonstration only",
+        current_location="Receipt bench",
+        disposition="proceed",
+    )
+    contract = dispatch_subcontract(
+        actor=custodian,
+        requested_test_id=sample.requested_tests.get().pk,
+        expected_sample_revision=sample.revision,
+        container_ids=[sample.containers.get().pk],
+        external_lab="Synthetic Partner Laboratory",
+        external_reference=SUBCONTRACT_REFERENCE,
+        external_sample_id="PARTNER-01",
+        dispatched_at=now - timedelta(hours=2),
+        handed_to="Synthetic Partner Courier",
+        reason="Synthetic external source for upgrade verification.",
+    )
+    report = create_report(
+        actor=manager, project=project, title="Synthetic subcontract upgrade", samples=[sample]
+    )
+    for number, observed in enumerate(("4.200", "4.100"), start=1):
+        reason = "Partner laboratory corrected its synthetic result." if number == 2 else ""
+        reference = f"{SUBCONTRACT_REFERENCE}-v{number}"
+        pdf = HTML(
+            string=f"<h1>Synthetic Partner Laboratory</h1><p>{reference}</p>"
+            f"<p>PARTNER-01: Lead {observed} {escape(definition.unit)}</p>"
+        ).write_pdf()
+        source = enter_external_result(
+            actor=analyst,
+            subcontract_id=contract.pk,
+            expected_revision=contract.revision,
+            observed_text=observed,
+            reporting_limit=str(definition.reporting_limit),
+            dilution="1",
+            unit=definition.unit,
+            external_method="Synthetic partner lead method v1",
+            external_analyst="Synthetic Partner Analyst",
+            analyzed_at=now - timedelta(hours=1),
+            qualifier_text="",
+            external_report_reference=reference,
+            source_pdf=pdf,
+            reason=reason,
+        )
+        contract.refresh_from_db()
+        review_external_result(
+            actor=reviewer,
+            result_id=source.pk,
+            expected_revision=contract.revision,
+            decision=SubcontractResult.Decision.ACCEPTED,
+            note="Compared transcription with the partner laboratory's PDF.",
+        )
+        contract.refresh_from_db()
+        report.refresh_from_db()
+        release_report(
+            actor=approver,
+            report_id=report.pk,
+            expected_fingerprint=assemble(report, actor=approver).fingerprint,
+            reason=reason,
+        )
+
+
 @transaction.atomic
 def prepare():
-    """Create an invoice draft and a QC reanalysis with baseline services."""
+    """Create synthetic invoice, QC and subcontract history with baseline services."""
     actor = User.objects.get(username="demo_project_manager")
     order = Order.objects.get(coc_reference="DEMO-COC-001")
     draft = invoices.create_invoice_draft(
@@ -120,7 +219,8 @@ def prepare():
         reason="Synthetic manual fee for the populated upgrade check.",
     )
     prepare_qc_history()
-    print("Prepared a synthetic invoice draft and a failed QC observation with a reanalysis.")
+    prepare_subcontract_history(order.project, actor)
+    print("Prepared a synthetic invoice draft, QC reanalysis and amended subcontract report.")
 
 
 def require_qc_history():
@@ -197,6 +297,8 @@ def collections(draft):
         "QC samples": QCSample.objects.all(),
         "QC measurements": QCMeasurement.objects.all(),
         "QC corrective actions": QCCorrectiveAction.objects.all(),
+        "subcontract dispatches": Subcontract.objects.all(),
+        "external source results": SubcontractResult.objects.all(),
         "issued reports": Report.objects.filter(latest_version__gt=0),
         "issued report versions": ReportVersion.objects.all(),
         "issued report files": ReportFile.objects.all(),
@@ -223,9 +325,51 @@ def amendment_for_client(version_ids):
     return owner, amendment
 
 
+def subcontract_sources():
+    sources = list(
+        SubcontractResult.objects.filter(subcontract__external_reference=SUBCONTRACT_REFERENCE)
+        .defer(None)
+        .order_by("number")
+    )
+    require(
+        [source.number for source in sources] == [1, 2]
+        and sources[0].subcontract_id == sources[1].subcontract_id
+        and sources[0].source_sha256 != sources[1].source_sha256,
+        "The rehearsal needs the original and corrected PDFs for the synthetic subcontract.",
+    )
+    previous = None
+    for source in sources:
+        versions = list(source.report_versions.select_related("file"))
+        require(
+            source.review_decision == SubcontractResult.Decision.ACCEPTED
+            and len(source.source_pdf) == source.source_size
+            and pdf_hash(source.source_pdf) == source.source_sha256
+            and len(versions) == 1,
+            f"External source {source.pk} needs an intact PDF, acceptance and one issued version.",
+        )
+        version = versions[0]
+        rows = [
+            row
+            for sample in version.file.snapshot["content"]["samples"]
+            for row in sample["results"]
+            if row.get("external_result_id") == source.pk
+        ]
+        require(
+            version.number == source.number
+            and version.amends_id == (previous.pk if previous else None)
+            and (previous is None or version.report_id == previous.report_id)
+            and len(rows) == 1
+            and rows[0]["external"]["source_sha256"] == source.source_sha256
+            and rows[0]["supplied_text"] == source.observed_text,
+            f"Issued report version {version.pk} must retain its matching external source.",
+        )
+        previous = version
+    return sources
+
+
 @override_settings(ALLOWED_HOSTS=["testserver"])
 @transaction.atomic
-def verify_downloads(owner, amendment):
+def verify_downloads(owner, amendment, sources):
     browser = Client()
     browser.force_login(owner, backend="django.contrib.auth.backends.ModelBackend")
     for version in (amendment.amends, amendment):
@@ -248,6 +392,21 @@ def verify_downloads(owner, amendment):
         require(
             response.content == data, f"Downloaded PDF differs for report version {version.pk}."
         )
+    browser.force_login(
+        User.objects.get(username="demo_reviewer"),
+        backend="django.contrib.auth.backends.ModelBackend",
+    )
+    for source in sources:
+        response = browser.get(
+            reverse("receipt:subcontract-source-download", args=[source.pk]), secure=True
+        )
+        require(
+            response.status_code == 200
+            and response.headers.get("Content-Type") == "application/pdf"
+            and response.content == bytes(source.source_pdf),
+            f"Staff download differs from the stored external source PDF for result {source.pk}.",
+        )
+    print("Staff downloaded the original and corrected external source PDFs with matching bytes.")
     transaction.set_rollback(True)  # discard the test session and last-login change
     print("The original and amended PDFs downloaded for their owner match their stored bytes.")
 
@@ -285,6 +444,7 @@ def main():
 
     if mode == "capture":
         require_qc_history()
+        subcontract_sources()
         manifest = {label: collect(queryset) for label, queryset in querysets.items()}
         for label, evidence in manifest.items():
             require(evidence["rows"], f"Baseline has no {label}.")
@@ -312,7 +472,9 @@ def main():
                 f"Preservation failed for {label}: {len(missing)} missing, {len(added)} added, "
                 f"and {len(changed)} changed against {len(before)} baseline rows.",
             )
-        verify_downloads(*amendment_for_client(manifest["issued report versions"]["rows"]))
+        verify_downloads(
+            *amendment_for_client(manifest["issued report versions"]["rows"]), subcontract_sources()
+        )
         print("Preserved all recorded baseline data after migration.")
 
 

@@ -127,9 +127,12 @@ Every pull request rehearses an upgrade on a disposable PostgreSQL database. CI 
 The candidate then applies its migrations to that database and checks the existing records,
 including exact results and invoice charges. The rehearsal also compares QC samples, all their
 measurement revisions and recorded corrective actions. Its synthetic correction retains a link
-to the original failed observation, which remains the target of the corrective action. A client downloads an original and amended PDF
-and the check compares their bytes with the stored files. A pull
-request into `main` uses its base commit, and a push to `main` uses the previous tip. The
+to the original failed observation, which remains the target of the corrective action. For a
+subcontracted test, staff retrieve the external laboratory’s original and corrected source
+PDFs. The rehearsal checks the dispatch, both reviewed transcriptions, and the source revision
+cited by each issued report version. A client downloads an original and amended PDF,
+and the check compares their bytes with the stored files. A pull request into `main`
+uses its base commit, and a push to `main` uses the previous tip. The
 application job publishes upgrade notes in the workflow run summary after preservation and
 download checks pass. The notes identify both checkout commits, the candidate’s forward migration
 plan on the populated database, changes to package versions in the two lockfiles, and new or
