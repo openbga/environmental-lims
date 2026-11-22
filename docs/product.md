@@ -122,8 +122,10 @@ For the first stable release, CI rehearses the upgrade of a synthetic installati
 revisions and worksheet readings, the prepared invoice draft and its charges, and issued
 report snapshots and files. It must also preserve QC samples and their observation history,
 including the original failed measurement, the corrective action recorded against it and
-the correction that superseded it. A client must be able to download the same original and amended
-PDFs after the upgrade. Since 2026-11-19, the successful rehearsal provides upgrade notes for
+the correction that superseded it. For subcontracted tests, the upgrade must preserve the
+dispatch record and both the original and corrected source PDFs. Each issued report version
+must retain its link to the independently reviewed transcription it cited. A client must be
+able to download the same original and amended PDFs after the upgrade. Since 2026-11-19, the successful rehearsal provides upgrade notes for
 the two commits it tested. Deployers can inspect the migrations, changes to locked package
 versions and recovery instructions for that candidate. The notes include new or revised
 technical guidance from the candidate changelog, with links to the tested revision. When

@@ -180,6 +180,10 @@ The same list is shown in the application under What's new.
 
   Choose Quadratic on the calibration fit worksheet to see the relative standard error across all recorded standards, including replicates. The worksheet shows the degrees of freedom and explains when a standard or the number of points prevents the calculation.
 
+- **Changed:** Check subcontracted results during upgrade rehearsals (2026-11-22)
+
+  The upgrade rehearsal now follows a subcontracted test through a corrected source report. It checks that staff can retrieve the external laboratory’s original and corrected PDFs and that each issued report version still cites the matching reviewed result.
+
 - **Added:** Choose instrument run-list columns (2026-11-22, Batches & QC)
 
   Analysts can download an analytical batch’s run list with the column headings and order their instrument needs. Download the example CSV, keep the columns you need and reuse that template for other batches.
