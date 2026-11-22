@@ -150,9 +150,12 @@ recorded QC samples for instrument setup. It includes sample disposition and dis
 current configured units and limits, and the latest result's explicitly recorded preparation
 identity only when that revision belongs to this batch. It never chooses an aliquot, supplies
 missing QC or calibration standards, assigns injection order, or sends commands to an instrument.
-The laboratory maps the columns and verifies the intended run. Closed batches remain exportable
-as current inventories, not historical snapshots. The 2,000-row bound is a product choice for
-synchronous downloads; formula-like text is refused without rewriting identifiers. No vendor
+Analysts can also download a two-row CSV template, give the columns their instrument’s headings,
+and move or remove columns. They keep the template locally and can reuse it on another batch.
+The mapped export includes the same rows in the same order as the standard download and uses
+the current batch values. The laboratory checks the layout and verifies the intended run.
+Staff can export the current inventory even after a batch closes. Synchronous downloads have a product limit
+of 2,000 rows; formula-like text is refused without rewriting identifiers. No vendor
 qualification or analytical acceptance is implied. Vendor-specific run formats remain roadmap work.
 
 Run calibration evidence, added 2026-11-15, records the instrument-reported fit/equation,

@@ -16,7 +16,8 @@ records; it does not certify compliance or accreditation.
   spreadsheets saved as CSV, with starter files for common methods that name their public sources.
 - **Receipt and custody:** chains of custody with several samples, containers, receipt
   inspection, holds and dispositions, custody events and reasoned corrections.
-- **Analytical work:** preparation and analytical batches, generic instrument run-list CSV exports,
+- **Analytical work:** preparation and analytical batches, instrument run-list CSV exports with
+  standard columns or a reusable template for an instrument’s column headings and order,
   recorded instrument calibration curves and explicit result/verification links, manual entry
   and mapped CSV/TSV or XLSX worksheet imports, results calculated from bench readings that are kept
   with the result and rounded by the laboratory's own rule (dilutions, solids by weight, preparation factors and dry-weight

@@ -65,6 +65,7 @@ NON_PAGE_ROUTES = {
     "analytical:batch-equipment": "POST equipment link form on batch detail",
     "analytical:batch-submit": "POST action on batch detail",
     "analytical:batch-run-list": "Private CSV run-list download from batch detail",
+    "analytical:batch-run-list-template-example": "Example CSV on the run-list template form",
     "analytical:mdl-close": "POST action on MDL detail",
     "laboratory:evidence": "Private evidence download on laboratory records",
     "reporting:report-preview-pdf": "Draft PDF within report preview",

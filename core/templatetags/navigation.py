@@ -180,6 +180,7 @@ STAFF_NAV = (
             "analytical:run-sequence-correct",
             "analytical:batch-add-tests",
             "analytical:batch-entry",
+            "analytical:batch-run-list-template",
             "analytical:batch-import",
             "analytical:batch-import-mapped",
             "analytical:qc-sample-add",

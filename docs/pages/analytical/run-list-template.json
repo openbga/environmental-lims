@@ -1,0 +1,42 @@
+{
+  "id": "analytical-run-list-template",
+  "routes": ["analytical:batch-run-list-template"],
+  "title": "Export run list with a template",
+  "purpose": "Download the current analytical batch’s tests and QC samples with the columns your instrument needs.",
+  "summary": "Choose the headings and column order for an analytical batch’s run-list CSV. Keep a copy of the template to use again on another batch.",
+  "tasks": [
+    {"title": "Download a run list", "steps": [
+      "Check the batch number.",
+      "Choose your saved CSV under [[Run list template]].",
+      "Select [[Download run list]] and check the rows against the planned run."
+    ]},
+    {"title": "Prepare a layout for an instrument", "steps": [
+      "Select [[Download example template]].",
+      "Rename headings in the first row. Keep the field key in the second row under its heading.",
+      "Move or remove whole columns to match the layout you need.",
+      "Save the two rows as a UTF-8, comma-delimited CSV."
+    ]}
+  ],
+  "good_to_know": [
+    "The CSV includes every assigned test and every QC sample recorded directly on the batch, even when the batch table is filtered.",
+    "Keep row_type and the sample and QC identifiers if you need to distinguish the two kinds of rows. Fields that do not apply to a row are empty.",
+    "The run list describes the batch at download time. Check the instrument layout and planned injection order before using it.",
+    "Keep the template on your computer. Choose it again for each download."
+  ],
+  "sections": [
+    {"title": "Batch and access", "paragraphs": [
+      "Analysts and administrators can download a run list from an open or closed analytical batch. The header shows its number, membership status, method and matrix. Select the batch number in the breadcrumbs to return to its details. The standard Export run list action on the batch page downloads every column.",
+      "The CSV contains one row per assigned test followed by one row per directly attached QC sample. Sample rows are ordered by lab sample ID, analyte and requested test ID. QC rows are ordered by type, label and ID. Changing the columns preserves that order and all rows."
+    ]},
+    {"title": "Fields and actions", "items": [
+      {"label": "Download example template", "description": "Download a two-row CSV with all available field keys. Row one contains the headings to write in the output. Row two identifies the data to put under each heading. The Run-list CSV section in batch Help explains each field."},
+      {"label": "Run list template", "description": "Choose a UTF-8, comma-delimited CSV of at most 16 KiB. Supply two rows of equal width and at least one column. Copy field keys exactly as shown in the example. Headings and keys must each be unique. Use nonblank, single-line headings without control characters or spreadsheet formula prefixes."},
+      {"label": "Download run list", "description": "Download the selected columns for this batch. Identifiers and decimal limits retain their exported text. An empty batch downloads just the headings. The template and download create no batch record. For a template error, correct the file, select it again and retry."},
+      {"label": "Cancel", "description": "Return to the batch without downloading. If prompted, confirm that you want to discard your file selection."}
+    ]},
+    {"title": "When a batch cannot be exported", "paragraphs": [
+      "The standard and mapped downloads both allow up to 2,000 data rows. Both check the whole inventory for unsafe spreadsheet text, including columns you leave out. Review the row and field named in the error and use the source record’s correction workflow where available."
+    ]}
+  ],
+  "sources": ["analytical/urls.py", "analytical/run_list_views.py", "analytical/run_list_forms.py", "analytical/run_lists.py", "core/csv_templates.py", "analytical/templates/analytical/run_list_template.html", "analytical/tests/test_run_lists.py", "analytical/tests/test_run_list_template_views.py", "e2e/test_run_lists.py"]
+}

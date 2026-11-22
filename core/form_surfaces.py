@@ -64,6 +64,7 @@ FORM_SURFACES = {
     "analytical:run-sequence-correct": "lg",
     "analytical:batch-add-tests": "xl",
     "analytical:batch-entry": "xl",
+    "analytical:batch-run-list-template": "lg",
     "analytical:result-bottles": "xl",
     "analytical:batch-import": "xl",
     "analytical:batch-import-mapped": "xl",

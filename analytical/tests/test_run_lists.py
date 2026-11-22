@@ -15,12 +15,19 @@ from django.urls import reverse
 
 from analytical import run_lists, services
 from analytical.models import Batch, PreparedAliquot, QCSample, Result, ResultRevision
-from analytical.run_lists import COLUMNS, MAX_ROWS, export_run_list
+from analytical.run_lists import (
+    COLUMNS,
+    MAX_ROWS,
+    example_run_list_template,
+    export_run_list,
+    parse_run_list_template,
+)
 from analytical.tests.conftest import make_user
 from analytical.tests.test_batch_equipment import asset
 from analytical.tests.test_disposed_samples import dispose
 from analytical.tests.test_preparation import aliquot, enter, prep_world
 from analytical.tests.test_workflow import entry, start
+from core.csv_templates import MAX_TEMPLATE_BYTES
 from core.models import AuditEvent
 
 pytestmark = pytest.mark.django_db
@@ -109,6 +116,97 @@ def test_complete_current_inventory_is_ordered_exact_and_scoped(config, analyst)
     assert rows[4]["parent_sample_id"] == sample.lab_id
     assert all(rows[4][key] == "" for key in COLUMNS[7:19])
     assert rows[5]["parent_sample_id"] == ""
+
+
+def test_template_example_uses_all_run_list_keys():
+    example = example_run_list_template()
+    assert example.startswith("\ufeff")
+    assert example.count("\r\n") == 2
+    columns = parse_run_list_template(io.BytesIO(example.encode()))
+    assert tuple(key for key, _ in columns) == COLUMNS
+    assert dict(columns)["sample_id"] == "Sample ID"
+
+
+@pytest.mark.parametrize(
+    ("data", "error"),
+    [
+        (b"Vial\nsample_id\nextra\n", "exactly two CSV rows"),
+        (b"Vial,Type\nsample_id", "same column"),
+        (b"Reading\nresult", "field key from the example template"),
+        (b"Vial,Vial\nsample_id,analyte", "different output heading in column 2"),
+        (b"Vial,Sample\nsample_id,sample_id", "different run list field key in column 2"),
+        ("  ＝Vial\nsample_id".encode(), "plain text heading in column 1"),
+        (b'"Vial\nID"\nsample_id', "plain text heading in column 1"),
+        (b'"Vial\nsample_id', "properly quoted"),
+        (b"\xff\nsample_id", "UTF-8"),
+        (b"a" * (MAX_TEMPLATE_BYTES + 1), "at most 16 KiB"),
+    ],
+)
+def test_invalid_run_list_templates(data, error):
+    with pytest.raises(ValidationError, match=error):
+        parse_run_list_template(io.BytesIO(data))
+
+
+def test_mapped_export_preserves_order_rows_and_exact_values(config, analyst):
+    batch = start(config, analyst, samples=config["samples"])
+    sample = config["samples"][0]
+    sample.client_sample_id = '00017, "Échantillon"'
+    sample.save()
+    definition = config["defs"]["Lead"]
+    definition.reporting_limit = Decimal("1234567890.12345678")
+    definition.save()
+    QCSample.objects.create(batch=batch, label="MB", qc_type="method_blank", created_by=analyst)
+    columns = parse_run_list_template(
+        io.BytesIO(
+            (
+                '\ufeff"Limite, µg/L","Prélèvement ""A""",QC,Type\r\n'
+                "configured_reporting_limit,client_sample_id,qc_label,row_type\r\n"
+            ).encode()
+        )
+    )
+    exported = export_run_list(actor=analyst, batch_id=batch.pk, columns=columns)
+    assert exported.filename == f"{batch.number}-run-list.csv"
+    assert exported.content.startswith('"Limite, µg/L","Prélèvement ""A""",QC,Type\r\n')
+    assert exported.content.count("\r\n") == 6
+    rows = list(csv.reader(io.StringIO(exported.content)))
+    assert rows[0] == ["Limite, µg/L", 'Prélèvement "A"', "QC", "Type"]
+    assert rows[1:] == [[row[key] for key, _ in columns] for row in inventory(analyst, batch)]
+    assert rows[2] == ["1234567890.12345678", sample.client_sample_id, "", "sample_test"]
+    assert rows[-1] == ["", "", "MB", "qc_sample"]
+
+
+def test_mapped_single_column_preserves_rows_with_blank_cells(config, analyst):
+    batch = start(config, analyst)
+    QCSample.objects.create(batch=batch, label="MB", qc_type="method_blank", created_by=analyst)
+    columns = [("qc_label", "QC")]
+    exported = export_run_list(actor=analyst, batch_id=batch.pk, columns=columns)
+    assert exported.content == 'QC\r\n""\r\n""\r\nMB\r\n'
+
+
+@pytest.mark.parametrize(
+    ("columns", "error"),
+    [
+        ([], "at least one field"),
+        ([("sample_id",)], "a field key and output heading"),
+        ([("result", "Reading")], "field key from the example template"),
+        ([("sample_id", "Vial"), ("sample_id", "Name")], "different run list field key"),
+        ([("sample_id", "Vial"), ("analyte", "Vial")], "different output heading"),
+        ([("sample_id", "＝Vial")], "plain text heading"),
+    ],
+)
+def test_service_validates_direct_projections(config, analyst, columns, error):
+    batch = start(config, analyst)
+    with pytest.raises(ValidationError, match=error):
+        export_run_list(actor=analyst, batch_id=batch.pk, columns=columns)
+
+
+def test_mapped_export_still_refuses_unsafe_text_in_omitted_fields(config, analyst):
+    batch = start(config, analyst)
+    sample = config["samples"][0]
+    sample.client_sample_id = "=Unsafe"
+    sample.save()
+    with pytest.raises(ValidationError, match="row 2, column client_sample_id"):
+        export_run_list(actor=analyst, batch_id=batch.pk, columns=[("sample_id", "Vial")])
 
 
 def test_preparation_is_latest_explicit_link_in_this_batch_only(config, analyst):

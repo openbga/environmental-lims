@@ -78,6 +78,7 @@ NON_PAGE_ROUTES = {
     "analytical:batch-equipment",
     "analytical:batch-submit",
     "analytical:batch-run-list",
+    "analytical:batch-run-list-template-example",
     "analytical:mdl-close",
     "reporting:report-release",
     "client_commercial:quote-accept",
