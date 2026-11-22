@@ -172,6 +172,10 @@ The same list is shown in the application under What's new.
 
 ### Medium impact
 
+- **Added:** Compare calibration standards with a maximum percent error (2026-11-21, Batches & QC)
+
+  In the Calibration fit worksheet, enter a maximum absolute percent error to see which standards exceed it. If your procedure uses a different maximum at the lowest concentration, you can enter that limit for all replicates at that level.
+
 - **Changed:** Read changelog technical notes for a rehearsed upgrade (2026-11-21)
 
   The GitHub Actions upgrade summary includes new or revised technical notes from the candidate changelog. Open a note’s source at the tested revision to see the change it describes.

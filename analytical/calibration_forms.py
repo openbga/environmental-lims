@@ -10,7 +10,8 @@ from django.utils import timezone
 from catalog.models import TestDefinition
 
 from .forms import local_datetime
-from .models import QCMeasurement, QCType, RunCalibration
+from .models import VALUE_FIELD, QCMeasurement, QCType, RunCalibration
+from .parsing import MAX_TEXT_LENGTH
 
 
 class CalibrationTestChoice(forms.ModelChoiceField):
@@ -75,6 +76,28 @@ class CalibrationForm(forms.Form):
         return points
 
 
+class CalibrationErrorLimitField(forms.DecimalField):
+    def __init__(self, **kwargs):
+        super().__init__(
+            required=False,
+            min_value=0,
+            widget=forms.NumberInput(attrs={"unit": "%", "maxlength": MAX_TEXT_LENGTH}),
+            **VALUE_FIELD,
+            **kwargs,
+        )
+
+    def to_python(self, value):
+        if isinstance(value, str):
+            if len(value) > MAX_TEXT_LENGTH:
+                raise ValidationError(
+                    f"Enter at most {MAX_TEXT_LENGTH} characters.", code="max_length"
+                )
+            if "_" in value:
+                raise ValidationError(self.error_messages["invalid"], code="invalid")
+            value = value.strip()
+        return super().to_python(value)
+
+
 class CalibrationFitForm(forms.Form):
     model = forms.ChoiceField(
         choices=[
@@ -102,6 +125,15 @@ class CalibrationFitForm(forms.Form):
         help_text="Choose a weighting for Linear or Quadratic. For Linear through origin or "
         "Average calibration factor, leave blank or choose Unweighted (equal weights).",
     )
+    max_error = CalibrationErrorLimitField(
+        label="Maximum absolute percent error",
+        help_text="Optional. Enter the maximum from your method or SOP.",
+    )
+    lowest_max_error = CalibrationErrorLimitField(
+        label="Maximum error at lowest concentration",
+        help_text="Optional. Applies to every point at the lowest recorded concentration. "
+        "Enter the general maximum as well.",
+    )
 
     def clean_weighting(self):
         weighting = self.cleaned_data["weighting"]
@@ -114,6 +146,19 @@ class CalibrationFitForm(forms.Form):
         if not weighting:
             raise ValidationError("Choose a weighting to calculate the fit.")
         return weighting
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if (
+            cleaned_data.get("lowest_max_error") is not None
+            and "max_error" in cleaned_data
+            and cleaned_data["max_error"] is None
+        ):
+            self.add_error(
+                "max_error",
+                "Enter a general maximum to compare errors at the lowest concentration.",
+            )
+        return cleaned_data
 
 
 def evidence_choices(form, *, batch_id, definition):

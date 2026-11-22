@@ -75,7 +75,7 @@ def calibration_detail(request, pk):
         object_type="analytical.runcalibration", object_id=str(curve.pk)
     ).select_related("actor")
     fit_data = None
-    if "model" in request.GET or "weighting" in request.GET:
+    if any(field in request.GET for field in CalibrationFitForm.base_fields):
         fit_data = request.GET.copy()
         fit_data.setdefault("model", "linear")  # Weighting-only worksheet links used a line.
     fit_form = CalibrationFitForm(fit_data)
@@ -87,7 +87,13 @@ def calibration_detail(request, pk):
         model = fit_form.cleaned_data["model"]
         weighting = fit_form.cleaned_data["weighting"]
         try:
-            fit = calibration_fit.calculate_fit(curve.points, weighting, model)
+            fit = calibration_fit.calculate_fit(
+                curve.points,
+                weighting,
+                model,
+                max_error=fit_form.cleaned_data["max_error"],
+                lowest_max_error=fit_form.cleaned_data["lowest_max_error"],
+            )
         except ValidationError as exc:
             fit_errors = exc.messages
         else:
@@ -104,6 +110,7 @@ def calibration_detail(request, pk):
             "fit_model": fit_model,
             "fit_errors": fit_errors,
             "fit_weighting_label": fit_weighting_label,
+            "show_error_limits": fit is not None and fit_form.cleaned_data["max_error"] is not None,
             "points": fit["rows"] if fit else curve.points,
             "page_obj": page,
             "events": events,

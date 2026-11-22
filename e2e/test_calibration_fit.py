@@ -12,6 +12,10 @@ SOURCE = "Synthetic instrument export 100"
 MODEL = "Instrument fit y = 2.8000 x - 3.1000"
 BACK_CALCULATED = "Back-calculated concentration (ug/L)"
 ABSOLUTE_ERROR = "Absolute percent error (%)"
+MAXIMUM_ERROR = "Maximum absolute percent error"
+LOWEST_MAXIMUM_ERROR = "Maximum error at lowest concentration"
+APPLIED_LIMIT = "Maximum error (%)"
+LIMIT_COMPARISON = "Limit comparison"
 R_SQUARED = "Coefficient of determination (R²)"
 PEARSON_R = "Pearson correlation coefficient (r)"
 RSE = "Relative standard error (RSE)"
@@ -61,12 +65,17 @@ def test_fit_stays_separate_from_recorded_calibration(sign_in_as):
     residual = table.get_by_role("columnheader", name="Residual (counts)", exact=True)
     back_calculated = table.get_by_role("columnheader", name=BACK_CALCULATED, exact=True)
     error = table.get_by_role("columnheader", name=ABSOLUTE_ERROR, exact=True)
+    applied_limit = table.get_by_role("columnheader", name=APPLIED_LIMIT, exact=True)
+    comparison = table.get_by_role("columnheader", name=LIMIT_COMPARISON, exact=True)
     button = form.get_by_role("button", name="Calculate fit", exact=True)
     weighting = field(form, "Weighting")
+    maximum = field(form, MAXIMUM_ERROR)
+    lowest_maximum = field(form, LOWEST_MAXIMUM_ERROR)
     expect(form.locator("select[name=model]")).to_have_value("linear")
     expect(residual).to_have_count(0)
     expect(back_calculated).to_have_count(0)
     expect(error).to_have_count(0)
+    expect(comparison).to_have_count(0)
     r_squared = form.get_by_text(R_SQUARED, exact=True)
     pearson_r = form.get_by_text(PEARSON_R, exact=True)
     expect(r_squared).to_have_count(0)
@@ -74,6 +83,10 @@ def test_fit_stays_separate_from_recorded_calibration(sign_in_as):
     expect(form.get_by_text(RSE, exact=True)).to_have_count(0)
 
     weighting.press("Tab")
+    expect(maximum).to_be_focused()
+    maximum.press("Tab")
+    expect(lowest_maximum).to_be_focused()
+    lowest_maximum.press("Tab")
     expect(button).to_be_focused()
     button.press("Enter")
     expect(form).to_contain_text("Choose a weighting to calculate the fit.")
@@ -88,6 +101,7 @@ def test_fit_stays_separate_from_recorded_calibration(sign_in_as):
     expect(residual).to_be_visible()
     expect(back_calculated).to_be_visible()
     expect(error).to_be_visible()
+    expect(comparison).to_have_count(0)
     expect(r_squared.locator("xpath=following-sibling::dd")).to_have_text("0.892857142857")
     expect(pearson_r.locator("xpath=following-sibling::dd")).to_have_text("0.944911182523")
     expect(form.get_by_text(RSE, exact=True)).to_be_visible()
@@ -112,6 +126,7 @@ def test_fit_stays_separate_from_recorded_calibration(sign_in_as):
 
     pick(weighting, "inverse")
     button.press("Enter")
+    expect(form.locator("#fit-results")).to_be_focused()
     expect(form).to_contain_text("Fit unavailable")
     expect(form).to_contain_text(
         "Inverse weighting requires every concentration to be greater than zero."
@@ -130,19 +145,62 @@ def test_fit_stays_separate_from_recorded_calibration(sign_in_as):
         table.get_by_role("row", name="Low 1.0000 3.0000 2 1 1.4 40", exact=True)
     ).to_be_visible()
 
+    lowest_maximum.fill("0")
+    button.press("Enter")
+    expect(maximum).to_be_focused()
+    expect(form).to_contain_text(
+        "Enter a general maximum to compare errors at the lowest concentration."
+    )
+    expect(lowest_maximum).to_have_value("0")
+    expect(comparison).to_have_count(0)
+    expect(table.get_by_role("row", name="Blank 0.0000 -1.0000", exact=True)).to_be_visible()
+
+    maximum.fill("NaN")
+    button.press("Enter")
+    expect(form).to_contain_text("Enter a number.")
+    expect(maximum).to_have_value("NaN")
+    expect(lowest_maximum).to_have_value("0")
+    expect(comparison).to_have_count(0)
+
+    maximum.fill("10.000")
+    with page.expect_request(
+        lambda request: request.is_navigation_request() and f"{path}?" in request.url
+    ) as load:
+        button.press("Enter")
+    assert load.value.method == "GET"
+    expect(maximum).to_have_value("10.000")
+    expect(lowest_maximum).to_have_value("0")
+    expect(applied_limit).to_be_visible()
+    expect(comparison).to_be_visible()
+    for standard, limit, outcome in (
+        ("Blank", "0", "Cannot compare"),
+        ("Low", "10.000", "Over limit"),
+        ("High", "10.000", "At or below limit"),
+    ):
+        row = table.get_by_role("row").filter(
+            has=page.get_by_role("rowheader", name=standard, exact=True)
+        )
+        expect(row.get_by_role("cell").nth(-2)).to_have_text(limit)
+        expect(row.get_by_role("cell").last).to_have_text(outcome)
+
     help_button = page.get_by_role("button", name="Help", exact=True)
     help_button.press("Enter")
     drawer = page.locator("#vr-documentation")
     drawer.locator("summary").filter(
         has=page.get_by_text("Calibration fit worksheet", exact=True)
     ).press("Enter")
-    for label in (PEARSON_R, R_SQUARED, RSE, RSE_DF):
+    for label in (PEARSON_R, R_SQUARED, RSE, RSE_DF, MAXIMUM_ERROR, LOWEST_MAXIMUM_ERROR):
         term = drawer.get_by_text(label, exact=True).and_(drawer.locator("dt"))
         expect(term).to_be_visible()
     drawer.locator("summary").filter(has=page.get_by_text("Standard points", exact=True)).press(
         "Enter"
     )
-    for label in ("Back-calculated concentration", "Absolute percent error"):
+    for label in (
+        "Back-calculated concentration",
+        "Absolute percent error",
+        APPLIED_LIMIT,
+        LIMIT_COMPARISON,
+    ):
         term = drawer.get_by_text(label, exact=True).and_(drawer.locator("dt"))
         expect(term).to_be_visible()
     drawer.get_by_role("button", name="Close documentation", exact=True).press("Enter")
@@ -352,6 +410,8 @@ def test_average_factor_submits_with_keyboard_without_javascript(sign_in_as):
     table = page.get_by_role("table", name="Standard points")
     model = field(form, "Model")
     weighting = field(form, "Weighting")
+    maximum = field(form, MAXIMUM_ERROR)
+    lowest_maximum = field(form, LOWEST_MAXIMUM_ERROR)
     button = form.get_by_role("button", name="Calculate fit", exact=True)
     factor = table.get_by_role("columnheader", name="Calibration factor (counts per ug/L)")
     expect(factor).to_have_count(0)
@@ -361,6 +421,10 @@ def test_average_factor_submits_with_keyboard_without_javascript(sign_in_as):
     expect(weighting).to_be_focused()
     expect(weighting).to_have_value("")
     weighting.press("Tab")
+    expect(maximum).to_be_focused()
+    maximum.press("Tab")
+    expect(lowest_maximum).to_be_focused()
+    lowest_maximum.press("Tab")
     expect(button).to_be_focused()
     with page.expect_request(
         lambda request: request.is_navigation_request() and f"{path}?" in request.url

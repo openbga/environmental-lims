@@ -1,4 +1,5 @@
 from copy import deepcopy
+from decimal import Decimal
 
 import pytest
 from django.core.exceptions import ValidationError
@@ -94,6 +95,83 @@ def test_fit_uses_each_recorded_point_and_preserves_original_text(
     assert points == original
 
 
+@pytest.mark.parametrize(
+    ("model", "weighting"),
+    [
+        ("linear", "equal"),
+        ("linear", "inverse"),
+        ("linear", "inverse_square"),
+        ("linear_origin", "equal"),
+        ("average_factor", "equal"),
+    ],
+)
+def test_error_limits_compare_exact_values_and_cover_each_lowest_level_replicate(model, weighting):
+    points = [
+        point("2", "20100"),
+        point("1.00", "9000"),
+        point("1e0", "11000"),
+        point("1", "8999.9999999999"),
+        point("1", "11000.0000000001"),
+        point("2.0", "19900"),
+        point("2e0", "20000"),
+    ]
+    general, lowest = Decimal("0"), Decimal("10")
+
+    fit = calculate_fit(points, weighting, model, max_error=general, lowest_max_error=lowest)
+
+    assert [row["error_limit"] for row in fit["rows"]] == [general] + [lowest] * 4 + [general] * 2
+    assert [row["within_error_limit"] for row in fit["rows"]] == [
+        False,
+        True,
+        True,
+        False,
+        False,
+        False,
+        True,
+    ]
+    # The lowest-level replicates have exact errors of 10% and 10.000000000001%.
+    assert all(Decimal(row["absolute_percent_error"]) == lowest for row in fit["rows"][1:5])
+
+
+def test_error_limits_include_zero_concentration_replicates_without_assessing_them():
+    points = [point("1", "1"), point("0", "0"), point("-0.00", "0"), point("2", "2")]
+    general, lowest = Decimal("10"), Decimal("0")
+
+    fit = calculate_fit(points, "equal", max_error=general, lowest_max_error=lowest)
+
+    assert [row["error_limit"] for row in fit["rows"]] == [general, lowest, lowest, general]
+    assert [row["within_error_limit"] for row in fit["rows"]] == [True, None, None, True]
+
+
+@pytest.mark.parametrize(
+    ("limits", "field"),
+    [
+        ({"max_error": 0.1}, "max_error"),
+        ({"max_error": "0.1"}, "max_error"),
+        ({"max_error": Decimal("Infinity")}, "max_error"),
+        ({"max_error": Decimal("sNaN")}, "max_error"),
+        ({"max_error": Decimal("-1")}, "max_error"),
+        ({"max_error": Decimal("1e14")}, "max_error"),
+        ({"max_error": Decimal("0"), "lowest_max_error": Decimal("1e-11")}, "lowest_max_error"),
+        ({"max_error": Decimal("0e-1000000000")}, "max_error"),
+        ({"lowest_max_error": Decimal("0")}, "max_error"),
+    ],
+)
+def test_error_limits_require_bounded_nonnegative_decimals_and_a_general_limit(limits, field):
+    with pytest.raises(ValidationError) as error:
+        calculate_fit([point("1", "2"), point("2", "4")], "equal", **limits)
+
+    assert field in error.value.error_dict
+
+
+def test_zero_error_limit_with_a_large_positive_exponent_is_compared_as_exact_zero():
+    limit = Decimal("-0e1000000000")
+    fit = calculate_fit([point("1", "2"), point("2", "4")], "equal", max_error=limit)
+
+    assert all(row["error_limit"] is limit for row in fit["rows"])
+    assert all(row["within_error_limit"] is True for row in fit["rows"])
+
+
 @pytest.mark.parametrize("weighting", ["equal", "inverse", "inverse_square"])
 def test_fit_distinguishes_adjacent_concentrations_at_the_record_limit(weighting):
     points = [
@@ -135,7 +213,10 @@ def test_fit_rounds_for_display_only_and_breaks_ties_to_even(response, displayed
 
 
 def test_equal_weights_allow_zero_concentration_and_flat_negative_response():
-    fit = calculate_fit([point("0e-1000000000", "-2.0"), point("1", "-2e0")], "equal")
+    limit = Decimal("10")
+    fit = calculate_fit(
+        [point("0e-1000000000", "-2.0"), point("1", "-2e0")], "equal", max_error=limit
+    )
 
     assert fit["slope"] == "0"
     assert fit["intercept"] == "-2"
@@ -146,6 +227,8 @@ def test_equal_weights_allow_zero_concentration_and_flat_negative_response():
     assert all(
         row["back_calculated"] is row["absolute_percent_error"] is None for row in fit["rows"]
     )
+    assert [row["error_limit"] for row in fit["rows"]] == [limit, limit]
+    assert [row["within_error_limit"] for row in fit["rows"]] == [None, None]
 
 
 @pytest.mark.parametrize("model", ["linear", "quadratic"])
@@ -527,6 +610,40 @@ def test_quadratic_fit_weights_every_observation_including_replicates(
         )
     ]
     assert points == original
+
+
+@pytest.mark.parametrize("sign", ["", "-"])
+@pytest.mark.parametrize("weighting", ["equal", "inverse", "inverse_square"])
+def test_quadratic_error_limits_use_exact_response_bounds(weighting, sign):
+    points = [
+        point(level, sign + response)
+        for level, response in [
+            ("1", "1000000000000"),
+            ("2", "4840000000000"),
+            ("2", "3160000000000"),
+            ("2", "4840000000000.0000000001"),
+            ("2", "3159999999999.9999999999"),
+            ("3", "9000000000001"),
+            ("3", "8999999999999"),
+        ]
+    ]
+    limit = Decimal("10")
+
+    fit = calculate_fit(points, weighting, "quadratic", max_error=limit)
+
+    assert [row["error_limit"] for row in fit["rows"]] == [limit] * len(points)
+    assert [row["within_error_limit"] for row in fit["rows"]] == [
+        True,
+        True,
+        False,
+        False,
+        False,
+        None,
+        True,
+    ]
+    # For y = ±10¹²x², these responses invert to 2.2 and just above 2.2.
+    assert Decimal(fit["rows"][1]["absolute_percent_error"]) == limit
+    assert Decimal(fit["rows"][3]["absolute_percent_error"]) == limit
 
 
 @pytest.mark.parametrize("weighting", ["equal", "inverse", "inverse_square"])
