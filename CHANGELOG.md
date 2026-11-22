@@ -172,6 +172,10 @@ The same list is shown in the application under What's new.
 
 ### Medium impact
 
+- **Added:** Check relative standard error for a quadratic calibration (2026-11-22, Batches & QC)
+
+  Choose Quadratic on the calibration fit worksheet to see the relative standard error across all recorded standards, including replicates. The worksheet shows the degrees of freedom and explains when a standard or the number of points prevents the calculation.
+
 - **Added:** Choose instrument run-list columns (2026-11-22, Batches & QC)
 
   Analysts can download an analytical batch’s run list with the column headings and order their instrument needs. Download the example CSV, keep the columns you need and reuse that template for other batches.

@@ -1,5 +1,6 @@
 """Read-only fits for recorded calibration points."""
 
+from dataclasses import dataclass
 from decimal import ROUND_HALF_EVEN, Context, Decimal
 from fractions import Fraction
 from math import isqrt
@@ -98,8 +99,27 @@ def _add_error_comparison(row, concentration, response, coefficients, error_limi
     row["within_error_limit"] = low_response <= response <= high_response
 
 
-def _display_quadratic_inverse(concentration, response, coefficients, increasing):
+@dataclass(frozen=True)
+class _IrrationalQuadraticInverse:
+    vertex: Fraction
+    branch: int
+    distance_squared: Fraction
+
+    def bounds(self, bits):
+        scale = 1 << bits
+        distance = isqrt(
+            (self.distance_squared.numerator << (2 * bits)) // self.distance_squared.denominator
+        )
+        near = self.vertex + self.branch * Fraction(distance, scale)
+        far = near + Fraction(self.branch, scale)
+        return min(near, far), max(near, far)
+
+
+def _quadratic_inverse(response, coefficients, increasing):
     a, b, c = coefficients
+    if not a:
+        return (response - c) / b
+
     vertex = -b / (2 * a)
     # The sign of f'(x) = 2a(x - vertex) identifies the root on the recorded branch.
     branch = 1 if (a > 0) == increasing else -1
@@ -110,19 +130,19 @@ def _display_quadratic_inverse(concentration, response, coefficients, increasing
         numerator**2 == distance_squared.numerator
         and denominator**2 == distance_squared.denominator
     ):
-        return _display_back_calculation(
-            concentration, vertex + branch * Fraction(numerator, denominator)
-        )
+        return vertex + branch * Fraction(numerator, denominator)
+    return _IrrationalQuadraticInverse(vertex, branch, distance_squared)
+
+
+def _display_quadratic_inverse(concentration, inverse):
+    if isinstance(inverse, Fraction):
+        return _display_back_calculation(concentration, inverse)
 
     # Enclose the irrational root with exact fractions until both ends round alike
     # for concentration and percent error. The root cannot equal a decimal rounding tie.
     bits = 64
     while True:
-        scale = 1 << bits
-        distance = isqrt((distance_squared.numerator << (2 * bits)) // distance_squared.denominator)
-        near = vertex + branch * Fraction(distance, scale)
-        far = near + Fraction(branch, scale)
-        lower, upper = sorted((near, far))
+        lower, upper = inverse.bounds(bits)
         # Error is monotone on either side of the recorded concentration.
         if not lower < concentration < upper:
             displayed = _display_back_calculation(concentration, lower)
@@ -136,20 +156,75 @@ def _quadratic_back_calculation(concentration, response, coefficients, response_
     if reason is None and not min(response_endpoints) <= response <= max(response_endpoints):
         reason = "The observed response is outside the fitted response range."
     if reason is not None:
-        return {
+        return None, {
             "back_calculated": None,
             "absolute_percent_error": None,
             "back_calculation_reason": reason,
         }
 
-    a, b, c = coefficients
-    if a:
-        values = _display_quadratic_inverse(
-            concentration, response, coefficients, first_response < last_response
-        )
+    inverse = _quadratic_inverse(response, coefficients, first_response < last_response)
+    values = _display_quadratic_inverse(concentration, inverse)
+    return inverse, dict(values, back_calculation_reason=None)
+
+
+def _display_quadratic_rse(observations, inverses, degrees_of_freedom):
+    exact = Fraction(0)
+    irrational_errors = []
+    for (x, _), inverse in zip(observations, inverses, strict=True):
+        if isinstance(inverse, Fraction):
+            exact += ((inverse - x) / x) ** 2
+        elif x == inverse.vertex:
+            # At a stationary endpoint the squared error can be rational even if the root isn't.
+            exact += inverse.distance_squared / x**2
+        else:
+            irrational_errors.append((x, inverse))
+
+    scale_squared = Fraction(100**2, degrees_of_freedom)
+    if not irrational_errors:
+        return _display_square_root(scale_squared * exact)
+
+    # Squaring (vertex + branch × sqrt(distance_squared) - x) gives a radical
+    # term with coefficient 2 × branch × (vertex - x). It is negative for every
+    # remaining error because all x lie on the selected branch. Like radicals
+    # cannot cancel, and distinct square-free radicals are linearly independent
+    # over the rationals. The sum cannot equal a rational rounding midpoint squared.
+    bits = 64
+    while True:
+        lower_error = upper_error = exact
+        for x, inverse in irrational_errors:
+            lower, upper = inverse.bounds(bits)
+            lower_error += (max(lower - x, x - upper, 0) / x) ** 2
+            upper_error += (max(x - lower, upper - x) / x) ** 2
+        displayed = _display_square_root(scale_squared * lower_error)
+        if displayed == _display_square_root(scale_squared * upper_error):
+            return displayed
+        bits *= 2
+
+
+def _quadratic_relative_standard_error(observations, inverses, curve_reason):
+    # EPA SW-846 8000D Rev. 5, section 11.5.4.2. Each recorded point counts once.
+    points = len(observations)
+    terms = 3
+    degrees_of_freedom = points - terms
+    percent = None
+    if any(not x for x, _ in observations):
+        reason = "a recorded concentration is zero"
+    elif curve_reason is not None:
+        reason = curve_reason
+    elif degrees_of_freedom <= 0:
+        reason = "there are too few recorded points for the number of fitted terms"
+    elif any(inverse is None for inverse in inverses):
+        reason = "a recorded response is outside the fitted response range"
     else:
-        values = _back_calculation(concentration, response, b, c)
-    return dict(values, back_calculation_reason=None)
+        reason = None
+        percent = _display_quadratic_rse(observations, inverses, degrees_of_freedom)
+    return {
+        "percent": percent,
+        "reason": reason,
+        "points": points,
+        "terms": terms,
+        "degrees_of_freedom": degrees_of_freedom,
+    }
 
 
 def _relative_standard_error(observations, slope, intercept=0, *, terms, coefficient_label):
@@ -266,10 +341,10 @@ def _quadratic_trend(a, b, lower, upper):
     if at_lower * at_upper < 0:
         return (
             "Turns within the recorded range",
-            "The fitted curve turns within the recorded concentration range.",
+            "the fitted curve turns within the recorded concentration range",
         )
     if not at_lower and not at_upper:
-        return "Constant", "The fitted response is constant."
+        return "Constant", "the fitted response is constant"
 
     direction = "Increasing" if max(at_lower, at_upper) > 0 else "Decreasing"
     if not at_lower:
@@ -333,15 +408,21 @@ def calculate_fit(points, weighting, model="linear", *, max_error=None, lowest_m
     bounds = None
     if quadratic:
         bounds = (min(concentrations), max(concentrations))
-        trend, reason = _quadratic_trend(a, b, *bounds)
+        trend, curve_reason = _quadratic_trend(a, b, *bounds)
+        reason = f"{curve_reason.capitalize()}." if curve_reason else None
         response_endpoints = tuple(_predict(x, coefficients) for x in bounds)
+        inverses = []
 
     predictions = [_predict(x, coefficients) for x, _ in observations]
     rows = []
     for point, (x, y), predicted in zip(points, observations, predictions, strict=True):
         row = dict(point, predicted=_display(predicted), residual=_display(y - predicted))
         if quadratic:
-            row.update(_quadratic_back_calculation(x, y, coefficients, response_endpoints, reason))
+            inverse, values = _quadratic_back_calculation(
+                x, y, coefficients, response_endpoints, reason
+            )
+            inverses.append(inverse)
+            row.update(values)
         else:
             row.update(_back_calculation(x, y, b, c))
         if error_limits:
@@ -360,7 +441,12 @@ def calculate_fit(points, weighting, model="linear", *, max_error=None, lowest_m
                 magnitude = _display_square_root(r_squared)
                 fit["pearson_r"] = f"-{magnitude}" if b < 0 else magnitude
     if quadratic:
-        fit.update(quadratic=_display(a), trend=trend, back_calculation_reason=reason)
+        fit.update(
+            quadratic=_display(a),
+            trend=trend,
+            back_calculation_reason=reason,
+            rse=_quadratic_relative_standard_error(observations, inverses, curve_reason),
+        )
     else:
         fit["back_calculation_unavailable"] = not b
     if model == "linear":

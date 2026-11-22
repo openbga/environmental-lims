@@ -278,11 +278,13 @@ curve, a standard can be back-calculated when its observed response falls betwee
 responses at the lowest and highest recorded concentrations, including either endpoint.
 Absolute percent error is the size of that difference divided by the entered concentration,
 times 100. Back-calculation is unavailable for a linear fit with zero slope or an average
-factor of zero. A zero entered concentration prevents the percentage comparison. For a free-intercept line or an average calibration factor,
-read **Relative standard error (RSE)** to inspect the error across the whole fit. Every recorded
-point contributes, including replicates. A line needs more than two points and an average
-factor needs more than one. A zero recorded concentration or a fit that cannot be inverted
-leaves the statistic unavailable. Use the worksheet to inspect the fit and follow the
+factor of zero. A zero entered concentration prevents the percentage comparison.
+
+For a free-intercept line, a quadratic or an average calibration factor, read
+**Relative standard error (RSE)** to inspect the error across
+all standards, including replicates. The average factor needs at least two points, the line
+three and the quadratic four. If any recorded concentration is zero or a standard has no
+back-calculated concentration, the worksheet explains why RSE is unavailable. Follow the
 laboratory's method and SOP for acceptance. A closed batch still accepts evidence because
 closing freezes membership only.
 

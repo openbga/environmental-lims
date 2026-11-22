@@ -32,7 +32,9 @@ records; it does not certify compliance or accreditation.
   and see which standards exceed a maximum absolute percent error they enter. They can use a
   separate maximum for the lowest concentration. For a quadratic, the worksheet shows the concentration only
   when the curve has one direction and the observed response falls between its fitted endpoints.
-  The free-intercept linear and average-factor worksheets also show relative standard error across all recorded points.
+  Staff can inspect relative standard error across all recorded points for free-intercept linear,
+  quadratic and average-factor fits. For a quadratic, each standard must have a concentration
+  that can be back-calculated within the recorded range.
   On an analytical batch, staff can inspect the actual injection order alongside the nearest
   recorded verification before and after each sample. Staff can count sample injections between
   verifications and compare each interval with a maximum they enter. Analysts can correct a
