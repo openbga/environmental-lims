@@ -15,8 +15,8 @@ from .run_list_forms import RunListTemplateForm
 from .run_lists import example_run_list_template, export_run_list
 
 
-def _download(content, filename):
-    response = HttpResponse(content, content_type="text/csv; charset=utf-8")
+def _download(content, filename, media_type):
+    response = HttpResponse(content, content_type=f"{media_type}; charset=utf-8")
     response["Content-Disposition"] = content_disposition_header(True, filename)
     response["Cache-Control"] = "private, no-store"
     response["X-Content-Type-Options"] = "nosniff"
@@ -38,7 +38,7 @@ def batch_run_list(request, pk):
     except ValidationError as exc:
         messages.error(request, "Run list not exported. " + " ".join(exc.messages))
         return redirect("analytical:batch-detail", pk=pk)
-    return _download(run_list.content, run_list.filename)
+    return _download(run_list.content, run_list.filename, run_list.media_type)
 
 
 @login_required
@@ -53,11 +53,12 @@ def batch_run_list_template(request, pk):
                     actor=request.user,
                     batch_id=batch.pk,
                     columns=form.cleaned_data["template_file"],
+                    output_format=form.cleaned_data["output_format"],
                 )
             except ValidationError as exc:
                 form.add_error(None, "Run list not exported. " + " ".join(exc.messages))
             else:
-                return _download(run_list.content, run_list.filename)
+                return _download(run_list.content, run_list.filename, run_list.media_type)
     else:
         form = RunListTemplateForm()
     return render(
@@ -71,4 +72,4 @@ def batch_run_list_template(request, pk):
 @require_GET
 def batch_run_list_template_example(request, pk):
     _export_batch(request, pk)
-    return _download(example_run_list_template(), "run-list-template.csv")
+    return _download(example_run_list_template(), "run-list-template.csv", "text/csv")

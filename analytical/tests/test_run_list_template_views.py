@@ -79,6 +79,13 @@ def test_closed_batch_downloads_reordered_inventory_without_writes(
         *[["sample_test", "", sample.lab_id] for sample in samples for _ in range(2)],
         ["qc_sample", "MB-1", ""],
     ]
+    tsv = client.post(form_url, {**upload(), "output_format": "tsv"})
+    assert tsv.status_code == 200
+    assert tsv["Content-Type"] == "text/tab-separated-values; charset=utf-8"
+    assert tsv["Content-Disposition"] == f'attachment; filename="{batch.number}-run-list.tsv"'
+    assert tsv["Cache-Control"] == "private, no-store"
+    assert tsv["X-Content-Type-Options"] == "nosniff"
+    assert list(csv.reader(io.StringIO(tsv.content.decode()), delimiter="\t")) == rows
     batch.refresh_from_db()
     assert batch.status == Batch.Status.CLOSED
     assert AuditEvent.objects.count() == audit_count
@@ -97,10 +104,14 @@ def test_form_refuses_invalid_file_and_unsafe_inventory_without_a_partial_downlo
         assert b"Reselect any files before submitting again." in invalid.content
         assert b"PRIVATE_BAD_KEY" not in invalid.content
 
+    invalid = client.post(form_url, {**upload(), "output_format": "xlsx"})
+    assert invalid.status_code == 200 and "Content-Disposition" not in invalid
+    assert invalid.context["form"]["output_format"].errors
+
     services.add_qc_sample(
         actor=analyst, batch_id=batch.pk, qc_type="method_blank", label="=unsafe"
     )
-    invalid = client.post(form_url, upload(b"Row\r\nrow_type\r\n"))
+    invalid = client.post(form_url, {**upload(b"Row\r\nrow_type\r\n"), "output_format": "tsv"})
     assert invalid.status_code == 200 and "Content-Disposition" not in invalid
     assert b"Run list not exported." in invalid.content
     assert b"column qc_label contains unsafe spreadsheet text" in invalid.content

@@ -240,6 +240,11 @@ sample states against the intended instrument run. This download changes no reco
 retained as an issued snapshot. Its complete column reference and refusal states are in the
 batch's Help drawer.
 
+Use **Export run list with a template** when the instrument needs different headings, a
+different column order or tab separators. Download the example, edit the two rows and save
+them as a UTF-8 CSV. Choose that file under **Run list template**, select CSV or TSV under
+**Output format**, then select **Download run list**. Use the same template for either format.
+
 ### Actual injection order
 
 On an analytical batch, **Record injection sequence** transcribes a completed run from an

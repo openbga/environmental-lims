@@ -7,7 +7,7 @@
   <li>{{ batch.method }}</li>
   <li>{% matrix_tag matrix=batch.matrix size="lg" %}</li>
 {% endpage_meta %}{% endblock %}
-{% block page_intro %}<p class="vr-page-intro">Choose which columns to download, their headings and their order.</p>{% endblock %}
+{% block page_intro %}<p class="vr-page-intro">Choose the file format, columns, headings and column order for your instrument.</p>{% endblock %}
 {% block content %}
 {% url 'analytical:batch-detail' batch.pk as batch_url %}
 {% form_page form=form cancel_url=batch_url submit_label="Download run list" download=True multipart=True %}
@@ -16,8 +16,9 @@
     <p><a href="{% url 'analytical:batch-run-list-template-example' batch.pk %}" download>{% icon name="download" %}Download example template</a></p>
     <p>Rename headings in the first row. Keep the field keys in the second row paired with their headings. Move or delete whole columns, then save the template as CSV.</p>
     {{ form.template_file.as_field_group }}
+    {{ form.output_format.as_field_group }}
     {% if form.non_field_errors %}<p class="vr-form-note">Reselect the template file before submitting again.</p>{% endif %}
-    <p class="vr-form-note">Check sample states on the batch and verify the CSV for your instrument. Record injection order separately.</p>
+    <p class="vr-form-note">Check sample states on the batch and verify the downloaded file for your instrument. Record injection order separately.</p>
   </fieldset>
 {% endform_page %}
 {% endblock %}

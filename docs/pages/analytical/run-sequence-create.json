@@ -22,7 +22,7 @@
     }
   ],
   "good_to_know": [
-    "Use the source record that shows what the instrument ran. The run-list CSV describes planned batch membership.",
+    "Use the source record that shows what the instrument ran. The run list describes planned batch membership.",
     "Keep commas and quotes in a label as shown on the instrument. The first two commas separate the position and kind from the label.",
     "You can record evidence after batch closure. Closure freezes which samples and QC samples are in the batch.",
     "To fix a saved transcription, open its current version and choose Correct injection sequence."

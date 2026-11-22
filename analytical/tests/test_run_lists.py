@@ -147,7 +147,16 @@ def test_invalid_run_list_templates(data, error):
         parse_run_list_template(io.BytesIO(data))
 
 
-def test_mapped_export_preserves_order_rows_and_exact_values(config, analyst):
+@pytest.mark.parametrize(
+    ("output_format", "delimiter", "header"),
+    [
+        ("csv", ",", '"Limite, µg/L","Prélèvement ""A""",QC,Type'),
+        ("tsv", "\t", 'Limite, µg/L\t"Prélèvement ""A"""\tQC\tType'),
+    ],
+)
+def test_mapped_export_preserves_order_rows_and_exact_values(
+    config, analyst, output_format, delimiter, header
+):
     batch = start(config, analyst, samples=config["samples"])
     sample = config["samples"][0]
     sample.client_sample_id = '00017, "Échantillon"'
@@ -164,22 +173,27 @@ def test_mapped_export_preserves_order_rows_and_exact_values(config, analyst):
             ).encode()
         )
     )
-    exported = export_run_list(actor=analyst, batch_id=batch.pk, columns=columns)
-    assert exported.filename == f"{batch.number}-run-list.csv"
-    assert exported.content.startswith('"Limite, µg/L","Prélèvement ""A""",QC,Type\r\n')
+    exported = export_run_list(
+        actor=analyst, batch_id=batch.pk, columns=columns, output_format=output_format
+    )
+    assert exported.filename == f"{batch.number}-run-list.{output_format}"
+    assert exported.content.startswith(header + "\r\n")
     assert exported.content.count("\r\n") == 6
-    rows = list(csv.reader(io.StringIO(exported.content)))
+    rows = list(csv.reader(io.StringIO(exported.content), delimiter=delimiter))
     assert rows[0] == ["Limite, µg/L", 'Prélèvement "A"', "QC", "Type"]
     assert rows[1:] == [[row[key] for key, _ in columns] for row in inventory(analyst, batch)]
     assert rows[2] == ["1234567890.12345678", sample.client_sample_id, "", "sample_test"]
     assert rows[-1] == ["", "", "MB", "qc_sample"]
 
 
-def test_mapped_single_column_preserves_rows_with_blank_cells(config, analyst):
+@pytest.mark.parametrize("output_format", ["csv", "tsv"])
+def test_mapped_single_column_preserves_rows_with_blank_cells(config, analyst, output_format):
     batch = start(config, analyst)
     QCSample.objects.create(batch=batch, label="MB", qc_type="method_blank", created_by=analyst)
     columns = [("qc_label", "QC")]
-    exported = export_run_list(actor=analyst, batch_id=batch.pk, columns=columns)
+    exported = export_run_list(
+        actor=analyst, batch_id=batch.pk, columns=columns, output_format=output_format
+    )
     assert exported.content == 'QC\r\n""\r\n""\r\nMB\r\n'
 
 
