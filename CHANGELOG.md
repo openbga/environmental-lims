@@ -188,6 +188,10 @@ The same list is shown in the application under What's new.
 
   Analysts can download an analytical batch’s run list with the column headings and order their instrument needs. Download the example CSV, keep the columns you need and reuse that template for other batches.
 
+- **Added:** Compare inverse-weighted calibration fits through the origin (2026-11-22, Batches & QC)
+
+  In the calibration fit worksheet, staff can choose 1/x or 1/x² weighting for a line with its intercept fixed at zero when their method allows it. The worksheet shows the fitted slope and each standard’s residual and back-calculated concentration. Leaving Weighting blank uses equal weights.
+
 - **Added:** Download tab-separated instrument run lists (2026-11-22, Batches & QC)
 
   On an analytical batch, open Export run list with a template and choose TSV for an instrument that needs tab-separated columns. The same CSV template sets the headings and column order for either download format.

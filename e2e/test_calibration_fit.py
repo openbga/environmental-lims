@@ -398,13 +398,35 @@ def test_linear_through_origin_shows_fixed_intercept_and_only_recorded_rows(sign
     drawer.get_by_role("button", name="Close documentation", exact=True).press("Enter")
     expect(drawer).to_be_hidden()
 
-    pick(weighting, "inverse")
-    button.press("Enter")
-    expect(form).to_contain_text("Linear through origin uses equal weights.")
-    expect(weighting_select).to_have_value("inverse")
-    expect(residual).to_have_count(0)
-    for row in rows:
-        expect(table.get_by_role("row", name=" ".join(row[:3]), exact=True)).to_be_visible()
+    field(form, MAXIMUM_ERROR).fill("50")
+    field(form, LOWEST_MAXIMUM_ERROR).fill("20")
+    weight_label = form.locator("#fit-results").get_by_text("Weighting", exact=True)
+    for value, label, slope, high_row in (
+        (
+            "inverse_square",
+            "1/x² (inverse concentration squared)",
+            "3",
+            "High 2 10.0 6 4 3.33333333333 66.6666666667 50 Over limit",
+        ),
+        (
+            "inverse",
+            "1/x (inverse concentration)",
+            "3.5",
+            "High 2 10.0 7 3 2.85714285714 42.8571428571 50 At or below limit",
+        ),
+    ):
+        pick(weighting, value)
+        button.press("Enter")
+        expect(weighting_select).to_have_value(value)
+        expect(weight_label.locator("xpath=following-sibling::dd")).to_have_text(label)
+        expect(form).to_contain_text(f"{slope} (counts per ug/L)")
+        expect(form).to_contain_text("0 (counts), fixed")
+        expect(form).to_contain_text("EPA Method 8000D advises against this combination.")
+        expect(form.get_by_text(R_SQUARED, exact=True)).to_have_count(0)
+        expect(form.get_by_text(PEARSON_R, exact=True)).to_have_count(0)
+        expect(form.get_by_text(RSE, exact=True)).to_have_count(0)
+        expect(table.get_by_role("row")).to_have_count(len(rows) + 1)
+        expect(table.get_by_role("row", name=high_row, exact=True)).to_be_visible()
 
     pick(model, label="Linear")
     button.press("Enter")

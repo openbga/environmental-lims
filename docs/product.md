@@ -220,15 +220,20 @@ The worksheet is for inspection. [US EPA Method 8000D](https://nepis.epa.gov/Exe
 and [US EPA Method 6010D](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P1017DDQ.txt), checked 2026-11-19.
 
 The **Linear through origin** option fixes the intercept at zero before fitting the slope.
-It minimizes the sum of squared response residuals, using every recorded standard and replicate.
-Staff can inspect the slope and the predicted response and signed residual at each measured level.
-This comparison requires at least two distinct positive concentrations. That minimum is a
-worksheet choice. US EPA SW-846 Method 8000D Rev. 5 (March 2018), section 11.5.2.1, describes
-using an unweighted fit through the origin where appropriate and excludes zero-concentration
-calibration points. The worksheet accepts equal weights and adds no point at the origin.
-For this method, the lowest analyzed standard still sets the lower end of the demonstrated
-calibration range. The laboratory determines whether the model suits its procedure.
-[US EPA Method 8000D, checked 2026-11-20](https://www.epa.gov/sites/default/files/2015-12/documents/8000d.pdf).
+Staff can choose equal weights, 1/x or 1/x². Leaving the weighting blank uses equal weights.
+For concentration x, response y and weight w, the fitted slope is Σ(wxy) / Σ(wx²).
+Each recorded standard and replicate contributes once. Staff can inspect the predicted
+response, residual and back-calculated concentration at each measured level. The worksheet
+requires at least two distinct positive concentrations and adds no point at the origin.
+
+The laboratory selects the model and weighting allowed by its method. The US EPA’s February 2018
+protocol for new wastewater methods describes weighted regression through the origin in
+Appendix G, section 2.1.1. SW-846 Method 8000D Rev. 5 (March 2018), section
+11.5.2.1, advises against weighting a regression forced through the origin. The worksheet
+shows that guidance when staff combine the two. Under Method 8000D the lowest analyzed
+standard still sets the lower end of the demonstrated range. Sources checked 2026-11-22.
+[US EPA new methods protocol](https://www.epa.gov/sites/default/files/2018-03/documents/chemical-new-method-protocol_feb-2018.pdf)
+and [US EPA Method 8000D](https://www.epa.gov/sites/default/files/2015-12/documents/8000d.pdf).
 
 For external standards, staff can also compare the instrument response per unit of recorded
 concentration at each point. Each standard, including a replicate, contributes equally to the

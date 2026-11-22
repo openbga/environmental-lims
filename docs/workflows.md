@@ -270,10 +270,11 @@ For **Linear** with **Unweighted (equal weights)**, read **Pearson correlation c
 to see the direction and strength of the linear association between concentration and response.
 A negative r means response tends to decrease as concentration increases.
 
-Choose **Linear through origin** when the method calls for a fixed zero intercept. Leave
-**Weighting** blank or choose **Unweighted (equal weights)**. Every point must have a positive
-concentration, and at least two concentrations must differ. The worksheet fits the slope to all
-recorded points, including replicates.
+Choose **Linear through origin** when the method calls for a fixed zero intercept. A blank
+**Weighting** uses equal weights. Choose **1/x** or **1/x²** only when the method allows it.
+EPA Method 8000D advises against combining inverse weighting with a fixed zero intercept.
+Every point must have a positive concentration, and at least two concentrations must differ.
+The worksheet fits the slope to all recorded points, including replicates.
 Inverse weighting needs positive concentrations at every point for the free-intercept models. The residual is the recorded
 response minus the predicted response. Compare each standard’s back-calculated concentration
 with the concentration entered for it. For **Quadratic**, first check the direction shown under

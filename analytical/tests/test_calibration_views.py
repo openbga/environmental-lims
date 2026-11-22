@@ -409,6 +409,7 @@ def test_linear_through_origin_fits_all_rows_and_keeps_evidence_read_only(
     result_url = reverse("analytical:result-detail", args=[result.pk])
     assert client.post(result_url, entry(calibration_id=curve.pk)).status_code == 302
     revision = result.revisions.values().get()
+    curve_fields = RunCalibration.objects.values().get(pk=curve.pk)
     audit_count = AuditEvent.objects.count()
 
     client.force_login(reviewer)
@@ -434,23 +435,40 @@ def test_linear_through_origin_fits_all_rows_and_keeps_evidence_read_only(
     assert "Calibration factor (counts per" not in html
     assert "Relative standard error (RSE)" not in worksheet_html(response)
     assert R_SQUARED not in worksheet_html(response)
+    assert "EPA Method 8000D advises against this combination." not in worksheet_html(response)
     for weighting in ("", "equal"):
         response = client.get(url, {**params, "weighting": weighting})
         assert response.context["fit"] == fit
         assert response.context["fit_form"]["weighting"].value() == weighting
         assert response.context["fit_weighting_label"] == "Unweighted (equal weights)"
-    for weighting in ("inverse", "inverse_square"):
-        response = client.get(url, {**params, "weighting": weighting})
-        assert response.status_code == 200 and response.context["fit"] is None
-        form = response.context["fit_form"]
-        assert form["weighting"].value() == weighting
-        assert form.errors["weighting"] == ["Linear through origin uses equal weights."]
-        assert response.context["points"] == points
-        assert b"Predicted response (counts)" not in response.content
+    for weighting, label, slope, high_inverse, high_passes in (
+        ("inverse", "1/x (inverse concentration)", "3.5", "2.85714285714", True),
+        ("inverse_square", "1/x² (inverse concentration squared)", "3", "3.33333333333", False),
+    ):
+        response = client.get(
+            url, {**params, "weighting": weighting, "max_error": "50", "lowest_max_error": "20"}
+        )
+        assert response.status_code == 200
+        assert response.context["fit_form"]["weighting"].value() == weighting
+        weighted_fit = response.context["fit"]
+        assert (weighted_fit["slope"], weighted_fit["intercept"]) == (slope, "0")
+        worksheet = worksheet_html(response)
+        assert f"<dt>Weighting</dt><dd>{label}</dd>" in worksheet
+        assert "EPA Method 8000D advises against this combination." in worksheet
+        assert all(metric not in worksheet for metric in (R_SQUARED, PEARSON_R, "RSE"))
+        assert response.context["show_error_limits"]
+        assert [row["standard"] for row in weighted_fit["rows"]] == [
+            point["standard"] for point in points
+        ]
+        assert weighted_fit["rows"][-1]["back_calculated"] == high_inverse
+        assert [row["within_error_limit"] for row in weighted_fit["rows"]] == [
+            False,
+            True,
+            high_passes,
+        ]
 
     assert client.post(url, params).status_code == 405
-    curve.refresh_from_db()
-    assert curve.points == points
+    assert RunCalibration.objects.values().get(pk=curve.pk) == curve_fields
     assert result.revisions.values().get() == revision
     assert AuditEvent.objects.count() == audit_count
 
@@ -498,6 +516,14 @@ def test_fit_errors_keep_recorded_points_visible(lab, analyst, client):
         ),
         (
             {"model": "linear_origin"},
+            b"A zero-intercept linear fit requires every concentration to be greater than zero.",
+        ),
+        (
+            {"model": "linear_origin", "weighting": "inverse"},
+            b"A zero-intercept linear fit requires every concentration to be greater than zero.",
+        ),
+        (
+            {"model": "linear_origin", "weighting": "inverse_square"},
             b"A zero-intercept linear fit requires every concentration to be greater than zero.",
         ),
     ):
