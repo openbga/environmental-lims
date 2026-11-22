@@ -5,7 +5,7 @@
   ],
   "title": "Calibration evidence",
   "purpose": "Inspect the recorded instrument model, compare temporary calibration fits, and trace the result revisions that use this evidence.",
-  "summary": "Inspect the recorded standards, source and linked result revisions. Compare linear and quadratic fits or the average calibration factor. Review Pearson r, R², relative standard error and back-calculated concentrations where available.",
+  "summary": "Inspect recorded calibration evidence and linked result revisions. Calculate a linear or quadratic fit or the average calibration factor. Compare standards’ back-calculated errors with limits from your method or SOP.",
   "tasks": [
     {
       "title": "Check the curve’s source and points",
@@ -18,9 +18,9 @@
       "title": "Fit a linear or quadratic model",
       "steps": [
         "In [[Calibration fit worksheet]], choose [[Model]] and [[Weighting]]. For [[Linear through origin]], leave [[Weighting]] blank or choose [[Unweighted (equal weights)]].",
-        "Select [[Calculate fit]]. Read the [[Equation]], fitted coefficients and, for [[Linear]] with equal weights, the [[Pearson correlation coefficient (r)]].",
-        "Check [[Coefficient of determination (R²)]] for [[Linear]] and [[Quadratic]], [[Relative standard error (RSE)]] for Linear, and [[Direction over recorded range]] for Quadratic.",
-        "In [[Standard points]], compare predicted responses, residuals, [[Back-calculated concentration]] and [[Absolute percent error]]."
+        "To compare errors, enter a [[Maximum absolute percent error]]. If your method uses a different limit at the lowest concentration, also enter [[Maximum error at lowest concentration]].",
+        "Select [[Calculate fit]]. Review the [[Equation]], fitted coefficients and statistics.",
+        "In [[Standard points]], review [[Absolute percent error]] and, if you entered limits, [[Limit comparison]]."
       ]
     },
     {
@@ -99,8 +99,8 @@
       "paragraphs": [
         "Staff who can read the calibration can use the worksheet. Linear and quadratic fits use least squares with a free intercept. Linear through origin fits the slope by least squares with the intercept fixed at zero. Average calibration factor takes the arithmetic mean of observed response divided by concentration for concentration-based external standards. Every model uses each recorded row in the frozen units, including replicates.",
         "A quadratic fit needs at least three distinct concentrations. Each other model needs at least two. Linear through origin, average calibration factor and either inverse weighting require every concentration to be positive. Linear through origin rejects a recorded zero-concentration standard and adds no observation at zero.",
-        "An explicitly empty or unrecognized model or an incompatible weighting shows a field error. When the model cannot use the recorded points, Fit unavailable explains why. The recorded points remain visible in both cases.",
-        "The worksheet output is temporary and displayed with up to 12 significant digits. Predicted responses, residuals, back-calculated concentrations and percent errors use the unrounded coefficients or mean factor. Links from result revisions refer to the frozen instrument evidence. Use the laboratory’s procedure and configured QC checks for method acceptance."
+        "An explicitly empty or unrecognized model, an incompatible weighting or an invalid limit shows a field error and keeps your entries. When the model cannot use the recorded points, Fit unavailable explains why. The recorded points remain visible in both cases.",
+        "Calculated values display up to 12 significant digits. Predicted responses, residuals, back-calculated concentrations and percent errors use the unrounded coefficients or mean factor. Fits and limits are temporary worksheet comparisons. Links from result revisions refer to the frozen instrument evidence. Use the laboratory’s procedure and configured QC checks for method acceptance."
       ],
       "items": [
         {
@@ -112,8 +112,16 @@
           "description": "Unweighted (equal weights) gives every row the same weight. Linear and quadratic fits require a selection and also support 1/x (inverse concentration) and 1/x² (inverse concentration squared). For Linear through origin and Average calibration factor, leave Weighting blank or choose Unweighted (equal weights)."
         },
         {
+          "label": "Maximum absolute percent error",
+          "description": "Optional general limit, in percent, supplied by the laboratory. A blank limit leaves the comparison columns hidden. Zero is valid. Each limit must be a finite, nonnegative number with at most 14 whole digits, 10 decimal places and 60 input characters."
+        },
+        {
+          "label": "Maximum error at lowest concentration",
+          "description": "Optional limit, in percent, that overrides the general maximum for every point tied at the lowest recorded concentration, including replicates and a recorded zero. This field requires a general maximum. A blank override applies the general maximum to every point."
+        },
+        {
           "label": "Calculate fit",
-          "description": "Calculate using the selected model and weighting. When the calculation succeeds, its values appear alongside the recorded evidence. Change a selection and calculate again to compare fits."
+          "description": "Calculate using the selected model and weighting. A successful fit appears alongside the recorded evidence, with a comparison for each standard when you give a maximum. Change a selection or limit and calculate again to compare results."
         },
         {
           "label": "Equation",
@@ -203,6 +211,14 @@
         {
           "label": "Absolute percent error",
           "description": "The absolute difference between the unrounded back-calculated concentration and the recorded concentration, divided by the recorded concentration and multiplied by 100. A zero recorded concentration or an unavailable back-calculated concentration leaves this value unavailable. Predicted responses and residuals remain visible."
+        },
+        {
+          "label": "Maximum error (%)",
+          "description": "The general maximum or the override that applies to this point. This column appears after a successful calculation with a general maximum."
+        },
+        {
+          "label": "Limit comparison",
+          "description": "At or below limit includes exact equality. Over limit means the absolute percent error exceeds the applicable maximum. The comparison uses the error before display rounding. If the percent error is unavailable, the worksheet shows Cannot compare."
         }
       ]
     },

@@ -28,7 +28,8 @@ records; it does not certify compliance or accreditation.
   method calls for a zero intercept, staff can fit an unweighted line through the origin. For external
   standards, they can also inspect the mean calibration factor and the variation among standards.
   Staff can compare each standard’s back-calculated concentration with its recorded concentration
-  and see the absolute percent error. For a quadratic, the worksheet shows the concentration only
+  and see which standards exceed a maximum absolute percent error they enter. They can use a
+  separate maximum for the lowest concentration. For a quadratic, the worksheet shows the concentration only
   when the curve has one direction and the observed response falls between its fitted endpoints.
   The free-intercept linear and average-factor worksheets also show relative standard error across all recorded points.
   On an analytical batch, staff can inspect the actual injection order alongside the nearest

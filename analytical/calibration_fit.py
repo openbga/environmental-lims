@@ -5,15 +5,17 @@ from fractions import Fraction
 from math import isqrt
 
 from django.core.exceptions import ValidationError
+from django.core.validators import DecimalValidator
 
 from .calibration import _points
+from .models import VALUE_FIELD
 
 DISPLAY_DIGITS = 12
 _WEIGHT_POWERS = {"equal": 0, "inverse": 1, "inverse_square": 2}
 
 
-def _fraction(text):
-    value = Decimal(text)
+def _fraction(value):
+    value = Decimal(value)
     # Exact zero can be supplied with an exponent outside the bounds for nonzero values.
     return Fraction(value) if value else Fraction(0)
 
@@ -48,6 +50,52 @@ def _back_calculation(concentration, response, slope, intercept=0):
     if not slope:
         return {"back_calculated": None, "absolute_percent_error": None}
     return _display_back_calculation(concentration, (response - intercept) / slope)
+
+
+def _predict(concentration, coefficients):
+    a, b, c = coefficients
+    return (a * concentration + b) * concentration + c
+
+
+def _error_limits_by_concentration(concentrations, max_error, lowest_max_error):
+    if max_error is None:
+        if lowest_max_error is not None:
+            message = "Enter a general maximum to compare errors at the lowest concentration."
+            raise ValidationError({"max_error": message})
+        return {}
+
+    validate_decimal = DecimalValidator(**VALUE_FIELD)
+    for field, limit in (("max_error", max_error), ("lowest_max_error", lowest_max_error)):
+        if limit is None:
+            continue
+        if not isinstance(limit, Decimal) or not limit.is_finite() or limit < 0:
+            raise ValidationError({field: "Enter a finite, nonnegative decimal."})
+        try:
+            validate_decimal(limit)
+        except ValidationError as error:
+            raise ValidationError({field: error}) from error
+
+    limits = dict.fromkeys(concentrations, max_error)
+    if lowest_max_error is not None:
+        limits[min(concentrations)] = lowest_max_error
+    return limits
+
+
+def _add_error_comparison(row, concentration, response, coefficients, error_limit, bounds=None):
+    row.update(error_limit=error_limit, within_error_limit=None)
+    if not concentration or row["back_calculated"] is None:
+        return
+
+    # On an invertible branch, a concentration interval maps to an exact response
+    # interval. This also works when the back-calculated concentration is irrational.
+    deviation = concentration * _fraction(error_limit) / 100
+    lower, upper = concentration - deviation, concentration + deviation
+    if bounds is not None:
+        lower, upper = max(lower, bounds[0]), min(upper, bounds[1])
+    low_response, high_response = sorted(
+        (_predict(lower, coefficients), _predict(upper, coefficients))
+    )
+    row["within_error_limit"] = low_response <= response <= high_response
 
 
 def _display_quadratic_inverse(concentration, response, coefficients, increasing):
@@ -130,7 +178,7 @@ def _relative_standard_error(observations, slope, intercept=0, *, terms, coeffic
     }
 
 
-def _average_factor_fit(points, observations, concentrations):
+def _average_factor_fit(points, observations, concentrations, error_limits):
     if 0 in concentrations:
         raise ValidationError(
             "Average calibration factor requires every concentration to be greater than zero."
@@ -150,15 +198,16 @@ def _average_factor_fit(points, observations, concentrations):
     rows = []
     for point, (x, y), factor in zip(points, observations, factors, strict=True):
         predicted = mean * x
-        rows.append(
-            dict(
-                point,
-                factor=_display(factor),
-                predicted=_display(predicted),
-                residual=_display(y - predicted),
-                **_back_calculation(x, y, mean),
-            )
+        row = dict(
+            point,
+            factor=_display(factor),
+            predicted=_display(predicted),
+            residual=_display(y - predicted),
+            **_back_calculation(x, y, mean),
         )
+        if error_limits:
+            _add_error_comparison(row, x, y, (0, mean, 0), error_limits[x])
+        rows.append(row)
     return {
         "mean_factor": _display(mean),
         "factor_sd": _display_square_root(variance),
@@ -230,8 +279,8 @@ def _quadratic_trend(a, b, lower, upper):
     return direction, None
 
 
-def calculate_fit(points, weighting, model="linear"):
-    """Fit every recorded point, including replicate standards, with the selected model."""
+def calculate_fit(points, weighting, model="linear", *, max_error=None, lowest_max_error=None):
+    """Fit every recorded standard, with optional exact Decimal limits on percent error."""
     if model not in ("linear", "linear_origin", "quadratic", "average_factor"):
         raise ValidationError(
             "Choose a linear, zero-intercept linear, quadratic or average calibration factor fit."
@@ -253,8 +302,9 @@ def calculate_fit(points, weighting, model="linear"):
         (_fraction(point["concentration"]), _fraction(point["response"])) for point in points
     ]
     concentrations = {x for x, _ in observations}
+    error_limits = _error_limits_by_concentration(concentrations, max_error, lowest_max_error)
     if average_factor:
-        return _average_factor_fit(points, observations, concentrations)
+        return _average_factor_fit(points, observations, concentrations, error_limits)
 
     quadratic = model == "quadratic"
     if linear_origin and 0 in concentrations:
@@ -279,19 +329,23 @@ def calculate_fit(points, weighting, model="linear"):
         weighted_points = [(1 / x**power, x, y) for x, y in observations]
         a, b, c = _coefficients(weighted_points, quadratic)
 
+    coefficients = (a, b, c)
+    bounds = None
     if quadratic:
-        lower, upper = min(concentrations), max(concentrations)
-        trend, reason = _quadratic_trend(a, b, lower, upper)
-        response_endpoints = ((a * lower + b) * lower + c, (a * upper + b) * upper + c)
+        bounds = (min(concentrations), max(concentrations))
+        trend, reason = _quadratic_trend(a, b, *bounds)
+        response_endpoints = tuple(_predict(x, coefficients) for x in bounds)
 
-    predictions = [(a * x + b) * x + c for x, _ in observations]
+    predictions = [_predict(x, coefficients) for x, _ in observations]
     rows = []
     for point, (x, y), predicted in zip(points, observations, predictions, strict=True):
         row = dict(point, predicted=_display(predicted), residual=_display(y - predicted))
         if quadratic:
-            row.update(_quadratic_back_calculation(x, y, (a, b, c), response_endpoints, reason))
+            row.update(_quadratic_back_calculation(x, y, coefficients, response_endpoints, reason))
         else:
             row.update(_back_calculation(x, y, b, c))
+        if error_limits:
+            _add_error_comparison(row, x, y, coefficients, error_limits[x], bounds)
         rows.append(row)
     fit = {"slope": _display(b), "intercept": _display(c), "rows": rows}
     if not linear_origin:

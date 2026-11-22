@@ -1,6 +1,7 @@
 """Staff calibration entry, scoped provenance choices and stale correction behavior."""
 
 from datetime import timedelta
+from decimal import Decimal
 
 import pytest
 from django.urls import reverse
@@ -68,6 +69,12 @@ def worksheet_html(response):
     return response.content.decode().split('id="fit-worksheet"', 1)[1].split("</section>", 1)[0]
 
 
+def standard_points_html(response):
+    return response.content.split(b'aria-labelledby="points-heading">', 1)[1].split(b"</table>", 1)[
+        0
+    ]
+
+
 def test_record_and_read_frozen_evidence(lab, analyst, reviewer, client):
     batch, _ = setup_run(lab, analyst)
     client.force_login(analyst)
@@ -110,6 +117,9 @@ def test_clients_cannot_read_or_record(lab, analyst, client):
     assert client.get(url, {"model": "quadratic", "weighting": "equal"}).status_code == 403
     assert client.get(url, {"model": "average_factor"}).status_code == 403
     assert client.get(url, {"model": "linear_origin"}).status_code == 403
+    limits = {"model": "linear", "weighting": "equal", "max_error": "20", "lowest_max_error": "50"}
+    assert client.get(url, limits).status_code == 403
+    assert client.head(url, limits).status_code == 403
 
 
 def test_fit_requires_a_choice_and_keeps_evidence_and_result_links(lab, analyst, reviewer, client):
@@ -137,6 +147,9 @@ def test_fit_requires_a_choice_and_keeps_evidence_and_result_links(lab, analyst,
     assert b"Predicted response (counts)" not in initial.content
     assert b"Back-calculated concentration (" not in initial.content
     assert b"Absolute percent error (%)" not in initial.content
+    table = standard_points_html(initial)
+    assert b"Maximum error (%)" not in table
+    assert b"Limit comparison" not in table
     assert "Relative standard error (RSE)" not in worksheet_html(initial)
     assert R_SQUARED not in worksheet_html(initial)
     assert PEARSON_R not in worksheet_html(initial)
@@ -165,6 +178,9 @@ def test_fit_requires_a_choice_and_keeps_evidence_and_result_links(lab, analyst,
         assert b"Residual (counts)" in response.content
         assert f"Back-calculated concentration ({curve.unit})" in response.content.decode()
         assert b"Absolute percent error (%)" in response.content
+        table = standard_points_html(response)
+        assert b"Maximum error (%)" not in table
+        assert b"Limit comparison" not in table
         assert "Relative standard error (RSE)" in worksheet
         assert R_SQUARED in worksheet
         assert "3 recorded points − 2 fitted terms = 1" in worksheet
@@ -179,6 +195,94 @@ def test_fit_requires_a_choice_and_keeps_evidence_and_result_links(lab, analyst,
     assert RunCalibration.objects.values().get(pk=curve.pk) == curve_fields
     assert result.revisions.get().calibration_evidence == evidence
     assert AuditEvent.objects.count() == audit_count
+
+
+def test_fit_compares_tied_lowest_points_and_preserves_recorded_evidence(
+    lab, analyst, reviewer, client
+):
+    batch, result = setup_run(lab, analyst)
+    points = [
+        {"standard": "Higher exact", "concentration": "2", "response": "4"},
+        {"standard": "Low", "concentration": "1.00", "response": "1.6"},
+        {"standard": "Low replicate", "concentration": "1.0", "response": "2.5"},
+        {"standard": "High", "concentration": "3", "response": "5.7"},
+    ]
+    curve = record(lab, analyst, batch, points=points)
+    client.force_login(analyst)
+    result_url = reverse("analytical:result-detail", args=[result.pk])
+    assert client.post(result_url, entry(calibration_id=curve.pk)).status_code == 302
+    evidence = result.revisions.get().calibration_evidence
+    curve_fields = RunCalibration.objects.values().get(pk=curve.pk)
+    audit_count = AuditEvent.objects.count()
+
+    client.force_login(reviewer)
+    url = reverse("analytical:calibration-detail", args=[curve.pk])
+    params = {"model": "average_factor", "max_error": "0.0000", "lowest_max_error": "20.00"}
+    response = client.get(url, params)
+    assert response.status_code == 200
+    assert not response.context["fit_form"].errors
+    rows = response.context["points"]
+    assert [row["standard"] for row in rows] == [point["standard"] for point in points]
+    assert [row["error_limit"] for row in rows] == [
+        Decimal("0"),
+        Decimal("20"),
+        Decimal("20"),
+        Decimal("0"),
+    ]
+    assert [row["within_error_limit"] for row in rows] == [True, True, False, False]
+    table = standard_points_html(response)
+    assert b"Maximum error (%)" in table
+    assert b"Limit comparison" in table
+    assert b"At or below limit" in table
+    assert b"Over limit" in table
+    assert b'value="0.0000"' in response.content and b'value="20.00"' in response.content
+
+    response = client.get(url, {"model": "average_factor", "max_error": "250.1234567890"})
+    assert all(
+        row["error_limit"] == Decimal("250.1234567890") and row["within_error_limit"] is True
+        for row in response.context["points"]
+    )
+
+    assert client.post(url, params).status_code == 405
+    assert RunCalibration.objects.values().get(pk=curve.pk) == curve_fields
+    assert result.revisions.get().calibration_evidence == evidence
+    assert AuditEvent.objects.count() == audit_count
+
+
+def test_fit_invalid_error_limits_keep_values_and_recorded_points(lab, analyst, client):
+    batch, _ = setup_run(lab, analyst)
+    curve = record(lab, analyst, batch)
+    client.force_login(analyst)
+    url = reverse("analytical:calibration-detail", args=[curve.pk])
+    response = client.get(url, {"lowest_max_error": "15.00"})
+    form = response.context["fit_form"]
+    assert response.status_code == 200
+    assert form["model"].value() == "linear"
+    assert form["lowest_max_error"].value() == "15.00"
+    assert list(form["max_error"].errors) == [
+        "Enter a general maximum to compare errors at the lowest concentration."
+    ]
+    assert response.context["fit"] is None
+
+    for field, value, code in (
+        ("max_error", "-1", "min_value"),
+        ("max_error", "NaN", "invalid"),
+        ("max_error", "1_0", "invalid"),
+        ("max_error", "0" * 61, "max_length"),
+        ("max_error", "1.00000000001", "max_decimal_places"),
+        ("lowest_max_error", "Infinity", "invalid"),
+        ("lowest_max_error", "1e999999999999", "max_digits"),
+    ):
+        response = client.get(url, {"weighting": "equal", "max_error": "25", field: value})
+        form = response.context["fit_form"]
+        assert response.status_code == 200
+        assert list(form.errors) == [field]
+        assert form.errors.as_data()[field][0].code == code
+        assert form[field].value() == value
+        assert response.context["fit"] is None and response.context["points"] == curve.points
+        table = standard_points_html(response)
+        assert b"Limit comparison" not in table
+        assert b">0.0100</td>" in table and b">-0.0200</td>" in table
 
 
 def test_quadratic_fit_displays_direction_and_per_standard_inverses(lab, analyst, reviewer, client):

@@ -258,9 +258,14 @@ for zero slope anywhere in the calibration range.
 
 US EPA SW-846 Method 8000D Rev. 5 (March 2018), section 11.5.4.1, describes comparing
 recalculated and known calibration levels. The worksheet displays the magnitude of their
-difference as a percentage of the recorded concentration. The laboratory applies its method’s
-acceptance criteria. This comparison covers the recorded standards for the selected fit.
-[US EPA Method 8000D, checked 2026-11-20](https://www.epa.gov/sites/default/files/2015-12/documents/8000d.pdf).
+difference as a percentage of the recorded concentration. Staff may enter the maximum absolute
+percent error from their procedure and, if applicable, a separate maximum for the lowest
+recorded concentration. That second maximum applies to every replicate at that concentration.
+The worksheet compares each unrounded error with its applicable maximum. Equality is within
+the maximum. A zero concentration or unavailable back-calculation leaves the comparison
+unavailable for that standard. The limits apply to the current worksheet view. The laboratory
+makes the acceptance decision under its own method and SOP.
+[US EPA Method 8000D Rev. 5, March 2018, §11.5.4.1, checked 2026-11-21](https://www.epa.gov/sites/default/files/2015-12/documents/8000d.pdf#page=39).
 
 For a free-intercept linear fit or an average external-standard factor, staff can inspect
 the relative standard error across the recorded calibration points. US EPA SW-846 Method

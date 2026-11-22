@@ -23,17 +23,19 @@
     {% panel title="Calibration fit worksheet" heading_id="fit-heading" id="fit-worksheet" class="mb-3" %}
       <p>Use Average calibration factor for concentration-based external standards. Follow your method and laboratory SOP for model selection and acceptance.</p>
       {# form: filter #}
-      <form class="vr-form" method="get" action="{{ request.path }}#fit-worksheet" novalidate>
+      <form class="vr-form" method="get" action="{{ request.path }}#fit-results" novalidate>
         {% form_errors form=fit_form %}
         {% field field=fit_form.model %}
         {% field field=fit_form.weighting %}
+        {% field field=fit_form.max_error %}
+        {% field field=fit_form.lowest_max_error %}
         {% form_actions submit_label="Calculate fit" %}{% endform_actions %}
       </form>
       {% if fit_errors %}
-        {% notice tone="danger" label="Fit unavailable" blocking=True %}{{ fit_errors|join:" " }}{% endnotice %}
+        {% notice tone="danger" label="Fit unavailable" blocking=True id="fit-results" focus=True %}{{ fit_errors|join:" " }}{% endnotice %}
       {% endif %}
       {% if fit %}
-        <dl class="vr-facts">
+        <dl class="vr-facts" id="fit-results">
           {% fact label="Weighting" value=fit_weighting_label %}
           {% if fit_model == "average_factor" %}
             {% fact label="Equation" wide=True value="y = mean factor × x" %}
@@ -89,6 +91,9 @@
         {% else %}
           <p class="vr-muted">Back-calculated concentration comes from solving the fitted equation using each observed response. Absolute percent error is the size of the difference from the recorded concentration, divided by the recorded concentration and multiplied by 100. Both use the unrounded fit.</p>
         {% endif %}
+        {% if show_error_limits %}
+          <p class="vr-muted">Limit comparisons use the absolute percent errors before display rounding. The limits apply only to this worksheet calculation.</p>
+        {% endif %}
       {% endif %}
     {% endpanel %}
     {% panel title="Standard points" heading_id="points-heading" count=points|length table=True flush=True class="mb-3" %}
@@ -110,6 +115,10 @@
             <th scope="col" class="text-end">Residual ({{ curve.response_unit }})</th>
             <th scope="col" class="text-end">Back-calculated concentration ({{ curve.unit }})</th>
             <th scope="col" class="text-end">Absolute percent error (%)</th>
+            {% if show_error_limits %}
+              <th scope="col" class="text-end">Maximum error (%)</th>
+              <th scope="col">Limit comparison</th>
+            {% endif %}
           {% endif %}
         </tr></thead>
         <tbody>{% for point in points %}
@@ -136,6 +145,18 @@
                 {% else %}
                   <td class="text-end vr-id">{{ point.absolute_percent_error }}</td>
                 {% endif %}
+              {% endif %}
+              {% if show_error_limits %}
+                <td class="text-end vr-id">{{ point.error_limit }}</td>
+                <td>
+                  {% if point.within_error_limit is None %}
+                    <span class="vr-muted">Cannot compare</span>
+                  {% elif point.within_error_limit %}
+                    At or below limit
+                  {% else %}
+                    {% status label="Over limit" tone="warning" plain=True %}
+                  {% endif %}
+                </td>
               {% endif %}
             {% endif %}
           </tr>
