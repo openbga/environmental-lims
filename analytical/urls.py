@@ -45,6 +45,16 @@ urlpatterns = [
     path("calibrations/<int:pk>/", calibration_views.calibration_detail, name="calibration-detail"),
     path("batches/<int:pk>/run-list.csv", run_list_views.batch_run_list, name="batch-run-list"),
     path(
+        "batches/<int:pk>/run-list/template/",
+        run_list_views.batch_run_list_template,
+        name="batch-run-list-template",
+    ),
+    path(
+        "batches/<int:pk>/run-list/template/example.csv",
+        run_list_views.batch_run_list_template_example,
+        name="batch-run-list-template-example",
+    ),
+    path(
         "batches/<int:pk>/run-sequences/new/",
         run_sequence_views.run_sequence_create,
         name="run-sequence-create",

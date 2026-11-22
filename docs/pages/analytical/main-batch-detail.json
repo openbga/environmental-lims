@@ -37,8 +37,8 @@
     {
       "title": "Work with instrument runs",
       "steps": [
-        "Select [[Export run list]] to download all batch tests and recorded QC samples.",
-        "Map the CSV columns for your instrument and check sample states, QC and injection order before use.",
+        "Select [[Export run list]] for the standard columns. For different headings or column order, select [[Export run list with a template]] in Batch details.",
+        "Check sample states, QC and the intended injection order before using the CSV.",
         "After the run, select [[Record injection sequence]] to transcribe the actual injection order.",
         "In [[Injection sequences]], select the run reference to inspect the current version."
       ]
@@ -101,6 +101,10 @@
         {
           "label": "Export run list",
           "description": "Analysts and administrators download a UTF-8 CSV for instrument setup. Every assigned test and direct batch QC sample is included, regardless of filters, pagination or checkboxes. Open and closed analytical batches are allowed. Empty batches produce column headings only. The download changes no records or audit history and is not stored as an issued snapshot."
+        },
+        {
+          "label": "Export run list with a template",
+          "description": "Analysts and administrators can open a form to download the same batch rows with selected columns, headings and column order. Download the example there to prepare a reusable template. The laboratory checks the exported layout against its instrument."
         },
         {
           "label": "Import results",

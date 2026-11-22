@@ -10,6 +10,8 @@ from django.db.models import F
 from django.shortcuts import get_object_or_404
 
 from accounts.roles import require_role
+from core.csv_cells import FORMULA_PREFIXES
+from core.csv_templates import example_csv_template, parse_csv_template, validate_csv_columns
 
 from .models import Batch, QCSample, Result, ResultRevision
 
@@ -39,6 +41,7 @@ COLUMNS = (
     "qc_type",
     "parent_sample_id",
 )
+STANDARD_COLUMNS = tuple((key, key) for key in COLUMNS)
 NUMERIC_COLUMNS = frozenset(
     {
         "requested_test_id",
@@ -47,13 +50,22 @@ NUMERIC_COLUMNS = frozenset(
         "qc_sample_id",
     }
 )
-FORMULA_PREFIXES = ("=", "+", "-", "@", "＝", "＋", "－", "＠")
 
 
 @dataclass(frozen=True)
 class RunList:
     filename: str
     content: str
+
+
+def parse_run_list_template(upload):
+    """Return the template's selected (field key, heading) pairs in file order."""
+    return parse_csv_template(upload, allowed_keys=COLUMNS, field_label="run list")
+
+
+def example_run_list_template():
+    """Return a starter template containing every supported run list field key."""
+    return example_csv_template(COLUMNS)
 
 
 def _validate_text(value, *, row, column):
@@ -73,9 +85,10 @@ def _validate_text(value, *, row, column):
         )
 
 
-def export_run_list(*, actor, batch_id):
+def export_run_list(*, actor, batch_id, columns=None):
     """Return a fully validated CSV, refusing unsafe text or more than MAX_ROWS rows.
 
+    An optional sequence of (field key, heading) pairs selects and orders columns.
     Membership and configuration are current. A preparation link is included only when the
     latest recorded revision belongs to this batch, never from planned preparation candidates.
     """
@@ -85,6 +98,10 @@ def export_run_list(*, actor, batch_id):
         pk=batch_id,
         kind=Batch.Kind.ANALYTICAL,
     )
+    if columns is None:
+        columns = STANDARD_COLUMNS
+    else:
+        columns = validate_csv_columns(columns, allowed_keys=COLUMNS, field_label="run list")
     results = list(
         Result.objects.filter(batch=batch)
         .select_related(
@@ -173,7 +190,7 @@ def export_run_list(*, actor, batch_id):
             if column not in NUMERIC_COLUMNS:
                 _validate_text(value, row=index, column=column)
     output = io.StringIO(newline="")
-    writer = csv.DictWriter(output, fieldnames=COLUMNS, lineterminator="\r\n")
-    writer.writeheader()
-    writer.writerows(rows)
+    writer = csv.writer(output, lineterminator="\r\n")
+    writer.writerow(heading for _, heading in columns)
+    writer.writerows([row.get(key, "") for key, _ in columns] for row in rows)
     return RunList(filename=f"{batch.number}-run-list.csv", content=output.getvalue())

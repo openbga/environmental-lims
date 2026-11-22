@@ -1,14 +1,15 @@
 """Spreadsheet download of the sample results in a single issued snapshot."""
 
-import csv
-import io
-import unicodedata
 from decimal import InvalidOperation
 
 from django.core.exceptions import ValidationError
 
 from analytical.parsing import parse_decimal
 from core.csv_cells import spreadsheet_text
+from core.csv_templates import MAX_TEMPLATE_BYTES as MAX_TEMPLATE_BYTES
+from core.csv_templates import example_csv_template as _example_csv_template
+from core.csv_templates import parse_csv_template as _parse_csv_template
+from core.csv_templates import spreadsheet_writer
 
 from .content import basis_label
 
@@ -38,7 +39,6 @@ COLUMNS = (
 )
 STANDARD_COLUMNS = tuple((key, key) for key in COLUMNS)
 NUMERIC_COLUMNS = {"result", "reporting_limit", "percent_solids"}
-MAX_TEMPLATE_BYTES = 16 * 1024
 
 
 def parse_csv_template(upload):
@@ -47,63 +47,12 @@ def parse_csv_template(upload):
     Keys and duplicate headings are matched exactly. Headings must be single-line
     text without control characters or spreadsheet formula prefixes.
     """
-    data = upload.read(MAX_TEMPLATE_BYTES + 1)
-    if len(data) > MAX_TEMPLATE_BYTES:
-        raise ValidationError(f"Upload a CSV file of at most {MAX_TEMPLATE_BYTES // 1024} KiB.")
-    try:
-        content = data.decode("utf-8-sig")
-    except UnicodeDecodeError as exc:
-        raise ValidationError("Save the template as UTF-8 CSV and upload it again.") from exc
-    try:
-        rows = list(csv.reader(io.StringIO(content, newline=""), strict=True))
-    except csv.Error as exc:
-        raise ValidationError("Use comma-separated CSV with properly quoted headings.") from exc
-    if len(rows) != 2 or not all(rows):
-        raise ValidationError("Use exactly two CSV rows: output headings, then result field keys.")
-    headings, keys = rows
-    if len(headings) != len(keys):
-        raise ValidationError("Give every output heading a result field key in the same column.")
-
-    columns = []
-    seen_headings = set()
-    seen_keys = set()
-    for index, (key, heading) in enumerate(zip(keys, headings, strict=True), start=1):
-        if not heading.strip():
-            raise ValidationError(f"Enter an output heading in column {index} of the first row.")
-        if spreadsheet_text(heading) != heading or any(
-            unicodedata.category(char) in {"Cc", "Zl", "Zp"} for char in heading
-        ):
-            raise ValidationError(
-                f"Use a plain text heading in column {index}, without formula prefixes, "
-                "line breaks or control characters."
-            )
-        if heading in seen_headings:
-            raise ValidationError(f"Use a different output heading in column {index}.")
-        if key not in COLUMNS:
-            raise ValidationError(
-                f"Enter a result field key from the example template in column {index} "
-                "of the second row."
-            )
-        if key in seen_keys:
-            raise ValidationError(f"Use a different result field key in column {index}.")
-        seen_headings.add(heading)
-        seen_keys.add(key)
-        columns.append((key, heading))
-    return columns
-
-
-def _spreadsheet_writer():
-    output = io.StringIO(newline="")
-    output.write("\ufeff")
-    return output, csv.writer(output, lineterminator="\r\n")
+    return _parse_csv_template(upload, allowed_keys=COLUMNS, field_label="result")
 
 
 def example_csv_template():
     """Return a starter template containing every supported result field key."""
-    output, writer = _spreadsheet_writer()
-    writer.writerow(key.replace("_", " ").capitalize().replace(" id", " ID") for key in COLUMNS)
-    writer.writerow(COLUMNS)
-    return output.getvalue()
+    return _example_csv_template(COLUMNS)
 
 
 def _spreadsheet_cell(value, *, numeric):
@@ -168,7 +117,7 @@ def issued_result_values(result, matrix):
 def export_results_csv(snapshot, *, columns=None):
     """Return issued result text in standard columns or ordered (key, heading) pairs."""
     columns = STANDARD_COLUMNS if columns is None else tuple(columns)
-    output, writer = _spreadsheet_writer()
+    output, writer = spreadsheet_writer()
     writer.writerow(spreadsheet_text(heading) for _, heading in columns)
     for cells in issued_result_rows(snapshot):
         writer.writerow(

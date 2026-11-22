@@ -48,6 +48,7 @@
 {% endif %}
 
 {% panel title="Batch details" heading_id="batch-heading" class="mb-3" %}
+    {% fill actions %}{% if can_enter %}<a class="btn btn-outline-secondary btn-sm" href="{% url 'analytical:batch-run-list-template' batch.pk %}">Export run list with a template</a>{% endif %}{% endfill %}
     <dl class="vr-facts">
       {% fact label="Equipment" wide=True %}{% if batch.equipment %}<a href="{% url 'laboratory:equipment-detail' batch.equipment_id %}">{{ batch.equipment.asset_id }}</a> {{ batch.equipment.name }}{% else %}Not recorded{% endif %}{% if can_enter %} <a href="#equipment">{% if batch.equipment %}Change{% else %}Set{% endif %}<span class="visually-hidden"> equipment</span></a>{% endif %}{% endfact %}
       {% fact label="Preparation start" %}{% if batch.prepared_at %}<time datetime="{{ batch.prepared_at|date:'c' }}" title="{{ batch.prepared_at|date:'Y-m-d H:i T' }}">{{ batch.prepared_at|date:"Y-m-d H:i" }}</time>{% else %}Not recorded{% endif %}{% if can_enter %} <a href="#preparation">{% if batch.prepared_at %}Change{% else %}Set{% endif %}<span class="visually-hidden"> preparation time</span></a>{% endif %}{% endfact %}
@@ -55,7 +56,7 @@
       {% if batch.closed_at %}{% fact label="Closed" %}<time datetime="{{ batch.closed_at|date:'c' }}" title="{{ batch.closed_at|date:'Y-m-d H:i T' }}">{{ batch.closed_at|date:"Y-m-d H:i" }}</time> by {{ batch.closed_by.get_username }}{% endfact %}{% endif %}
       {% if batch.notes %}{% fact label="Notes" wide=True value=batch.notes %}{% endif %}
     </dl>
-    {% if can_enter %}<p class="vr-form-note">The run-list CSV includes every test and recorded QC sample in this batch, regardless of filters. Check the sample states and map the columns for your instrument; the file does not set injection order.</p>{% endif %}
+    {% if can_enter %}<p class="vr-form-note">Both run-list downloads include every assigned test and recorded QC sample, regardless of filters. Check sample states and verify the file for your instrument. Record injection order separately.</p>{% endif %}
 {% endpanel %}
 
 {% if can_enter %}
