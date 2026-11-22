@@ -17,7 +17,7 @@
     {
       "title": "Fit a linear or quadratic model",
       "steps": [
-        "In [[Calibration fit worksheet]], choose [[Model]] and [[Weighting]]. For [[Linear through origin]], leave [[Weighting]] blank or choose [[Unweighted (equal weights)]].",
+        "In [[Calibration fit worksheet]], choose the [[Model]] and [[Weighting]] your method specifies. For [[Linear through origin]], leaving the weighting blank uses equal weights.",
         "To compare errors, enter a [[Maximum absolute percent error]]. If your method uses a different limit at the lowest concentration, also enter [[Maximum error at lowest concentration]].",
         "Select [[Calculate fit]]. Review the [[Equation]] and fitted coefficients. For [[Linear]] or [[Quadratic]], check [[Relative standard error (RSE)]].",
         "In [[Standard points]], review [[Absolute percent error]] and, if you entered limits, [[Limit comparison]]."
@@ -109,7 +109,7 @@
         },
         {
           "label": "Weighting",
-          "description": "Unweighted (equal weights) gives every row the same weight. Linear and quadratic fits require a selection and also support 1/x (inverse concentration) and 1/x² (inverse concentration squared). For Linear through origin and Average calibration factor, leave Weighting blank or choose Unweighted (equal weights)."
+          "description": "Linear, Linear through origin and Quadratic offer equal weights, 1/x (inverse concentration) and 1/x² (inverse concentration squared). Inverse weights give lower concentrations more influence per unit of squared response error. Linear and Quadratic require a selection. Leaving Weighting blank for Linear through origin uses equal weights. EPA Method 8000D advises against combining a fixed zero intercept with inverse weighting. Average calibration factor accepts blank or equal weights."
         },
         {
           "label": "Maximum absolute percent error",

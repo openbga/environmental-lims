@@ -78,8 +78,12 @@
         </dl>
         <p class="vr-muted">In the equation, x is concentration ({{ curve.unit }}) and y is predicted response ({{ curve.response_unit }}). Residual is observed response minus predicted response.
           {% if fit_model == "average_factor" %}Each factor is observed response divided by concentration. Every row, including replicates, counts equally in the mean. Predictions and residuals use the unrounded mean factor.
+          {% elif fit_model == "linear_origin" %}The slope uses the selected weights and counts each recorded point separately, including replicates. Predictions and residuals use the unrounded slope.
           {% else %}Predictions and residuals use the unrounded coefficients.{% endif %}
           Calculated values are displayed with up to 12 significant digits.</p>
+        {% if fit_model == "linear_origin" and fit_form.cleaned_data.weighting != "equal" %}
+          <p class="vr-muted">Use an inverse-weighted fit through the origin only if your method allows it. EPA Method 8000D advises against this combination.</p>
+        {% endif %}
         {% if "pearson_r" in fit %}
           <p class="vr-muted">Pearson r measures the direction and strength of the linear relationship between concentration and observed response. It ranges from −1 to +1, and each recorded point, including replicates, counts equally.</p>
         {% endif %}

@@ -26,7 +26,8 @@ records; it does not certify compliance or accreditation.
   for a linear or quadratic fit with a fitted intercept. An unweighted linear fit also shows
   Pearson correlation (r), including the sign of the relationship. The worksheet shows whether a
   quadratic changes direction across the recorded concentrations. When their
-  method calls for a zero intercept, staff can fit an unweighted line through the origin. For external
+  method calls for a zero intercept, staff can fit a line through the origin using equal, 1/x
+  or 1/x² weights as their procedure allows. For external
   standards, they can also inspect the mean calibration factor and the variation among standards.
   Staff can compare each standard’s back-calculated concentration with its recorded concentration
   and see which standards exceed a maximum absolute percent error they enter. They can use a

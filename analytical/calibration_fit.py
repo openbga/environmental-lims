@@ -362,12 +362,11 @@ def calculate_fit(points, weighting, model="linear", *, max_error=None, lowest_m
         )
     average_factor = model == "average_factor"
     linear_origin = model == "linear_origin"
+    if linear_origin and weighting == "":
+        weighting = "equal"
     if average_factor:
         if weighting not in ("", "equal"):
             raise ValidationError("Average calibration factor uses equal weighting.")
-    elif linear_origin:
-        if weighting not in ("", "equal"):
-            raise ValidationError("A zero-intercept linear fit uses equal weighting.")
     elif not isinstance(weighting, str) or weighting not in _WEIGHT_POWERS:
         raise ValidationError("Choose equal, 1/x or 1/x² weighting.")
 
@@ -391,17 +390,19 @@ def calculate_fit(points, weighting, model="linear", *, max_error=None, lowest_m
     if len(concentrations) < 2:
         raise ValidationError("A linear fit needs at least two distinct concentrations.")
 
+    power = _WEIGHT_POWERS[weighting]
+    if power and 0 in concentrations:
+        raise ValidationError(
+            "Inverse weighting requires every concentration to be greater than zero."
+        )
+    weighted_points = [(1 / x**power, x, y) for x, y in observations]
     if linear_origin:
-        # Fix the intercept before fitting, per EPA SW-846 8000D Rev. 5, section 11.5.2.1.
+        # With the intercept fixed, weighted least squares has one normal equation.
         a = c = Fraction(0)
-        b = sum(x * y for x, y in observations) / sum(x**2 for x, _ in observations)
+        b = sum(weight * x * y for weight, x, y in weighted_points) / sum(
+            weight * x**2 for weight, x, _ in weighted_points
+        )
     else:
-        power = _WEIGHT_POWERS[weighting]
-        if power and 0 in concentrations:
-            raise ValidationError(
-                "Inverse weighting requires every concentration to be greater than zero."
-            )
-        weighted_points = [(1 / x**power, x, y) for x, y in observations]
         a, b, c = _coefficients(weighted_points, quadratic)
 
     coefficients = (a, b, c)

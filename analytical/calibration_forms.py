@@ -122,8 +122,9 @@ class CalibrationFitForm(forms.Form):
             ("inverse", "1/x (inverse concentration)"),
             ("inverse_square", "1/x² (inverse concentration squared)"),
         ],
-        help_text="Choose a weighting for Linear or Quadratic. For Linear through origin or "
-        "Average calibration factor, leave blank or choose Unweighted (equal weights).",
+        help_text="Choose a weighting for Linear or Quadratic. For Linear through origin, choose "
+        "a weighting or leave it blank for equal weights. "
+        "Average calibration factor uses equal weights.",
     )
     max_error = CalibrationErrorLimitField(
         label="Maximum absolute percent error",
@@ -138,14 +139,11 @@ class CalibrationFitForm(forms.Form):
     def clean_weighting(self):
         weighting = self.cleaned_data["weighting"]
         model = self.cleaned_data.get("model")
-        if model in ("linear_origin", "average_factor"):
-            if weighting not in ("", "equal"):
-                label = dict(self.fields["model"].choices)[model]
-                raise ValidationError(f"{label} uses equal weights.")
-            return "equal"
-        if not weighting:
+        if model == "average_factor" and weighting not in ("", "equal"):
+            raise ValidationError("Average calibration factor uses equal weights.")
+        if not weighting and model not in ("linear_origin", "average_factor"):
             raise ValidationError("Choose a weighting to calculate the fit.")
-        return weighting
+        return weighting or "equal"
 
     def clean(self):
         cleaned_data = super().clean()
