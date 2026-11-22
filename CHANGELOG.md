@@ -180,6 +180,10 @@ The same list is shown in the application under What's new.
 
   Analysts can download an analytical batch’s run list with the column headings and order their instrument needs. Download the example CSV, keep the columns you need and reuse that template for other batches.
 
+- **Added:** Download tab-separated instrument run lists (2026-11-22, Batches & QC)
+
+  On an analytical batch, open Export run list with a template and choose TSV for an instrument that needs tab-separated columns. The same CSV template sets the headings and column order for either download format.
+
 - **Added:** Compare calibration standards with a maximum percent error (2026-11-21, Batches & QC)
 
   In the Calibration fit worksheet, enter a maximum absolute percent error to see which standards exceed it. If your procedure uses a different maximum at the lowest concentration, you can enter that limit for all replicates at that level.

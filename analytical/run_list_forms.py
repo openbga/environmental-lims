@@ -12,5 +12,13 @@ class RunListTemplateForm(forms.Form):
         widget=forms.FileInput(attrs={"accept": ".csv,text/csv"}),
     )
 
+    output_format = forms.TypedChoiceField(
+        label="Output format",
+        choices=(("csv", "CSV (comma-separated)"), ("tsv", "TSV (tab-separated)")),
+        initial="csv",
+        required=False,
+        empty_value="csv",
+    )
+
     def clean_template_file(self):
         return parse_run_list_template(self.cleaned_data["template_file"])

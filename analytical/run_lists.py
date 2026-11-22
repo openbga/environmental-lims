@@ -56,6 +56,7 @@ NUMERIC_COLUMNS = frozenset(
 class RunList:
     filename: str
     content: str
+    media_type: str
 
 
 def parse_run_list_template(upload):
@@ -85,14 +86,16 @@ def _validate_text(value, *, row, column):
         )
 
 
-def export_run_list(*, actor, batch_id, columns=None):
-    """Return a fully validated CSV, refusing unsafe text or more than MAX_ROWS rows.
+def export_run_list(*, actor, batch_id, columns=None, output_format="csv"):
+    """Return a fully validated run list, refusing unsafe text or more than MAX_ROWS rows.
 
     An optional sequence of (field key, heading) pairs selects and orders columns.
     Membership and configuration are current. A preparation link is included only when the
     latest recorded revision belongs to this batch, never from planned preparation candidates.
     """
     require_role(actor, "analyst")
+    if output_format not in ("csv", "tsv"):
+        raise ValidationError("Choose CSV or TSV for the run list.")
     batch = get_object_or_404(
         Batch.objects.select_related("method", "equipment"),
         pk=batch_id,
@@ -190,7 +193,12 @@ def export_run_list(*, actor, batch_id, columns=None):
             if column not in NUMERIC_COLUMNS:
                 _validate_text(value, row=index, column=column)
     output = io.StringIO(newline="")
-    writer = csv.writer(output, lineterminator="\r\n")
+    tab_separated = output_format == "tsv"
+    writer = csv.writer(output, delimiter="\t" if tab_separated else ",", lineterminator="\r\n")
     writer.writerow(heading for _, heading in columns)
     writer.writerows([row.get(key, "") for key, _ in columns] for row in rows)
-    return RunList(filename=f"{batch.number}-run-list.csv", content=output.getvalue())
+    return RunList(
+        filename=f"{batch.number}-run-list.{output_format}",
+        content=output.getvalue(),
+        media_type="text/tab-separated-values" if tab_separated else "text/csv",
+    )

@@ -37,8 +37,8 @@
     {
       "title": "Work with instrument runs",
       "steps": [
-        "Select [[Export run list]] for the standard columns. For different headings or column order, select [[Export run list with a template]] in Batch details.",
-        "Check sample states, QC and the intended injection order before using the CSV.",
+        "Select [[Export run list]] for the standard columns. For a tab-separated file or different columns or headings, select [[Export run list with a template]] in Batch details.",
+        "Check sample states, QC and the intended injection order before using the run list.",
         "After the run, select [[Record injection sequence]] to transcribe the actual injection order.",
         "In [[Injection sequences]], select the run reference to inspect the current version."
       ]
@@ -104,7 +104,7 @@
         },
         {
           "label": "Export run list with a template",
-          "description": "Analysts and administrators can open a form to download the same batch rows with selected columns, headings and column order. Download the example there to prepare a reusable template. The laboratory checks the exported layout against its instrument."
+          "description": "Analysts and administrators can open a form to download the same batch rows as CSV or TSV with selected columns, headings and column order. Download the example there to prepare a reusable template. The laboratory checks the exported layout against its instrument."
         },
         {
           "label": "Import results",
@@ -121,11 +121,11 @@
       ]
     },
     {
-      "title": "Run-list CSV",
+      "title": "Run-list columns",
       "paragraphs": [
         "This is a generic current inventory for mapping into an instrument workflow. It does not establish eligibility, select aliquots, add missing QC or calibration standards, prescribe injection order or transmit to an instrument. It is not a result-import template. Review the sample disposition, disposal and result states before using it.",
         "Sample-test rows are ordered by lab sample ID, analyte and requested-test identifier, followed by QC rows ordered by type, label and identifier. A sample with several tests repeats. Only QC samples directly attached to this analytical batch appear; preparation-batch QC is not added. QC test, limit and preparation cells are blank because the export does not infer QC analytes.",
-        "The whole file is refused above 2,000 data rows or when text contains tabs, line breaks or a leading control character, or starts with =, +, -, @ or a full-width equivalent after whitespace. The message identifies the row and column to correct; nothing is silently rewritten or partially downloaded. Commas and quotes are preserved using CSV quoting. Use the source record’s correction action where available. For labels with no correction action, retain the original record and prepare replacement work with a safe label; do not edit historical evidence.",
+        "The whole file is refused above 2,000 data rows or when text contains tabs, line breaks or a leading control character, or starts with =, +, -, @ or a full-width equivalent after whitespace. The message identifies the row and column to correct; nothing is silently rewritten or partially downloaded. CSV uses commas between fields and TSV uses tabs. Both preserve literal quotes by doubling them inside quoted fields. Use the source record’s correction action where available. For labels with no correction action, retain the original record and prepare replacement work with a safe label; do not edit historical evidence.",
         "Columns describe current records at download time, not conditions at a historical run. Import identifiers as text in spreadsheet software to retain leading zeros. The limit is exported as an exact decimal without rounding."
       ],
       "items": [
@@ -440,7 +440,7 @@
     {
       "title": "Injection sequences",
       "paragraphs": [
-        "The table lists the current version of each instrument run recorded for this analytical batch. No injection sequences recorded means there is no transcription for the batch yet. The planned run-list CSV is a separate tool for setup.",
+        "The table lists the current version of each instrument run recorded for this analytical batch. No injection sequences recorded means there is no transcription for the batch yet. The planned run list is a separate tool for setup.",
         "The table lists the most recently recorded versions first. Its pages are independent of the results and calibration pages and use the same rows-per-page size. Result filters do not hide sequences."
       ],
       "items": [

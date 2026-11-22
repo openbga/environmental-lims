@@ -152,8 +152,10 @@ identity only when that revision belongs to this batch. It never chooses an aliq
 missing QC or calibration standards, assigns injection order, or sends commands to an instrument.
 Analysts can also download a two-row CSV template, give the columns their instrument’s headings,
 and move or remove columns. They keep the template locally and can reuse it on another batch.
-The mapped export includes the same rows in the same order as the standard download and uses
-the current batch values. The laboratory checks the layout and verifies the intended run.
+The same CSV template can produce a comma-separated CSV or a tab-separated TSV. Both
+use UTF-8 and double quotes to enclose fields containing a delimiter or quote. An embedded
+quote is doubled. Both formats use the same current batch values and row order as the
+standard download. The laboratory checks the layout and verifies the intended run.
 Staff can export the current inventory even after a batch closes. Synchronous downloads have a product limit
 of 2,000 rows; formula-like text is refused without rewriting identifiers. No vendor
 qualification or analytical acceptance is implied. Vendor-specific run formats remain roadmap work.

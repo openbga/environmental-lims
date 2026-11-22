@@ -6,7 +6,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 import pytest
-from helpers import receive_water, sign_in, sign_out
+from helpers import pick, receive_water, sign_in, sign_out
 from playwright.sync_api import expect
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -74,7 +74,7 @@ def test_run_list_download_ignores_filters_and_explains_its_limits(page, demo, b
     page.locator("[data-vr-documentation-toggle]").first.click()
     drawer = page.locator("#vr-documentation")
     expect(drawer).to_be_visible()
-    drawer.get_by_text("Run-list CSV", exact=True).click()
+    drawer.get_by_text("Run-list columns", exact=True).click()
     expect(
         drawer.get_by_text(
             "recorded_prepared_aliquot_id, recorded_preparation_batch, recorded_aliquot_label",
@@ -124,6 +124,8 @@ def test_run_list_template_download_and_invalid_file_recovery(page, demo, batch_
     assert len(headings) == len(keys)
     assert {"row_type", "sample_id", "qc_label", "configured_reporting_limit"} <= set(keys)
 
+    format_field = dialog.get_by_role("combobox", name="Output format", exact=True)
+    expect(format_field).to_contain_text("CSV (comma-separated)")
     upload = dialog.get_by_label(re.compile(r"^Run list template"))
     submit = dialog.get_by_role("button", name="Download run list", exact=True)
     upload.set_input_files(
@@ -151,6 +153,12 @@ def test_run_list_template_download_and_invalid_file_recovery(page, demo, batch_
         sample.lab_id for sample in samples
     }
     assert rows[-1] == ["qc_sample", "", "RUN-LIST-BLANK"]
+    pick(format_field, label="TSV (tab-separated)")
+    with page.expect_download() as tsv:
+        submit.click()
+    assert tsv.value.suggested_filename == f"{batch.number}-run-list.tsv"
+    with tsv.value.path().open(encoding="utf-8", newline="") as stream:
+        assert list(csv.reader(stream, delimiter="\t")) == rows
     expect(dialog).to_be_visible()
     dialog.get_by_role("link", name="Cancel", exact=True).click()
     expect(page).to_have_url(re.compile(f"{path}$"))
