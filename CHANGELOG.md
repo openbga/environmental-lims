@@ -172,6 +172,10 @@ The same list is shown in the application under What's new.
 
 ### Medium impact
 
+- **Changed:** Check QC history during upgrade rehearsals (2026-11-22)
+
+  The GitHub Actions upgrade rehearsal now checks that QC samples, observations and corrective actions survive migration. It follows a failed observation through reanalysis and correction and verifies that both records still point to the original observation.
+
 - **Added:** Check relative standard error for a quadratic calibration (2026-11-22, Batches & QC)
 
   Choose Quadratic on the calibration fit worksheet to see the relative standard error across all recorded standards, including replicates. The worksheet shows the degrees of freedom and explains when a standard or the number of points prevents the calculation.
