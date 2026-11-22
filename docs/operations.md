@@ -226,6 +226,9 @@ summary. Use upgraded workers to issue or amend any report that needs the summar
 Open the GitHub Actions `checks` run for the revision you plan to deploy. Its application
 job summary gives the starting and candidate commits. Compare the starting commit with
 your installation. For a pull request, the candidate is the merge commit GitHub tested.
+Sign in to GitHub. Under **Artifacts** on the run summary, download `upgrade-rehearsal-<attempt>` for the
+successful application job attempt. Extract `upgrade-notes.md` to keep with your upgrade
+records. The table counts the synthetic baseline rows verified in each record category.
 
 Use the migration list and changes to locked package versions to plan the upgrade. Read the
 new or revised changelog technical notes for setup and rollback instructions. Each note links

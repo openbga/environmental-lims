@@ -127,7 +127,9 @@ dispatch record and both the original and corrected source PDFs. Each issued rep
 must retain its link to the independently reviewed transcription it cited. A client must be
 able to download the same original and amended PDFs after the upgrade. Since 2026-11-19, the successful rehearsal provides upgrade notes for
 the two commits it tested. Deployers can inspect the migrations, changes to locked package
-versions and recovery instructions for that candidate. The notes include new or revised
+versions and recovery instructions for that candidate. A downloadable copy of the summary
+records how many baseline rows matched in each category after the preservation and download
+checks passed. The notes include new or revised
 technical guidance from the candidate changelog, with links to the tested revision. When
 the baseline predates changelog entries, all candidate technical notes are available for
 reference. Publishing the first tagged release and its maintainer-reviewed notes remains on

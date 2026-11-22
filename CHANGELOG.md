@@ -196,6 +196,14 @@ The same list is shown in the application under What's new.
 
   On an analytical batch, open Export run list with a template and choose TSV for an instrument that needs tab-separated columns. The same CSV template sets the headings and column order for either download format.
 
+- **Added:** Download the upgrade rehearsal report (2026-11-22)
+
+  Deployers can download the upgrade notes from a successful GitHub Actions rehearsal. The Markdown report identifies the two tested commits and shows how many synthetic baseline records the upgrade preserved in each category.
+
+  Technical notes:
+
+  > Open the checks run and download the upgrade-rehearsal artifact for the successful application job attempt. Extract upgrade-notes.md to keep a copy with your upgrade records.
+
 - **Added:** Compare calibration standards with a maximum percent error (2026-11-21, Batches & QC)
 
   In the Calibration fit worksheet, enter a maximum absolute percent error to see which standards exceed it. If your procedure uses a different maximum at the lowest concentration, you can enter that limit for all replicates at that level.
