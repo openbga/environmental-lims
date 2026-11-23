@@ -102,16 +102,18 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
 2. The same summary on the restored database equals the saved source summary.
 3. Immutability triggers match the source (run on both and diff the output):
    `select tgrelid::regclass, tgname from pg_trigger where not tgisinternal and tgname like '%immutable%' order by 1, 2`
-4. Stored files still match their recorded hashes; each query must return 0:
-
-   ```sql
-   select count(*) from reporting_reportversion v join reporting_reportfile f
-     on f.version_id = v.id where encode(sha256(f.pdf), 'hex') <> v.pdf_sha256;
-   select count(*) from reporting_eddexport where encode(sha256(data), 'hex') <> sha256;
-   select count(*) from commercial_issuedinvoice where encode(sha256(pdf), 'hex') <> sha256;
-   select count(*) from receipt_subcontractresult
-     where encode(sha256(source_pdf), 'hex') <> source_sha256;
-   ```
+4. Run `python manage.py verify_stored_files` on the restored database. This read-only check
+   compares stored bytes with their recorded SHA-256 and, where available, byte count. It
+   covers issued report and invoice PDFs (including amendments and voids), subcontract
+   source PDFs, electronic deliverable exports, laboratory logos, and files attached to
+   equipment events, training records and nonconformance events. Each issued report version
+   and each issued or voided invoice must have its file. An optional evidence attachment
+   with only part of its file or metadata present also fails.
+   Save the per-category counts with the restore record. A nonzero exit signals a failure.
+   Use the reported record IDs to investigate on the restored copy. PostgreSQL reads every
+   stored file for this check, so allow time proportional to the volume of files.
+   Detecting a record and its file missing together requires a separate source inventory
+   for that category, taken at the same backup boundary.
 5. Start the app against the restored database, check `/ready/`, sign in as an administrator
    and download one issued report.
 6. On a scratch copy only, an `UPDATE core_auditevent SET reason = reason` must fail with
@@ -231,6 +233,7 @@ successful application job attempt. Extract `upgrade-notes.md` to keep with your
 records. The rehearsal restores a PostgreSQL backup into an empty database, then checks the restored
 records and four PDF downloads with the previous application. It repeats those checks on
 the same copy after migration. The table counts the baseline rows verified at each stage.
+The candidate also runs `verify_stored_files` on the migrated copy.
 The synthetic source database stays at its original schema throughout.
 Orders, samples and containers have separate counts. The receipt check follows the original
 client sample ID, its correction and the custody transfer to the sample’s current location.

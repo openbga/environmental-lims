@@ -95,6 +95,7 @@ jobs:
           .venv/bin/python manage.py shell --no-imports < scripts/ci/upgrade_plan.py > "$RUNNER_TEMP/upgrade-plan.json"
           .venv/bin/python manage.py migrate --noinput
           .venv/bin/python manage.py migrate --check
+          .venv/bin/python manage.py verify_stored_files
           UPGRADE_EVIDENCE_MODE=verify .venv/bin/python manage.py shell --no-imports < scripts/ci/upgrade_evidence.py
 
       - name: Publish notes for the rehearsed upgrade

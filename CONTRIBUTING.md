@@ -126,7 +126,8 @@ Every pull request rehearses an upgrade on a disposable PostgreSQL database. CI 
 `main` with its own locked dependencies and seeds a synthetic working week and an invoice draft.
 CI captures evidence on that installation, streams a PostgreSQL custom-format backup into
 a second, empty database and checks the restored copy with the baseline application.
-The candidate then migrates that copy and repeats the same checks on the existing records,
+The candidate then migrates that copy, checks stored file integrity with
+`verify_stored_files`, and repeats the same checks on the existing records,
 including exact results and invoice charges. It compares all baseline orders, samples and
 containers and follows one sample from its original receipt through an ID correction and a
 custody transfer. The rehearsal also compares QC samples, all their
