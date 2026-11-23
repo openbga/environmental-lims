@@ -143,7 +143,9 @@ reference. A deployer can also check the files in a restored database from the c
 Every issued report version and every issued or voided invoice must retain its PDF. Stored
 report, invoice and subcontract PDFs, electronic deliverables, laboratory logos and attached
 laboratory evidence must match their recorded hashes and any recorded byte counts. The
-check reports discrepancies by record ID and leaves the restored records intact.
+check reports discrepancies by record ID and leaves the restored records intact. Deployers
+can save the counts in JSON. The upgrade rehearsal report records how many stored files
+passed the candidate check in each category, including categories with zero files.
 Publishing the first tagged release and its maintainer-reviewed notes remains on
 the roadmap.
 

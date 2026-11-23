@@ -109,7 +109,9 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
    equipment events, training records and nonconformance events. Each issued report version
    and each issued or voided invoice must have its file. An optional evidence attachment
    with only part of its file or metadata present also fails.
-   Save the per-category counts with the restore record. A nonzero exit signals a failure.
+   To save just the counts as JSON, run `python manage.py verify_stored_files --format json > stored-file-counts.json`.
+   Each category and the total give the number checked and the number of records with failures.
+   Keep the counts with the restore record and check the exit status. A nonzero exit signals a failure.
    Use the reported record IDs to investigate on the restored copy. PostgreSQL reads every
    stored file for this check, so allow time proportional to the volume of files.
    Detecting a record and its file missing together requires a separate source inventory
@@ -233,7 +235,9 @@ successful application job attempt. Extract `upgrade-notes.md` to keep with your
 records. The rehearsal restores a PostgreSQL backup into an empty database, then checks the restored
 records and four PDF downloads with the previous application. It repeats those checks on
 the same copy after migration. The table counts the baseline rows verified at each stage.
-The candidate also runs `verify_stored_files` on the migrated copy.
+A separate table lists the files the candidate checked on the migrated copy with
+`verify_stored_files`. A zero identifies a file category absent from that rehearsal.
+CI publishes the report after the file check succeeds.
 The synthetic source database stays at its original schema throughout.
 Orders, samples and containers have separate counts. The receipt check follows the original
 client sample ID, its correction and the custody transfer to the sample’s current location.

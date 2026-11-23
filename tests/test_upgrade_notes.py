@@ -75,6 +75,25 @@ def run_notes(baseline, candidate, plan, *args):
     )
 
 
+@pytest.fixture
+def stored_file_counts():
+    checked_counts = {
+        "Report PDFs": 2,
+        "Issued invoice PDFs": 0,
+        "Subcontract source PDFs": 2,
+        "EDD export ZIPs": 0,
+        "Laboratory logos": 0,
+        "Equipment event evidence": 0,
+        "Training record evidence": 1,
+        "Nonconformance event evidence": 0,
+        "Total": 5,
+    }
+    return {
+        category: {"checked": checked, "failures": 0}
+        for category, checked in checked_counts.items()
+    }
+
+
 def test_reports_exact_endpoints_ordered_plan_and_locked_version_sets(tmp_path):
     baseline = tmp_path / "baseline checkout"
     candidate = tmp_path / "candidate checkout"
@@ -135,6 +154,7 @@ def test_reports_no_pending_migrations_or_version_or_note_changes(tmp_path):
     assert result.returncode == 0, result.stderr
     assert "No migrations were pending on the populated baseline." in result.stdout
     assert "## Verified records" not in result.stdout
+    assert "## Stored-file integrity" not in result.stdout
     assert "No locked dependency versions changed." in result.stdout
     assert "No technical notes were added or revised." in result.stdout
     assert "The baseline predates the changelog." not in result.stdout
@@ -188,6 +208,125 @@ def test_reports_counts_after_restore_and_upgrade(tmp_path):
         "| custody events | 8 | 8 |\n"
         "| QC measurements | 3 | 3 |\n" in result.stdout
     )
+
+
+def test_reports_migrated_stored_file_counts_separately(tmp_path, stored_file_counts):
+    candidate = tmp_path / "candidate"
+    checkout(candidate, "example-project")
+    plan = tmp_path / "plan.json"
+    plan.write_text("[]", encoding="utf-8")
+    verified = tmp_path / "verified-counts.json"
+    verified.write_text('{"custody events": 8}', encoding="utf-8")
+    files = tmp_path / "stored-file-counts.json"
+    files.write_text(json.dumps(stored_file_counts, sort_keys=True), encoding="utf-8")
+
+    result = run_notes(
+        candidate,
+        candidate,
+        plan,
+        "--restored-counts",
+        str(verified),
+        "--verified-counts",
+        str(verified),
+        "--stored-file-counts",
+        str(files),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert (
+        "| custody events | 8 | 8 |\n\n"
+        "## Stored-file integrity\n\n"
+        "After migrating the restored database, the candidate checked these files against\n"
+        "their recorded SHA-256 and any recorded byte lengths. All checks passed.\n"
+        "A zero means the restored database had no files in that category.\n\n"
+        "| File category | Files checked after migration |\n"
+        "| --- | ---: |\n"
+        "| Report PDFs | 2 |\n"
+        "| Issued invoice PDFs | 0 |\n"
+        "| Subcontract source PDFs | 2 |\n"
+        "| EDD export ZIPs | 0 |\n"
+        "| Laboratory logos | 0 |\n"
+        "| Equipment event evidence | 0 |\n"
+        "| Training record evidence | 1 |\n"
+        "| Nonconformance event evidence | 0 |\n"
+        "| Total | 5 |\n\n"
+        "## Django migrations" in result.stdout
+    )
+
+
+@pytest.mark.parametrize(
+    ("updates", "error"),
+    [
+        (
+            {"Report PDFs |\n## Injected heading": {"checked": 0, "failures": 0}},
+            "Expected stored-file counts for every known file category and Total.",
+        ),
+        (
+            {"Report PDFs": {"checked": 2, "failures": 0, "diagnostic": "injected"}},
+            "Expected nonnegative integer checked and failures counts in each row.",
+        ),
+        (
+            {"Report PDFs": {"checked": True, "failures": 0}},
+            "Expected nonnegative integer checked and failures counts in each row.",
+        ),
+        (
+            {"Report PDFs": {"checked": 2, "failures": -1}},
+            "Expected nonnegative integer checked and failures counts in each row.",
+        ),
+        (
+            {"Total": {"checked": 6, "failures": 0}},
+            "Stored-file totals must equal the sums of the category counts.",
+        ),
+        (
+            {"Report PDFs": {"checked": 2, "failures": 1}},
+            "Stored-file totals must equal the sums of the category counts.",
+        ),
+        (
+            {"Report PDFs": {"checked": 2, "failures": 1}, "Total": {"checked": 5, "failures": 1}},
+            "Stored-file verification reported failures.",
+        ),
+    ],
+)
+def test_rejects_invalid_stored_file_counts(tmp_path, stored_file_counts, updates, error):
+    plan = tmp_path / "plan.json"
+    plan.write_text("[]", encoding="utf-8")
+    files = tmp_path / "stored-file-counts.json"
+    files.write_text(json.dumps(stored_file_counts | updates), encoding="utf-8")
+
+    result = run_notes(tmp_path, tmp_path, plan, "--stored-file-counts", str(files))
+
+    assert result.returncode != 0
+    assert error in result.stderr
+    assert "injected" not in result.stderr.casefold()
+    assert not result.stdout
+
+
+@pytest.mark.parametrize(
+    ("payload", "error"),
+    [
+        ("[]", "Expected stored-file counts for every known file category and Total."),
+        (
+            '{"Total": {"checked": 0, "failures": 0}}',
+            "Expected stored-file counts for every known file category and Total.",
+        ),
+        ('{"Total":', "Expecting value"),
+        (
+            '{"Total": {"checked": 0, "failures": 1, "failures": 0}}',
+            "Stored-file counts contain a duplicate JSON key.",
+        ),
+    ],
+)
+def test_rejects_malformed_stored_file_counts(tmp_path, payload, error):
+    plan = tmp_path / "plan.json"
+    plan.write_text("[]", encoding="utf-8")
+    files = tmp_path / "stored-file-counts.json"
+    files.write_text(payload, encoding="utf-8")
+
+    result = run_notes(tmp_path, tmp_path, plan, "--stored-file-counts", str(files))
+
+    assert result.returncode != 0
+    assert error in result.stderr
+    assert not result.stdout
 
 
 def test_rejects_restored_counts_without_verified_counts(tmp_path):

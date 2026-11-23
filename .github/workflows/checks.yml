@@ -95,13 +95,14 @@ jobs:
           .venv/bin/python manage.py shell --no-imports < scripts/ci/upgrade_plan.py > "$RUNNER_TEMP/upgrade-plan.json"
           .venv/bin/python manage.py migrate --noinput
           .venv/bin/python manage.py migrate --check
-          .venv/bin/python manage.py verify_stored_files
+          .venv/bin/python manage.py verify_stored_files --format json > "$RUNNER_TEMP/stored-file-counts.json"
           UPGRADE_EVIDENCE_MODE=verify .venv/bin/python manage.py shell --no-imports < scripts/ci/upgrade_evidence.py
 
       - name: Publish notes for the rehearsed upgrade
         run: |
           .venv/bin/python scripts/ci/upgrade_notes.py --baseline .upgrade-baseline --candidate . \
             --repository "$GITHUB_REPOSITORY" --plan "$RUNNER_TEMP/upgrade-plan.json" \
+            --stored-file-counts "$RUNNER_TEMP/stored-file-counts.json" \
             --restored-counts "$RUNNER_TEMP/restored-counts.json" \
             --verified-counts "$RUNNER_TEMP/upgrade-counts.json" > "$RUNNER_TEMP/upgrade-notes.md"
           cat "$RUNNER_TEMP/upgrade-notes.md" >> "$GITHUB_STEP_SUMMARY"
