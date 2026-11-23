@@ -160,6 +160,89 @@ def test_reports_verified_baseline_record_counts_in_category_order(tmp_path):
     )
 
 
+def test_reports_counts_after_restore_and_upgrade(tmp_path):
+    candidate = tmp_path / "candidate"
+    checkout(candidate, "example-project")
+    plan = tmp_path / "plan.json"
+    plan.write_text("[]", encoding="utf-8")
+    restored = tmp_path / "restored-counts.json"
+    restored.write_text('{"QC measurements": 3, "custody events": 8}', encoding="utf-8")
+    verified = tmp_path / "verified-counts.json"
+    verified.write_text('{"custody events": 8, "QC measurements": 3}', encoding="utf-8")
+
+    result = run_notes(
+        candidate,
+        candidate,
+        plan,
+        "--restored-counts",
+        str(restored),
+        "--verified-counts",
+        str(verified),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "CI restored a backup of the synthetic baseline" in result.stdout
+    assert (
+        "| Record category | After restore on baseline | After upgrade to candidate |\n"
+        "| --- | ---: | ---: |\n"
+        "| custody events | 8 | 8 |\n"
+        "| QC measurements | 3 | 3 |\n" in result.stdout
+    )
+
+
+def test_rejects_restored_counts_without_verified_counts(tmp_path):
+    plan = tmp_path / "plan.json"
+    plan.write_text("[]", encoding="utf-8")
+    restored = tmp_path / "restored-counts.json"
+    restored.write_text('{"QC measurements": 3}', encoding="utf-8")
+
+    result = run_notes(tmp_path, tmp_path, plan, "--restored-counts", str(restored))
+
+    assert result.returncode != 0
+    assert "--restored-counts requires --verified-counts" in result.stderr
+    assert not result.stdout
+
+
+@pytest.mark.parametrize(
+    ("restored_counts", "error"),
+    [
+        (
+            {"QC measurements": 2},
+            "--restored-counts and --verified-counts must contain identical category counts",
+        ),
+        (
+            {"custody events": 1},
+            "--restored-counts and --verified-counts must contain identical category counts",
+        ),
+        (
+            {"QC measurements": True},
+            "Expected a JSON object mapping record categories to positive integers.",
+        ),
+    ],
+)
+def test_rejects_invalid_or_inconsistent_restored_counts(tmp_path, restored_counts, error):
+    plan = tmp_path / "plan.json"
+    plan.write_text("[]", encoding="utf-8")
+    restored = tmp_path / "restored-counts.json"
+    restored.write_text(json.dumps(restored_counts), encoding="utf-8")
+    verified = tmp_path / "verified-counts.json"
+    verified.write_text('{"QC measurements": 1}', encoding="utf-8")
+
+    result = run_notes(
+        tmp_path,
+        tmp_path,
+        plan,
+        "--restored-counts",
+        str(restored),
+        "--verified-counts",
+        str(verified),
+    )
+
+    assert result.returncode != 0
+    assert error in result.stderr
+    assert not result.stdout
+
+
 @pytest.mark.parametrize(
     "payload",
     [

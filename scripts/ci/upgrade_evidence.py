@@ -576,7 +576,7 @@ def main():
         if counts_path := os.environ.get("UPGRADE_VERIFIED_COUNTS_PATH"):
             with Path(counts_path).open("x", encoding="utf-8") as out:
                 json.dump(verified_counts, out, sort_keys=True)
-        print("Preserved all recorded baseline data after migration.")
+        print("Verified the recorded baseline data and downloads.")
 
 
 main()

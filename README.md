@@ -178,8 +178,9 @@ passwords, existing roles and revoked permissions. `--update-lab` explicitly ren
 for new input and new reports; changing it does not reinterpret stored timestamps or issued reports.
 Keep demo seeding separate from a real laboratory database.
 
-The project's CI rehearses upgrades from a populated `main` installation and checks that
-synthetic laboratory history and issued PDFs survive the migration. Receipt checks cover
+CI backs up a populated synthetic installation from the distribution branch and restores it
+into an empty PostgreSQL database. It checks laboratory history and PDF downloads on the
+restored copy before and after applying the candidate migrations. Receipt checks cover
 orders, samples and containers, including the history of a corrected sample ID and a custody
 transfer. For quality control (QC),
 the rehearsal checks that a failed observation, its corrective action and the corrected

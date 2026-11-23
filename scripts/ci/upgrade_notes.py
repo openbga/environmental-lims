@@ -126,7 +126,15 @@ def dependency_rows(before, after):
 
 
 def render_notes(
-    baseline, candidate, repository, plan, rows, has_baseline_catalog, entries, verified_counts=None
+    baseline,
+    candidate,
+    repository,
+    plan,
+    rows,
+    has_baseline_catalog,
+    entries,
+    verified_counts=None,
+    restored_counts=None,
 ):
     base_url = f"https://github.com/{repository}"
     before = f"{base_url}/blob/{baseline}"
@@ -135,7 +143,18 @@ def render_notes(
     lines = [
         "# Populated upgrade rehearsal",
         "",
-        "CI upgraded a disposable PostgreSQL database with synthetic records. It verified",
+    ]
+    if restored_counts:
+        lines += [
+            "CI restored a backup of the synthetic baseline into a separate PostgreSQL database.",
+            "It verified that database on the baseline version before upgrading it to the",
+            "candidate and verifying it again. Both checks covered",
+        ]
+    else:
+        lines.append(
+            "CI upgraded a disposable PostgreSQL database with synthetic records. It verified"
+        )
+    lines += [
         "existing custody and audit events, requested tests, results and their revisions and",
         "worksheets, issued reports and files, and the invoice draft and its lines.",
         "The order, sample and container records matched the baseline. For a corrected",
@@ -156,16 +175,22 @@ def render_notes(
         "",
     ]
     if verified_counts:
-        lines += [
-            "## Verified records",
-            "",
-            "| Record category | Matched baseline rows |",
-            "| --- | ---: |",
-        ]
-        lines += [
-            f"| {label} | {verified_counts[label]} |"
-            for label in sorted(verified_counts, key=lambda label: (label.casefold(), label))
-        ]
+        lines += ["## Verified records", ""]
+        categories = sorted(verified_counts, key=lambda label: (label.casefold(), label))
+        if restored_counts:
+            lines += [
+                "Each column shows how many rows matched the original baseline at that stage.",
+                "",
+                "| Record category | After restore on baseline | After upgrade to candidate |",
+                "| --- | ---: | ---: |",
+            ]
+            lines += [
+                f"| {label} | {restored_counts[label]} | {verified_counts[label]} |"
+                for label in categories
+            ]
+        else:
+            lines += ["| Record category | Matched baseline rows |", "| --- | ---: |"]
+            lines += [f"| {label} | {verified_counts[label]} |" for label in categories]
         lines.append("")
     lines += ["## Django migrations", ""]
     if plan:
@@ -230,17 +255,31 @@ def main():
     parser.add_argument("--baseline", required=True, type=Path, help="baseline Git checkout")
     parser.add_argument("--candidate", required=True, type=Path, help="candidate Git checkout")
     parser.add_argument("--plan", required=True, type=Path, help="rehearsed migration plan JSON")
-    parser.add_argument("--verified-counts", type=Path, help="verified baseline record counts JSON")
+    parser.add_argument(
+        "--verified-counts", type=Path, help="matched baseline record counts after upgrade (JSON)"
+    )
+    parser.add_argument(
+        "--restored-counts", type=Path, help="matched baseline record counts after restore (JSON)"
+    )
     parser.add_argument("--repository", default="openbga/environmental-lims", metavar="OWNER/REPO")
     args = parser.parse_args()
     if not re.fullmatch(r"[A-Za-z0-9-]+/[A-Za-z0-9_.-]+", args.repository):
         parser.error("--repository must be a GitHub owner/repository name")
+    if args.restored_counts and not args.verified_counts:
+        parser.error("--restored-counts requires --verified-counts")
 
     try:
         plan = read_plan(args.plan)
         verified_counts = (
             read_verified_counts(args.verified_counts) if args.verified_counts else None
         )
+        restored_counts = (
+            read_verified_counts(args.restored_counts) if args.restored_counts else None
+        )
+        if restored_counts is not None and restored_counts != verified_counts:
+            raise ValueError(
+                "--restored-counts and --verified-counts must contain identical category counts"
+            )
         baseline = git_output(args.baseline, "rev-parse", "--verify", "HEAD").strip()
         candidate = git_output(args.candidate, "rev-parse", "--verify", "HEAD").strip()
         before = locked_versions(args.baseline, baseline)
@@ -260,7 +299,8 @@ def main():
             dependency_rows(before, after),
             has_baseline_catalog,
             entries,
-            verified_counts,
+            verified_counts=verified_counts,
+            restored_counts=restored_counts,
         )
     )
 
