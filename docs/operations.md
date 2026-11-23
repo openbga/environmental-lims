@@ -49,6 +49,11 @@ your IP must be on the database allow list (the Blueprint default is empty, so n
 If you cannot connect externally, use the dashboard **Recovery → Create export**
 instead, which yields a `.dir.tar.gz` directory-format archive for `pg_restore`.
 
+If you plan to compare stored files after the restore, pause application writes before
+starting the backup. Keep writes paused until the backup and its source inventory both
+finish. Save the inventory alongside the backup using the
+[restore verification instructions](#verify-the-restore).
+
 ```sh
 export SOURCE_URL='postgresql://USER:PASSWORD@HOST/roots'   # placeholder
 pg_dump --format=directory --jobs=4 --no-owner --file=roots-$(date -u +%Y%m%dT%H%MZ).dump "$SOURCE_URL"
@@ -114,8 +119,30 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
    Keep the counts with the restore record and check the exit status. A nonzero exit signals a failure.
    Use the reported record IDs to investigate on the restored copy. PostgreSQL reads every
    stored file for this check, so allow time proportional to the volume of files.
-   Detecting a record and its file missing together requires a separate source inventory
-   for that category, taken at the same backup boundary.
+   To compare the full set of files, save a source inventory when you take the backup.
+   Keep application writes paused from before the dump starts until both the dump and the
+   source inventory finish. Use a new output path for each backup and retain the inventory
+   with it. Generate the inventory with the application connected to the source database.
+
+   ```sh
+   python manage.py verify_stored_files --format manifest > source-files.json
+   ```
+
+   On the restored copy, before accepting writes or applying migrations, use the same
+   application version. Connect it to the restored database and compare the two inventories.
+
+   ```sh
+   python manage.py verify_stored_files --format manifest > restored-files.json &&
+     diff -u source-files.json restored-files.json
+   ```
+
+   Check that both inventory commands succeed. A failed file check reports the affected
+   records on standard error. A successful comparison exits zero with no differences.
+   The inventory contains a count and a SHA-256 digest per category, including empty
+   categories. The digest covers the file records' identities, byte lengths and content
+   checksums. A difference identifies the affected category even if the file count is
+   unchanged. The inventory omits filenames and document contents. Use the other restore
+   checks for custody, audit history and metadata outside this inventory.
 5. Start the app against the restored database, check `/ready/`, sign in as an administrator
    and download one issued report.
 6. On a scratch copy only, an `UPDATE core_auditevent SET reason = reason` must fail with

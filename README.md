@@ -200,8 +200,10 @@ report links to the candidate’s changelog entries, recovery instructions and a
 
 After restoring a backup, run `python manage.py verify_stored_files` against the restored
 database to check stored documents and attachments. Add `--format json` to save a
-machine-readable summary. Keep its counts with the other
-[restore checks](docs/operations.md#verify-the-restore).
+machine-readable summary. To detect a file and its record disappearing together, save a
+file inventory with `--format manifest` when you take the backup and compare it with one
+from the restored database. Follow the [restore checks](docs/operations.md#verify-the-restore)
+to capture both inventories at the same backup boundary.
 
 After installing, and after each upgrade, run
 `python manage.py run_acceptance --operator "Your Name" --output /path/to/new-directory` and keep
