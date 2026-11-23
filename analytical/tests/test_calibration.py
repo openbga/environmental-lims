@@ -11,6 +11,7 @@ import pytest
 from django.contrib.auth.models import Permission
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import DatabaseError, connection, connections, transaction
+from django.urls import reverse
 from django.utils import timezone
 
 from analytical import calibration, services
@@ -337,6 +338,68 @@ def test_corrections_preserve_links_snapshot_and_stale_edit_protection(config, a
     assert plain.calibration_id is None and plain.calibration_evidence is None
     event = AuditEvent.objects.get(action="result.entered", object_id=str(old.pk))
     assert event.after["calibration_evidence"] == frozen
+
+
+def test_result_shows_each_explicit_verification_as_originally_evaluated(
+    config, analyst, reviewer, client
+):
+    batch = start(config, analyst)
+    record = curve(config, analyst, batch)
+    limit = QCLimit.objects.create(
+        definition=config["defs"]["Lead"],
+        qc_type="calibration_verification",
+        measure="recovery",
+        upper=Decimal("100"),
+    )
+    # The recovery rounded to six places in the event is 100, but its exact value failed.
+    original = verification(config, analyst, batch, observed_text="10.00000001")
+    first = linked(config, analyst, batch, record, original)
+    limit.lower, limit.upper = Decimal("0"), Decimal("110")
+    limit.save()
+    corrected = correct_check(config, analyst, original)
+    second = linked(config, analyst, batch, record, corrected, expected_revision=first.number)
+    linked(config, analyst, batch, record, expected_revision=second.number)
+    limit.upper = Decimal("90")
+    limit.save()
+
+    client.force_login(reviewer)
+    html = client.get(reverse("analytical:result-detail", args=[first.result_id])).content.decode()
+    unlinked, rest = html.split("Revision 3</h3>", 1)[1].split("Revision 2</h3>", 1)
+    newer, older = rest.split("Revision 1</h3>", 1)
+    assert "Recovery assessment at observation entry" not in unlinked
+    assert "Not linked" in unlinked
+    assert "Current observation" in newer and "Pass</span>" in newer
+    assert (
+        "Recovery 100.001%" in newer and "Lower limit 0%" in newer and "Upper limit 110%" in newer
+    )
+    assert "Superseded observation" in older and "Fail</span>" in older
+    assert "Recovery 100%" in older and "Upper limit 100%" in older and "Lower limit" not in older
+    assert "Upper limit 90%" not in html
+
+
+def test_linked_verification_without_recorded_assessment(
+    config, analyst, reviewer, client, monkeypatch
+):
+    # Older/imported records may have a measurement event without the evaluation payload.
+    record_event = services.record_event
+
+    def legacy_event(**kwargs):
+        if kwargs["action"] == "qc.measured":
+            kwargs["after"].pop("evaluation")
+        return record_event(**kwargs)
+
+    batch = start(config, analyst)
+    record = curve(config, analyst, batch)
+    monkeypatch.setattr(services, "record_event", legacy_event)
+    check = verification(config, analyst, batch)
+    revision = linked(config, analyst, batch, record, check)
+    client.force_login(reviewer)
+    html = client.get(
+        reverse("analytical:result-detail", args=[revision.result_id])
+    ).content.decode()
+    assert "Current observation" in html
+    assert "No recorded recovery assessment." in html
+    assert "Recovery 100%" not in html
 
 
 def report(config, batch, analyst, reviewer):

@@ -48,7 +48,7 @@
     "A correction adds a new revision. Approved and returned revisions stay as they were, and issued reports are not changed.",
     "A calculated revision keeps its worksheet. A correction adds a revision with its own worksheet, and a later change to the rule or the percent solids never alters an earlier one.",
     "While the latest revision awaits review, it cannot be corrected. A reviewer must decide it first.",
-    "Each revision keeps the qualifiers, method and reporting limit it was entered with.",
+    "Under [[Calibration verification]], check whether a later observation superseded the one this revision used. [[Recovery assessment at observation entry]] shows what was recorded at the time.",
     "A sample held or rejected at receipt cannot take new results."
   ],
   "sections": [
@@ -392,7 +392,11 @@
         },
         {
           "label": "Calibration verification",
-          "description": "Optional current calibration-verification QC observation for the same batch, test and unit, used only with a selected curve. The observation must be at or after calibration; a closing check may follow sample analysis. Its label, exact observed text, true value, unit, time and identity are frozen with the revision."
+          "description": "Optional current calibration-verification QC observation for the same batch, test and unit, used only with a selected curve. The observation must be at or after calibration; a closing check may follow sample analysis. Its label, exact observed text, true value, unit, time and identity are frozen with the revision. Current observation and Superseded observation describe the linked observation’s status today."
+        },
+        {
+          "label": "Recovery assessment at observation entry",
+          "description": "Shown for the verification linked to this revision. Pass or Fail is the recorded comparison with the recovery limits at entry. The comparison used the unrounded recovery. The recorded percentage has up to six decimal places, so it can appear equal to a limit even when the outcome was Fail. Not evaluated gives the recorded reason when available. No recorded recovery assessment means the original assessment is unavailable. A change to the configured limits or a later QC correction does not change this assessment. Consult the batch QC and approval evidence for later decisions."
         },
         {
           "label": "Correction and independence",
@@ -446,6 +450,7 @@
     "analytical/calibration_views.py",
     "analytical/templates/analytical/calibration_detail.html",
     "analytical/tests/test_calibration.py",
-    "analytical/tests/test_calibration_views.py"
+    "analytical/tests/test_calibration_views.py",
+    "analytical/qc.py"
   ]
 }

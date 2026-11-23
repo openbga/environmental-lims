@@ -329,6 +329,13 @@ during the run and at its end. The laboratory supplies the applicable frequency 
 acceptance criteria.
 [US EPA Method 6010D, checked 2026-11-20](https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=P1017DDQ.txt).
 
+For each result revision that cites a calibration verification, staff can inspect the recovery
+assessment recorded when the QC observation was entered. The result shows the recorded outcome,
+recovery percentage and limits when available, along with whether a later correction superseded
+that observation. The original outcome remains visible after limits change. If a historical
+observation has no recorded assessment, staff see that the evidence is missing. The batch QC
+and approval records remain the sources for subsequent evaluations and dispositions.
+
 Method-specific verification bracketing remains with the laboratory. EPA 200.7 Rev. 4.4
 (1994), sections 9.3.4 and 11.4.4, and SW-846 6010D, sections 10.7–10.8, describe different
 verification arrangements. Each calibration record can hold up to 50 standard points, and

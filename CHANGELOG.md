@@ -172,6 +172,10 @@ The same list is shown in the application under What's new.
 
 ### Medium impact
 
+- **Added:** See the recovery assessment for a result’s calibration verification (2026-11-23, Batches & QC)
+
+  Open a result revision to see how its linked calibration verification evaluated when the QC observation was entered. You can see the recorded recovery and limits where available, along with whether someone later corrected that observation.
+
 - **Changed:** Verify a restored backup before upgrading (2026-11-23, Deployment)
 
   The downloadable upgrade rehearsal report shows which synthetic records survived a PostgreSQL restore and the subsequent upgrade. Both stages also check staff and client PDF downloads.

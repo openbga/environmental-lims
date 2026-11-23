@@ -29,7 +29,25 @@
           {% fact label="Analysis start" %}<time datetime="{{ rev.analysis_started_at|date:'c' }}">{{ rev.analysis_started_at|date:"Y-m-d H:i T" }}</time>{% endfact %}
           {% fact label="Preparation" wide=True %}{% if rev.prepared_aliquot_id %}<a href="{% url 'analytical:prep-detail' rev.prepared_aliquot.batch_id %}">{{ rev.prepared_aliquot.batch.number }}</a> · {{ rev.prepared_aliquot.label }} · start {{ rev.prepared_at|date:"Y-m-d H:i T" }}{% else %}Independent preparation not recorded{% if rev.prepared_at %}; legacy combined-batch start {{ rev.prepared_at|date:"Y-m-d H:i T" }}{% endif %}{% endif %}{% endfact %}
           {% fact label="Calibration evidence" wide=True %}{% if rev.calibration_id %}<a href="{% url 'analytical:calibration-detail' rev.calibration_id %}">{{ rev.calibration_evidence.calibration.reference }}</a> · instrument-reported model: {{ rev.calibration_evidence.calibration.model_text }}{% else %}Not linked{% endif %}{% endfact %}
-          {% if rev.calibration_id %}{% fact label="Calibration verification" wide=True %}{% with check=rev.calibration_evidence.verification %}{% if check %}{{ check.label }} · observation {{ check.id }} · observed {{ check.observed_text }} {{ check.unit }} · true value {{ check.true_value|plain_decimal }} {{ check.unit }} · <time datetime="{{ rev.calibration_check_at|date:'c' }}">{{ rev.calibration_check_at|date:"Y-m-d H:i T" }}</time>{% else %}Not linked{% endif %}{% endwith %}{% endfact %}{% endif %}
+          {% if rev.calibration_id %}
+            {% fact label="Calibration verification" wide=True %}
+              {% with check=rev.calibration_evidence.verification %}{% if check %}
+                {{ check.label }} · observation {{ check.id }} · observed {{ check.observed_text }} {{ check.unit }} · true value {{ check.true_value|plain_decimal }} {{ check.unit }} · <time datetime="{{ rev.calibration_check_at|date:'c' }}">{{ rev.calibration_check_at|date:"Y-m-d H:i T" }}</time>
+                · {% if rev.calibration_verification.is_current %}Current observation{% else %}{% status label="Superseded observation" tone="warning" plain=True %}{% endif %}
+              {% else %}Not linked{% endif %}{% endwith %}
+            {% endfact %}
+          {% endif %}
+          {% if rev.calibration_verification_id %}
+            {% fact label="Recovery assessment at observation entry" wide=True %}
+              {% with recovery=rev.recorded_recovery %}{% if recovery %}
+                {% include "analytical/_qc_status.html" with status=recovery.status only %}
+                {% if recovery.computed is not None %} · Recovery {{ recovery.computed|plain_decimal }}%{% endif %}
+                {% if recovery.lower is not None %} · Lower limit {{ recovery.lower|plain_decimal }}%{% endif %}
+                {% if recovery.upper is not None %} · Upper limit {{ recovery.upper|plain_decimal }}%{% endif %}
+                {% if recovery.status == "not_evaluated" %} · {{ recovery.detail }}{% endif %}
+              {% else %}<span class="vr-muted">No recorded recovery assessment.</span>{% endif %}{% endwith %}
+            {% endfact %}
+          {% endif %}
           {% fact label="Method" wide=True %}{{ rev.method_code }} ({{ rev.method_version }}) · batch <a href="{% url 'analytical:batch-detail' rev.batch.pk %}">{{ rev.batch.number }}</a>{% endfact %}
           {% fact label="Holding time" wide=True %}{% include "analytical/_holding.html" with status=rev.holding_status %}
             {% for c in rev.holding_evaluation %}<div class="small vr-muted">{{ c.name }}: {{ c.status }}{% if c.deadline %}, deadline {{ c.deadline|slice:":10" }} {{ c.deadline|slice:"11:16" }}{% endif %}{% if c.detail %} · {{ c.detail }}{% endif %}</div>{% endfor %}{% endfact %}
