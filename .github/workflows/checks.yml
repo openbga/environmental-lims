@@ -54,34 +54,54 @@ jobs:
           ref: ${{ (github.ref == 'refs/heads/main' && github.event.before) || (github.base_ref == 'main' && github.event.pull_request.base.sha) || 'refs/heads/main' }}
           path: .upgrade-baseline
           persist-credentials: false
-      - name: Create an empty database for the upgrade rehearsal
-        run: createdb --maintenance-db="$DATABASE_URL" roots_upgrade
-      - name: Populate the previous installation and migrate it with the candidate
+      - name: Create the synthetic baseline and empty restore databases
+        run: |
+          createdb --maintenance-db="$DATABASE_URL" roots_baseline
+          createdb --maintenance-db="$DATABASE_URL" roots_upgrade
+      - name: Capture the previous installation
+        working-directory: .upgrade-baseline
+        env:
+          DATABASE_URL: postgresql://roots:roots@127.0.0.1:5432/roots_baseline
+          DEMO_PASSWORD: disposable-ci-only-upgrade
+          UPGRADE_EVIDENCE_PATH: ${{ runner.temp }}/upgrade-evidence.json
+        run: |
+          echo "Upgrade from $(git rev-parse HEAD) to $(git -C .. rev-parse HEAD)"
+          evidence="$GITHUB_WORKSPACE/scripts/ci/upgrade_evidence.py"
+          uv sync --frozen --no-dev
+          .venv/bin/python manage.py migrate --noinput
+          .venv/bin/python manage.py seed_demo --full
+          UPGRADE_EVIDENCE_MODE=prepare .venv/bin/python manage.py shell --no-imports < "$evidence"
+          UPGRADE_EVIDENCE_MODE=capture .venv/bin/python manage.py shell --no-imports < "$evidence"
+      - name: Restore the PostgreSQL backup and verify it with the previous installation
+        working-directory: .upgrade-baseline
+        shell: bash
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+          DATABASE_URL: postgresql://roots:roots@127.0.0.1:5432/roots_upgrade
+          UPGRADE_EVIDENCE_PATH: ${{ runner.temp }}/upgrade-evidence.json
+          UPGRADE_VERIFIED_COUNTS_PATH: ${{ runner.temp }}/restored-counts.json
+        run: |
+          # Use the service's matching PostgreSQL tools. Bash pipefail checks both commands.
+          docker exec "$POSTGRES_CONTAINER" pg_dump -U roots --format=custom roots_baseline |
+            docker exec -i "$POSTGRES_CONTAINER" pg_restore -U roots --dbname=roots_upgrade \
+              --single-transaction --exit-on-error --no-owner --no-privileges
+          UPGRADE_EVIDENCE_MODE=verify .venv/bin/python manage.py shell --no-imports < "$GITHUB_WORKSPACE/scripts/ci/upgrade_evidence.py"
+      - name: Migrate the restored database and verify it with the candidate
         env:
           DATABASE_URL: postgresql://roots:roots@127.0.0.1:5432/roots_upgrade
-          DEMO_PASSWORD: disposable-ci-only-upgrade
           UPGRADE_EVIDENCE_PATH: ${{ runner.temp }}/upgrade-evidence.json
           UPGRADE_VERIFIED_COUNTS_PATH: ${{ runner.temp }}/upgrade-counts.json
         run: |
-          echo "Upgrade from $(git -C .upgrade-baseline rev-parse HEAD) to $(git rev-parse HEAD)"
-          evidence="$PWD/scripts/ci/upgrade_evidence.py"
-          (
-            cd .upgrade-baseline
-            uv sync --frozen --no-dev
-            .venv/bin/python manage.py migrate --noinput
-            .venv/bin/python manage.py seed_demo --full
-            UPGRADE_EVIDENCE_MODE=prepare .venv/bin/python manage.py shell --no-imports < "$evidence"
-            UPGRADE_EVIDENCE_MODE=capture .venv/bin/python manage.py shell --no-imports < "$evidence"
-          )
           .venv/bin/python manage.py shell --no-imports < scripts/ci/upgrade_plan.py > "$RUNNER_TEMP/upgrade-plan.json"
           .venv/bin/python manage.py migrate --noinput
           .venv/bin/python manage.py migrate --check
-          UPGRADE_EVIDENCE_MODE=verify .venv/bin/python manage.py shell --no-imports < "$evidence"
+          UPGRADE_EVIDENCE_MODE=verify .venv/bin/python manage.py shell --no-imports < scripts/ci/upgrade_evidence.py
 
       - name: Publish notes for the rehearsed upgrade
         run: |
           .venv/bin/python scripts/ci/upgrade_notes.py --baseline .upgrade-baseline --candidate . \
             --repository "$GITHUB_REPOSITORY" --plan "$RUNNER_TEMP/upgrade-plan.json" \
+            --restored-counts "$RUNNER_TEMP/restored-counts.json" \
             --verified-counts "$RUNNER_TEMP/upgrade-counts.json" > "$RUNNER_TEMP/upgrade-notes.md"
           cat "$RUNNER_TEMP/upgrade-notes.md" >> "$GITHUB_STEP_SUMMARY"
           # Changelog text in the log is data, including any workflow-command syntax.

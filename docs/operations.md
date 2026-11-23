@@ -228,7 +228,10 @@ job summary gives the starting and candidate commits. Compare the starting commi
 your installation. For a pull request, the candidate is the merge commit GitHub tested.
 Sign in to GitHub. Under **Artifacts** on the run summary, download `upgrade-rehearsal-<attempt>` for the
 successful application job attempt. Extract `upgrade-notes.md` to keep with your upgrade
-records. The table counts the synthetic baseline rows verified in each record category.
+records. The rehearsal restores a PostgreSQL backup into an empty database, then checks the restored
+records and four PDF downloads with the previous application. It repeats those checks on
+the same copy after migration. The table counts the baseline rows verified at each stage.
+The synthetic source database stays at its original schema throughout.
 Orders, samples and containers have separate counts. The receipt check follows the original
 client sample ID, its correction and the custody transfer to the sample’s current location.
 

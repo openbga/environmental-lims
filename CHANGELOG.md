@@ -6,7 +6,7 @@ What was added or changed in OpenBGA Environmental LIMS, newest first. Changes a
 grouped by the calendar month they were merged in and ranked from high to low impact.
 The same list is shown in the application under What's new.
 
-## November 2026 (2026-11-11 to 2026-11-22)
+## November 2026 (2026-11-11 to 2026-11-23)
 
 ### High impact
 
@@ -171,6 +171,14 @@ The same list is shown in the application under What's new.
   > No migration. New optional settings, documented in `docs/operations.md` and `.env.example`: `CONTENT_SECURITY_POLICY` (replaces the default policy), `MAX_REQUEST_BODY_BYTES` (12 MiB by default), `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS` and `ALLAUTH_TRUSTED_CLIENT_IP_HEADER` (set it only where the platform supplies a client-address header that clients cannot forge). A deployment that adds its own scripts or embeds content may need to adjust the policy.
 
 ### Medium impact
+
+- **Changed:** Verify a restored backup before upgrading (2026-11-23, Deployment)
+
+  The downloadable upgrade rehearsal report shows which synthetic records survived a PostgreSQL restore and the subsequent upgrade. Both stages also check staff and client PDF downloads.
+
+  Technical notes:
+
+  > CI takes a logical backup of the populated distribution-branch database and restores it into a second, empty database. The previous application checks the restored copy before the candidate applies its migrations and repeats the checks. Each stage must verify the same baseline record counts before CI publishes the report.
 
 - **Changed:** Check QC history during upgrade rehearsals (2026-11-22)
 
