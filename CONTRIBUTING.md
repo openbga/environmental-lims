@@ -125,7 +125,9 @@ installation command. On Apple Silicon run the last command as
 Every pull request rehearses an upgrade on a disposable PostgreSQL database. CI installs
 `main` with its own locked dependencies and seeds a synthetic working week and an invoice draft.
 The candidate then applies its migrations to that database and checks the existing records,
-including exact results and invoice charges. The rehearsal also compares QC samples, all their
+including exact results and invoice charges. It compares all baseline orders, samples and
+containers and follows one sample from its original receipt through an ID correction and a
+custody transfer. The rehearsal also compares QC samples, all their
 measurement revisions and recorded corrective actions. Its synthetic correction retains a link
 to the original failed observation, which remains the target of the corrective action. For a
 subcontracted test, staff retrieve the external laboratory’s original and corrected source

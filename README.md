@@ -179,7 +179,9 @@ for new input and new reports; changing it does not reinterpret stored timestamp
 Keep demo seeding separate from a real laboratory database.
 
 The project's CI rehearses upgrades from a populated `main` installation and checks that
-synthetic laboratory history and issued PDFs survive the migration. For quality control (QC),
+synthetic laboratory history and issued PDFs survive the migration. Receipt checks cover
+orders, samples and containers, including the history of a corrected sample ID and a custody
+transfer. For quality control (QC),
 the rehearsal checks that a failed observation, its corrective action and the corrected
 observation retain their values and links. For subcontracted work, it checks the external
 laboratory’s original and corrected source PDFs and the transcription cited by each issued

@@ -120,7 +120,10 @@ Status, 2026-11-15: milestones 1 to 3 are implemented, with the limits in [Workf
 For the first stable release, CI rehearses the upgrade of a synthetic installation from
 `main` (added 2026-11-18). The candidate must preserve custody and audit events, result
 revisions and worksheet readings, the prepared invoice draft and its charges, and issued
-report snapshots and files. It must also preserve QC samples and their observation history,
+report snapshots and files. Receipt checks cover every baseline order, sample and container.
+After a client sample ID correction and a custody transfer, the sample must retain its corrected
+ID and current location. The original receipt, correction and transfer must remain traceable
+to that sample. It must also preserve QC samples and their observation history,
 including the original failed measurement, the corrective action recorded against it and
 the correction that superseded it. For subcontracted tests, the upgrade must preserve the
 dispatch record and both the original and corrected source PDFs. Each issued report version

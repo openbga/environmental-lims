@@ -229,6 +229,8 @@ your installation. For a pull request, the candidate is the merge commit GitHub 
 Sign in to GitHub. Under **Artifacts** on the run summary, download `upgrade-rehearsal-<attempt>` for the
 successful application job attempt. Extract `upgrade-notes.md` to keep with your upgrade
 records. The table counts the synthetic baseline rows verified in each record category.
+Orders, samples and containers have separate counts. The receipt check follows the original
+client sample ID, its correction and the custody transfer to the sample’s current location.
 
 Use the migration list and changes to locked package versions to plan the upgrade. Read the
 new or revised changelog technical notes for setup and rollback instructions. Each note links
