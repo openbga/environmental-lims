@@ -120,7 +120,7 @@ Status, 2026-11-15: milestones 1 to 3 are implemented, with the limits in [Workf
 For the first stable release, CI rehearses the upgrade of a synthetic installation from
 `main` (added 2026-11-18). As of 2026-11-23 the rehearsal restores a logical PostgreSQL
 backup into a separate empty database. The baseline application must verify its captured
-records and PDF downloads on the restored copy before the candidate migrates it. The
+records and downloads on the restored copy before the candidate migrates it. The
 upgrade report identifies both stages and requires matching counts across them.
 The candidate must preserve custody and audit events, result
 revisions and worksheet readings, the prepared invoice draft and its charges, and issued
@@ -132,7 +132,12 @@ including the original failed measurement, the corrective action recorded agains
 the correction that superseded it. For subcontracted tests, the upgrade must preserve the
 dispatch record and both the original and corrected source PDFs. Each issued report version
 must retain its link to the independently reviewed transcription it cited. A client must be
-able to download the same original and amended PDFs after the upgrade. Since 2026-11-19, the successful rehearsal provides upgrade notes for
+able to download the same original and amended PDFs after the upgrade. The rehearsal also
+covers a stored exploratory electronic data deliverable (EDD). Its frozen recipient mappings
+and report-version link must survive the restore and migration. The owning client must
+receive the exact ZIP generated on the baseline at both stages.
+
+Since 2026-11-19, the successful rehearsal provides upgrade notes for
 the two commits it tested. Deployers can inspect the migrations, changes to locked package
 versions and recovery instructions for that candidate. A downloadable copy of the summary
 records how many baseline rows matched in each category after the preservation and download

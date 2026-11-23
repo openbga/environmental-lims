@@ -446,6 +446,14 @@ The same list is shown in the application under What's new.
 
 ### Low impact
 
+- **Changed:** Check electronic deliverable downloads after restore and upgrade (2026-11-23)
+
+  The upgrade rehearsal report now covers a synthetic electronic data deliverable. It records whether the owning client could download the original ZIP after a backup was restored and again after the application was upgraded.
+
+  Technical notes:
+
+  > The rehearsal compares the stored export, its frozen recipient mappings and its link to the issued report version with the baseline. The downloadable upgrade notes include the export in the verified record counts.
+
 - **Changed:** See stored file checks in upgrade reports (2026-11-23)
 
   The downloadable upgrade rehearsal report lists how many documents and attachments the upgraded application checked in each category. A zero shows where the synthetic installation had no files to check.
