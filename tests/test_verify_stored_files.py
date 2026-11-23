@@ -40,6 +40,9 @@ CATEGORIES = (
     "Training record evidence",
     "Nonconformance event evidence",
 )
+MANIFEST_FORMAT = ("--format", "manifest")
+OUTPUT_FORMATS = [(), ("--format", "json"), MANIFEST_FORMAT]
+OUTPUT_FORMAT_IDS = ["text", "json", "manifest"]
 
 pytestmark = pytest.mark.django_db
 
@@ -164,11 +167,19 @@ def evidence_records(staff):
     }
 
 
-@pytest.mark.parametrize("output_format", [(), ("--format", "json")], ids=["text", "json"])
+@pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
 def test_empty_database(output_format):
     stdout, stderr = StringIO(), StringIO()
     call_command("verify_stored_files", *output_format, stdout=stdout, stderr=stderr)
-    if output_format:
+    if output_format == MANIFEST_FORMAT:
+        expected = {
+            "version": 1,
+            "categories": {
+                category: {"count": 0, "sha256": sha256(b"").hexdigest()} for category in CATEGORIES
+            },
+        }
+        assert stdout.getvalue() == json.dumps(expected, indent=2, sort_keys=True) + "\n"
+    elif output_format:
         assert json.loads(stdout.getvalue()) == {
             category: {"checked": 0, "failures": 0} for category in (*CATEGORIES, "Total")
         }
@@ -179,7 +190,7 @@ def test_empty_database(output_format):
     assert stderr.getvalue() == ""
 
 
-@pytest.mark.parametrize("output_format", [(), ("--format", "json")], ids=["text", "json"])
+@pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
 def test_intact_documents_and_optional_evidence(document_records, evidence_records, output_format):
     for document in document_records:
         document.save()
@@ -189,7 +200,16 @@ def test_intact_documents_and_optional_evidence(document_records, evidence_recor
 
     stdout, stderr = StringIO(), StringIO()
     call_command("verify_stored_files", *output_format, stdout=stdout, stderr=stderr)
-    if output_format:
+    if output_format == MANIFEST_FORMAT:
+        manifest = json.loads(stdout.getvalue())
+        assert set(manifest) == {"version", "categories"}
+        assert manifest["version"] == 1
+        assert set(manifest["categories"]) == set(CATEGORIES)
+        for entry in manifest["categories"].values():
+            assert set(entry) == {"count", "sha256"}
+            assert entry["count"] == 1
+            assert len(bytes.fromhex(entry["sha256"])) == 32
+    elif output_format:
         assert json.loads(stdout.getvalue()) == {
             **{category: {"checked": 1, "failures": 0} for category in CATEGORIES},
             "Total": {"checked": 8, "failures": 0},
@@ -202,7 +222,54 @@ def test_intact_documents_and_optional_evidence(document_records, evidence_recor
     assert stderr.getvalue() == ""
 
 
-@pytest.mark.parametrize("output_format", [(), ("--format", "json")], ids=["text", "json"])
+def _manifest_output():
+    stdout, stderr = StringIO(), StringIO()
+    call_command("verify_stored_files", *MANIFEST_FORMAT, stdout=stdout, stderr=stderr)
+    assert stderr.getvalue() == ""
+    return stdout.getvalue()
+
+
+def test_manifest_hashes_stable_pk_ordered_rows(evidence_records):
+    fields = evidence_records[EquipmentEvent] | EVIDENCE
+    EquipmentEvent.objects.create(pk=42, **fields)
+    EquipmentEvent.objects.create(pk=10, **fields)
+
+    expected_rows = (
+        f'["laboratory.EquipmentEvent","10",{len(PDF)},"{sha256(PDF).hexdigest()}"]\n'
+        f'["laboratory.EquipmentEvent","42",{len(PDF)},"{sha256(PDF).hexdigest()}"]\n'
+    ).encode("ascii")
+    manifest = _manifest_output()
+    assert manifest == _manifest_output()
+    assert json.loads(manifest)["categories"]["Equipment event evidence"] == {
+        "count": 2,
+        "sha256": sha256(expected_rows).hexdigest(),
+    }
+
+
+@pytest.mark.parametrize("change", ["content", "identity"])
+def test_manifest_detects_changes_with_the_same_file_count(evidence_records, change):
+    fields = evidence_records[EquipmentEvent] | EVIDENCE
+    original = EquipmentEvent.objects.create(**fields)
+    before = json.loads(_manifest_output())["categories"]
+
+    if change == "content":
+        different_pdf = PDF[:-1] + b"x"
+        EquipmentEvent.objects.filter(pk=original.pk).update(
+            evidence_data=different_pdf, evidence_sha256=sha256(different_pdf).hexdigest()
+        )
+    else:
+        original.delete()
+        EquipmentEvent.objects.create(**fields)
+
+    after = json.loads(_manifest_output())["categories"]
+    recorded = before.pop("Equipment event evidence")
+    restored = after.pop("Equipment event evidence")
+    assert after == before
+    assert restored["count"] == recorded["count"] == 1
+    assert restored["sha256"] != recorded["sha256"]
+
+
+@pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
 def test_corrupt_and_missing_rows_report_ids_and_fail(
     document_records, evidence_records, output_format
 ):
@@ -247,7 +314,9 @@ def test_corrupt_and_missing_rows_report_ids_and_fail(
     stdout, stderr = StringIO(), StringIO()
     with pytest.raises(CommandError, match="Stored file verification failed"):
         call_command("verify_stored_files", *output_format, stdout=stdout, stderr=stderr)
-    if output_format:
+    if output_format == MANIFEST_FORMAT:
+        assert stdout.getvalue() == ""
+    elif output_format:
         assert json.loads(stdout.getvalue()) == {
             "Report PDFs": {"checked": 2, "failures": 2},
             "Issued invoice PDFs": {"checked": 3, "failures": 3},

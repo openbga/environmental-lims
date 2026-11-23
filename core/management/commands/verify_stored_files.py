@@ -1,4 +1,5 @@
 import json
+from hashlib import sha256
 
 from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
@@ -53,7 +54,7 @@ def _check_files(model, binary, checksum, size=None, *, evidence=False, missing=
                 problems.append("missing recorded byte length")
             elif actual_size is not None and actual_size != recorded_size:
                 problems.append("byte length mismatch")
-        yield model._meta.label, pk, problems
+        yield model._meta.label, pk, actual_size, actual_hash, problems
 
 
 def _check_invoices():
@@ -63,7 +64,7 @@ def _check_invoices():
         issued_invoice__isnull=True,
     ).order_by("pk")
     for pk in missing.values_list("pk", flat=True).iterator():
-        yield InvoiceDraft._meta.label, pk, ["missing IssuedInvoice"]
+        yield InvoiceDraft._meta.label, pk, None, None, ["missing IssuedInvoice"]
 
 
 class Command(BaseCommand):
@@ -71,7 +72,10 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--format", choices=("text", "json"), default="text", help="Summary output format."
+            "--format",
+            choices=("text", "json", "manifest"),
+            default="text",
+            help="Summary format. Use manifest to compare verified files before and after restore.",
         )
 
     def handle(self, *args, **options):
@@ -106,23 +110,38 @@ class Command(BaseCommand):
         )
 
         json_output = options["format"] == "json"
+        manifest_output = options["format"] == "manifest"
         summary = {}
         total_checked = total_failures = 0
         for category, rows in categories:
             checked = failures = 0
-            for model_label, pk, problems in rows:
+            digest = sha256() if manifest_output else None
+            for model_label, pk, actual_size, actual_hash, problems in rows:
                 checked += 1
                 if problems:
                     failures += 1
                     self.stderr.write(f"{model_label} pk={pk}: {', '.join(problems)}")
-            if json_output:
+                elif digest is not None:
+                    # Version 1 frames each PK-ordered row as one compact JSON array per line.
+                    row = json.dumps(
+                        (model_label, str(pk), actual_size, actual_hash), separators=(",", ":")
+                    )
+                    digest.update((row + "\n").encode("ascii"))
+            if digest is not None:
+                summary[category] = {"count": checked, "sha256": digest.hexdigest()}
+            elif json_output:
                 summary[category] = {"checked": checked, "failures": failures}
             else:
                 self.stdout.write(f"{category}: checked={checked} failures={failures}")
             total_checked += checked
             total_failures += failures
 
-        if json_output:
+        if manifest_output:
+            if not total_failures:
+                self.stdout.write(
+                    json.dumps({"version": 1, "categories": summary}, indent=2, sort_keys=True)
+                )
+        elif json_output:
             summary["Total"] = {"checked": total_checked, "failures": total_failures}
             self.stdout.write(json.dumps(summary))
         else:

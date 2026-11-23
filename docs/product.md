@@ -151,6 +151,10 @@ laboratory evidence must match their recorded hashes and any recorded byte count
 check reports discrepancies by record ID and leaves the restored records intact. Deployers
 can save the counts in JSON. The upgrade rehearsal report records how many stored files
 passed the candidate check in each category, including categories with zero files.
+Deployers can save a file inventory alongside a backup and compare it with the restored
+copy. Each category has a count and a digest that identifies the set of file records
+and their contents. This comparison detects a missing record even when every remaining
+file passes its own integrity check.
 Publishing the first tagged release and its maintainer-reviewed notes remains on
 the roadmap.
 

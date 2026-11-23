@@ -180,6 +180,14 @@ The same list is shown in the application under What's new.
 
   > With DATABASE_URL set to the restored database, run `python manage.py verify_stored_files`. It compares each stored file with its recorded SHA-256 and any recorded byte count. Keep the output with the restore record and investigate any nonzero exit. The command only reads laboratory records.
 
+- **Added:** Compare stored files before and after a restore (2026-11-23)
+
+  Deployers can save a file inventory with a database backup and compare it with the restored copy. The comparison identifies the affected category when an entire file record is missing or a file has been replaced.
+
+  Technical notes:
+
+  > Run `python manage.py verify_stored_files --format manifest` on the source and restored databases using the same application version. Pause writes while capturing the backup and its source inventory. Save each successful output separately and compare the two files.
+
 - **Added:** See the recovery assessment for a result’s calibration verification (2026-11-23, Batches & QC)
 
   Open a result revision to see how its linked calibration verification evaluated when the QC observation was entered. You can see the recorded recovery and limits where available, along with whether someone later corrected that observation.
