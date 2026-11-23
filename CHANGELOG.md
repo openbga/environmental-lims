@@ -172,6 +172,14 @@ The same list is shown in the application under What's new.
 
 ### Medium impact
 
+- **Added:** Check stored files after restoring a backup (2026-11-23)
+
+  Deployers can check issued documents, electronic deliverables, laboratory logos and evidence attachments on a restored database. The check lists how many records it examined in each category and identifies records with missing or mismatched files.
+
+  Technical notes:
+
+  > With DATABASE_URL set to the restored database, run `python manage.py verify_stored_files`. It compares each stored file with its recorded SHA-256 and any recorded byte count. Keep the output with the restore record and investigate any nonzero exit. The command only reads laboratory records.
+
 - **Added:** See the recovery assessment for a result’s calibration verification (2026-11-23, Batches & QC)
 
   Open a result revision to see how its linked calibration verification evaluated when the QC observation was entered. You can see the recorded recovery and limits where available, along with whether someone later corrected that observation.

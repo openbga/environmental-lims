@@ -139,7 +139,12 @@ records how many baseline rows matched in each category after the preservation a
 checks passed. The notes include new or revised
 technical guidance from the candidate changelog, with links to the tested revision. When
 the baseline predates changelog entries, all candidate technical notes are available for
-reference. Publishing the first tagged release and its maintainer-reviewed notes remains on
+reference. A deployer can also check the files in a restored database from the command line.
+Every issued report version and every issued or voided invoice must retain its PDF. Stored
+report, invoice and subcontract PDFs, electronic deliverables, laboratory logos and attached
+laboratory evidence must match their recorded hashes and any recorded byte counts. The
+check reports discrepancies by record ID and leaves the restored records intact.
+Publishing the first tagged release and its maintainer-reviewed notes remains on
 the roadmap.
 
 Instrument-file support uses explicit long/wide CSV/TSV mappings and, from 2026-11-15,

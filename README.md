@@ -195,6 +195,10 @@ changelog. To keep a copy, download the upgrade rehearsal artifact from that run
 It contains the same Markdown report, with links to the candidate’s changelog entries,
 recovery instructions and acceptance checks.
 
+After restoring a backup, run `python manage.py verify_stored_files` against the restored
+database to check stored documents and attachments. Keep its counts with the other
+[restore checks](docs/operations.md#verify-the-restore).
+
 After installing, and after each upgrade, run
 `python manage.py run_acceptance --operator "Your Name" --output /path/to/new-directory` and keep
 the evidence package it writes. It checks the first journey on synthetic records in a separate
