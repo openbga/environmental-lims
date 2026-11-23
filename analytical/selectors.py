@@ -21,6 +21,7 @@ from django.db.models import (
 )
 from django.utils import timezone
 
+from core.models import AuditEvent
 from receipt.models import RequestedTest, Subcontract
 
 from .holding import for_analyte
@@ -30,10 +31,12 @@ from .models import (
     ImportProfile,
     MDLCalculation,
     MDLStudy,
+    QCMeasure,
     QCMeasurement,
     Result,
     ResultRevision,
 )
+from .qc import FAIL, NOT_EVALUATED, PASS
 
 # "B-000123", "B123" or "123"; batch numbers start at 1.
 BATCH_NUMBER = re.compile(r"^(?:B-?)?0*(\d+)$", re.IGNORECASE)
@@ -259,6 +262,27 @@ def attach_latest(results):
     for r in results:
         r.latest = latest.get(r.pk)
     return results
+
+
+def recorded_verification_recoveries(revisions):
+    """Recovery evaluated at each explicitly linked observation's entry, including corrections."""
+    ids = {str(r.calibration_verification_id) for r in revisions if r.calibration_verification_id}
+    events = AuditEvent.objects.filter(
+        object_type=QCMeasurement._meta.label_lower,
+        object_id__in=ids,
+        action__in=("qc.measured", "qc.measurement_corrected"),
+    ).values_list("object_id", "after__evaluation__measures")
+    recoveries = {}
+    for observation_id, measures in events:
+        for measure in measures or ():
+            if measure.get("measure") == QCMeasure.RECOVERY and measure.get("status") in (
+                PASS,
+                FAIL,
+                NOT_EVALUATED,
+            ):
+                recoveries[int(observation_id)] = measure
+                break
+    return recoveries
 
 
 def batch_results_queryset(batch):

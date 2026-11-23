@@ -1238,12 +1238,14 @@ def result_detail(request, pk):
             "readings"
         )
     }
+    recoveries = selectors.recorded_verification_recoveries(revisions)
     for revision in revisions:
         revision.tone = status_tone(revision.status)
         verification = (revision.calibration_evidence or {}).get("verification")
         revision.calibration_check_at = (
             parse_datetime(verification["analysis_started_at"]) if verification else None
         )
+        revision.recorded_recovery = recoveries.get(revision.calibration_verification_id)
         revision.sheet = sheets.get(revision.pk)
         if revision.sheet:
             revision.sheet.revision = revision  # the same object, not a query per worksheet

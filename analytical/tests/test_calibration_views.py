@@ -875,6 +875,7 @@ def test_verification_is_visible_and_evidence_contributors_cannot_review(
     assert revision.calibration_verification_id == measurement.pk
     html = client.get(url).content.decode()
     assert "SYN-CCV" in html and "10.0100" in html and "true value" in html
+    assert "Not evaluated</span>" in html and "No recovery limit is configured." in html
     # Freeze the identifying text even when the mutable QC sample label changes.
     sample.label = "SYN-RENAMED"
     sample.save(update_fields=["label"])

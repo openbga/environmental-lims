@@ -111,6 +111,15 @@ def test_record_curve_link_verification_and_review(page, demo):
     page.goto(f"/analytical/review/batches/{batch.pk}/")
     page.get_by_role("link", name="SYNTHETIC-CURVE-1", exact=True).click()
     expect(page.get_by_role("table", name="Standard points")).to_contain_text("19.9900")
+    linked = page.get_by_role("table", name="Result revisions using this calibration")
+    linked.get_by_role("link", name=sample.lab_id, exact=True).click()
+    revisions = page.get_by_role("region", name="Revisions")
+    expect(revisions).to_contain_text("Current observation")
+    assessment = revisions.get_by_text("Recovery assessment at observation entry", exact=True)
+    expect(assessment.locator("xpath=following-sibling::dd[1]")).to_have_text(
+        "Pass · Recovery 100% · Lower limit 90% · Upper limit 110%"
+    )
+    page.go_back()
     page.go_back()
     page.get_by_role("checkbox", name=re.compile(rf"^Select {sample.lab_id}")).check()
     pick(field(page, "Action"), label="Approve")
