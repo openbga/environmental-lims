@@ -136,7 +136,10 @@ to the original failed observation, which remains the target of the corrective a
 subcontracted test, staff retrieve the external laboratory’s original and corrected source
 PDFs. The rehearsal checks the dispatch, both reviewed transcriptions, and the source revision
 cited by each issued report version. A client downloads an original and amended PDF,
-and the check compares their bytes with the stored files. A pull request into `main`
+and the check compares their bytes with the stored files. The baseline also generates an
+exploratory electronic data deliverable (EDD) for an issued version. At each verification
+stage the owning client downloads the original ZIP, and the rehearsal compares its bytes,
+frozen recipient mappings and report-version link with the baseline. A pull request into `main`
 uses its base commit, and a push to `main` uses the previous tip. The
 application job publishes upgrade notes in the workflow run summary after preservation and
 download checks pass. The same Markdown file is available as an artifact named

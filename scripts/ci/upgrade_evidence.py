@@ -6,7 +6,9 @@ import os
 from datetime import timedelta
 from decimal import Decimal
 from html import escape
+from io import BytesIO
 from pathlib import Path
+from zipfile import BadZipFile, ZipFile
 
 from django.db import transaction
 from django.db.models import F, JSONField, TextField
@@ -37,12 +39,15 @@ from core.audit import snapshot
 from core.management.commands.seed_demo import DEMO_LAB_NAME
 from core.models import AuditEvent, Lab
 from receipt.corrections import correct_sample
+from receipt.models import Client as LabClient
 from receipt.models import Container, CustodyEvent, Order, RequestedTest, Sample
 from receipt.services import receive_sample, transfer_sample
 from receipt.subcontract_models import Subcontract, SubcontractResult
 from receipt.subcontracts import dispatch_subcontract, enter_external_result, review_external_result
 from reporting.content import assemble
-from reporting.models import Report, ReportFile, ReportVersion
+from reporting.edd import services as edd
+from reporting.edd.nysdec import LAB_QC_TYPES, SECTION_ORDER
+from reporting.models import EddExport, Report, ReportFile, ReportVersion
 from reporting.services import create_report, release_report
 
 FEE_DESCRIPTION = "Synthetic upgrade verification fee"
@@ -52,6 +57,10 @@ ORIGINAL_CLIENT_SAMPLE_ID = "SYN-EXT-01"
 CORRECTED_CLIENT_SAMPLE_ID = "SYN-EXT-001"
 RECEIPT_LOCATION = "Receipt bench"
 TRANSFER_LOCATION = "Synthetic dispatch staging"
+EDD_REPORT_TITLE = "Outfall 001 weekly monitoring"
+ORIGINAL_EDD_LOCATION = "SYNTH-OUTFALL-ORIG"
+UPDATED_EDD_LOCATION = "SYNTH-OUTFALL-NEW"
+EDD_EXPORTS = "electronic deliverable exports"
 
 
 def require(condition, message):
@@ -221,9 +230,40 @@ def prepare_subcontract_history(project, manager):
         )
 
 
+def prepare_edd_export(project, manager):
+    version = ReportVersion.objects.select_related("file").get(
+        report__project=project, report__title=EDD_REPORT_TITLE, number=1
+    )
+    content = version.file.snapshot["content"]
+    sample_ids = [sample["lab_id"] for sample in content["samples"]]
+    # The demo seed supplied the project and test codes. Supply export-time facts for its
+    # field samples and lab QC, using the seed's synthetic QC run times.
+    qc_samples = {
+        f"{batch['number']}-{measurement['qc_sample']}": {
+            "sample_date": measurement["analysis_started_at"],
+            "dilution_factor": "1",
+        }
+        for batch in content["batches"]
+        for evidence in batch["qc"].values()
+        for measurement in evidence["measurements"]
+        if not measurement.get("withheld") and measurement["qc_type"] in LAB_QC_TYPES
+    }
+    context = dict(actor=manager, version_id=version.pk, results={}, qc_samples=qc_samples)
+    edd.save_version_context(
+        samples={lab_id: {"sys_loc_code": ORIGINAL_EDD_LOCATION} for lab_id in sample_ids},
+        **context,
+    )
+    edd.generate_export(actor=manager, version_id=version.pk)
+    # A download rebuilt from current mappings would differ from the stored export.
+    edd.save_version_context(
+        samples={lab_id: {"sys_loc_code": UPDATED_EDD_LOCATION} for lab_id in sample_ids},
+        **context,
+    )
+
+
 @transaction.atomic
 def prepare():
-    """Create synthetic invoice, QC, receipt and subcontract history with baseline services."""
+    """Create synthetic history and an exploratory EDD ZIP with baseline services."""
     actor = User.objects.get(username="demo_project_manager")
     order = Order.objects.get(coc_reference="DEMO-COC-001")
     draft = invoices.create_invoice_draft(
@@ -244,9 +284,10 @@ def prepare():
     )
     prepare_qc_history()
     prepare_subcontract_history(order.project, actor)
+    prepare_edd_export(order.project, actor)
     print(
         "Prepared a synthetic invoice draft, QC reanalysis, receipt correction, "
-        "custody transfer and amended subcontract report."
+        "custody transfer, amended subcontract report and exploratory EDD ZIP."
     )
 
 
@@ -338,15 +379,13 @@ def require_qc_history():
     )
 
 
-def pdf_hash(data):
+def sha256(data):
     return hashlib.sha256(data).hexdigest()
 
 
 def digest(values):
     """Preserve Decimal text and timestamp precision, and hash binary data before JSON encoding."""
-    values = [
-        pdf_hash(value) if isinstance(value, bytes | memoryview) else value for value in values
-    ]
+    values = [sha256(value) if isinstance(value, bytes | memoryview) else value for value in values]
     payload = json.dumps(values, ensure_ascii=False, separators=(",", ":"), default=str)
     return hashlib.sha256(payload.encode()).hexdigest()
 
@@ -397,6 +436,7 @@ def collections(draft):
         "issued reports": Report.objects.filter(latest_version__gt=0),
         "issued report versions": ReportVersion.objects.all(),
         "issued report files": ReportFile.objects.all(),
+        EDD_EXPORTS: EddExport.objects.all(),
         "invoice draft": InvoiceDraft.objects.filter(pk=draft.pk),
         "invoice draft lines": draft.lines.all(),
     }
@@ -438,7 +478,7 @@ def subcontract_sources():
         require(
             source.review_decision == SubcontractResult.Decision.ACCEPTED
             and len(source.source_pdf) == source.source_size
-            and pdf_hash(source.source_pdf) == source.source_sha256
+            and sha256(source.source_pdf) == source.source_sha256
             and len(versions) == 1,
             f"External source {source.pk} needs an intact PDF, acceptance and one issued version.",
         )
@@ -462,9 +502,64 @@ def subcontract_sources():
     return sources
 
 
+def edd_export_for_client(owner, export_ids, version_ids):
+    export = (
+        EddExport.objects.filter(
+            pk__in=export_ids,
+            version_id__in=version_ids,
+            version__number=1,
+            version__report__project__client_id=owner.client_id,
+            version__report__title=EDD_REPORT_TITLE,
+        )
+        .select_related("version__report", "version__edd_context")
+        .defer(None)
+        .first()
+    )
+    require(export is not None, "The synthetic client needs its issued EDD export.")
+    frozen_samples = export.mapping["version_context"]["samples"]
+    current_samples = export.version.edd_context.samples
+    require(
+        frozen_samples
+        and all(
+            sample == {"sys_loc_code": ORIGINAL_EDD_LOCATION} for sample in frozen_samples.values()
+        )
+        and current_samples
+        == {lab_id: {"sys_loc_code": UPDATED_EDD_LOCATION} for lab_id in frozen_samples},
+        "The synthetic EDD must retain its original location after its live context changes.",
+    )
+    return export
+
+
+def require_baseline_edd_zip(export):
+    data = bytes(export.data)
+    require(
+        len(data) == export.size and sha256(data) == export.sha256,
+        f"Stored ZIP failed the integrity check for EDD export {export.pk}.",
+    )
+    try:
+        with ZipFile(BytesIO(data)) as archive:
+            require(
+                archive.namelist() == [f"{section}.txt" for section in SECTION_ORDER]
+                and archive.testzip() is None
+                and all(export.row_counts.get(section, 0) > 0 for section in SECTION_ORDER),
+                f"EDD export {export.pk} needs intact sample, test result and batch ZIP members.",
+            )
+            header, _, *sample_rows = archive.read("Sample_v5.txt").decode("utf-8").splitlines()
+            location_index = header.split("\t").index("sys_loc_code")
+            locations = [row.split("\t")[location_index] for row in sample_rows]
+            frozen_samples = export.mapping["version_context"]["samples"]
+            require(
+                [location for location in locations if location]
+                == [ORIGINAL_EDD_LOCATION] * len(frozen_samples),
+                f"EDD export {export.pk} needs the original mapped location in its sample rows.",
+            )
+    except BadZipFile as exc:
+        raise SystemExit(f"Stored file for EDD export {export.pk} is not a valid ZIP.") from exc
+
+
 @override_settings(ALLOWED_HOSTS=["testserver"])
 @transaction.atomic
-def verify_downloads(owner, amendment, sources):
+def verify_downloads(owner, amendment, sources, export):
     browser = Client()
     browser.force_login(owner, backend="django.contrib.auth.backends.ModelBackend")
     for version in (amendment.amends, amendment):
@@ -472,7 +567,7 @@ def verify_downloads(owner, amendment, sources):
         require(
             data.startswith(b"%PDF-")
             and len(data) == version.pdf_size
-            and pdf_hash(data) == version.pdf_sha256,
+            and sha256(data) == version.pdf_sha256,
             f"Stored PDF failed the integrity check for report version {version.pk}.",
         )
         response = browser.get(
@@ -487,6 +582,38 @@ def verify_downloads(owner, amendment, sources):
         require(
             response.content == data, f"Downloaded PDF differs for report version {version.pk}."
         )
+
+    url = reverse("portal:edd-download", args=[export.version.report_id, export.pk])
+    response = browser.get(url, secure=True)
+    require(
+        response.status_code == 200
+        and response.headers.get("Content-Type") == "application/zip"
+        and response.headers.get("Content-Disposition")
+        == f'attachment; filename="{export.filename}"',
+        f"Client EDD request for export {export.pk} returned {response.status_code} "
+        "or the wrong download headers.",
+    )
+    require(
+        response.content == bytes(export.data),
+        f"Client download differs from the stored EDD ZIP for export {export.pk}.",
+    )
+    other_client = LabClient.objects.exclude(pk=owner.client_id).get(account_number="EXCSD")
+    other_user = User.objects.create_user(
+        username="synthetic_edd_other_client",
+        email="edd-restore-client@example.invalid",
+        client=other_client,
+    )
+    browser.force_login(other_user, backend="django.contrib.auth.backends.ModelBackend")
+    response = browser.get(url, secure=True)
+    require(
+        response.status_code == 404,
+        f"The other client requested EDD export {export.pk} and received {response.status_code}.",
+    )
+    print(
+        "The owning client downloaded the stored exploratory EDD ZIP byte-for-byte, "
+        "and the other client received 404."
+    )
+
     browser.force_login(
         User.objects.get(username="demo_reviewer"),
         backend="django.contrib.auth.backends.ModelBackend",
@@ -502,7 +629,8 @@ def verify_downloads(owner, amendment, sources):
             f"Staff download differs from the stored external source PDF for result {source.pk}.",
         )
     print("Staff downloaded the original and corrected external source PDFs with matching bytes.")
-    transaction.set_rollback(True)  # discard the test session and last-login change
+    # Discard test sessions, last-login updates and the temporary user.
+    transaction.set_rollback(True)
     print("The original and amended PDFs downloaded for their owner match their stored bytes.")
 
 
@@ -549,7 +677,10 @@ def main():
             versions.keys() == manifest["issued report files"]["rows"].keys(),
             "Each baseline report version needs a stored file.",
         )
-        amendment_for_client(versions)
+        owner, _ = amendment_for_client(versions)
+        require_baseline_edd_zip(
+            edd_export_for_client(owner, manifest[EDD_EXPORTS]["rows"], versions)
+        )
         with path.open("x", encoding="utf-8") as out:
             json.dump(manifest, out, sort_keys=True)
         counts = ", ".join(f"{len(item['rows'])} {label}" for label, item in manifest.items())
@@ -570,9 +701,10 @@ def main():
                 f"and {len(changed)} changed against {len(before)} baseline rows.",
             )
             verified_counts[label] = len(after)
-        verify_downloads(
-            *amendment_for_client(manifest["issued report versions"]["rows"]), subcontract_sources()
-        )
+        versions = manifest["issued report versions"]["rows"]
+        owner, amendment = amendment_for_client(versions)
+        export = edd_export_for_client(owner, manifest[EDD_EXPORTS]["rows"], versions)
+        verify_downloads(owner, amendment, subcontract_sources(), export)
         if counts_path := os.environ.get("UPGRADE_VERIFIED_COUNTS_PATH"):
             with Path(counts_path).open("x", encoding="utf-8") as out:
                 json.dump(verified_counts, out, sort_keys=True)

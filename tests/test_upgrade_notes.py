@@ -186,9 +186,15 @@ def test_reports_counts_after_restore_and_upgrade(tmp_path):
     plan = tmp_path / "plan.json"
     plan.write_text("[]", encoding="utf-8")
     restored = tmp_path / "restored-counts.json"
-    restored.write_text('{"QC measurements": 3, "custody events": 8}', encoding="utf-8")
+    restored.write_text(
+        '{"QC measurements": 3, "electronic deliverable exports": 1, "custody events": 8}',
+        encoding="utf-8",
+    )
     verified = tmp_path / "verified-counts.json"
-    verified.write_text('{"custody events": 8, "QC measurements": 3}', encoding="utf-8")
+    verified.write_text(
+        '{"custody events": 8, "QC measurements": 3, "electronic deliverable exports": 1}',
+        encoding="utf-8",
+    )
 
     result = run_notes(
         candidate,
@@ -202,10 +208,12 @@ def test_reports_counts_after_restore_and_upgrade(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert "CI restored a backup of the synthetic baseline" in result.stdout
+    assert "The owning client downloaded the stored exploratory" in result.stdout
     assert (
         "| Record category | After restore on baseline | After upgrade to candidate |\n"
         "| --- | ---: | ---: |\n"
         "| custody events | 8 | 8 |\n"
+        "| electronic deliverable exports | 1 | 1 |\n"
         "| QC measurements | 3 | 3 |\n" in result.stdout
     )
 

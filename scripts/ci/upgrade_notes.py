@@ -212,6 +212,14 @@ def render_notes(
         "For the subcontracted test, staff downloaded the original and corrected source PDFs.",
         "Both matched their stored bytes, and each issued version cited its reviewed result.",
         "The original and amended client PDF downloads matched their stored bytes.",
+    ]
+    if verified_counts and "electronic deliverable exports" in verified_counts:
+        lines.append(
+            "The owning client downloaded the stored exploratory electronic data deliverable "
+            "(EDD) ZIP. Its bytes, frozen recipient mappings and issued report version "
+            "matched the baseline. A user from another client could not download it."
+        )
+    lines += [
         "",
         "| Installation | Tested commit |",
         "| --- | --- |",

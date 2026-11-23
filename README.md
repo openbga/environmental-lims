@@ -181,14 +181,16 @@ for new input and new reports; changing it does not reinterpret stored timestamp
 Keep demo seeding separate from a real laboratory database.
 
 CI backs up a populated synthetic installation from the distribution branch and restores it
-into an empty PostgreSQL database. It checks laboratory history and PDF downloads on the
+into an empty PostgreSQL database. It checks laboratory history and downloads on the
 restored copy before and after applying the candidate migrations. Receipt checks cover
 orders, samples and containers, including the history of a corrected sample ID and a custody
 transfer. For quality control (QC),
 the rehearsal checks that a failed observation, its corrective action and the corrected
 observation retain their values and links. For subcontracted work, it checks the external
 laboratory’s original and corrected source PDFs and the transcription cited by each issued
-report version. Open the successful GitHub Actions `checks` run and read the application
+report version. It also checks that the owning client can download the original electronic
+data deliverable (EDD) ZIP for an issued report after restore and again after migration.
+Open the successful GitHub Actions `checks` run and read the application
 job summary for the two tested commits, verified record counts, database migrations,
 changes to locked package versions and technical notes added or revised in the candidate
 changelog. To keep a copy, download the upgrade rehearsal artifact from that run.

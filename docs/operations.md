@@ -233,7 +233,8 @@ your installation. For a pull request, the candidate is the merge commit GitHub 
 Sign in to GitHub. Under **Artifacts** on the run summary, download `upgrade-rehearsal-<attempt>` for the
 successful application job attempt. Extract `upgrade-notes.md` to keep with your upgrade
 records. The rehearsal restores a PostgreSQL backup into an empty database, then checks the restored
-records and four PDF downloads with the previous application. It repeats those checks on
+records, four PDF downloads and an owning client's electronic deliverable ZIP download
+with the previous application. It repeats those checks on
 the same copy after migration. The table counts the baseline rows verified at each stage.
 A separate table lists the files the candidate checked on the migrated copy with
 `verify_stored_files`. A zero identifies a file category absent from that rehearsal.

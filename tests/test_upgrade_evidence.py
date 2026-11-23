@@ -10,12 +10,14 @@ from django.urls import reverse
 
 from analytical.models import QCCorrectiveAction, QCMeasurement, QCSample
 from core.models import AuditEvent
+from receipt.models import Client as LabClient
 from receipt.models import Container, Order, Sample
 from receipt.subcontract_models import Subcontract, SubcontractResult
+from reporting.models import EddExport
 
 
 @pytest.mark.django_db
-def test_upgrade_evidence_preserves_receipt_qc_and_subcontract_history(monkeypatch, tmp_path):
+def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypatch, tmp_path):
     monkeypatch.setenv("DEMO_PASSWORD", "synthetic-upgrade-test-password")
     call_command("seed_demo", full=True, verbosity=0)
     evidence_path = tmp_path / "evidence.json"
@@ -53,6 +55,15 @@ def test_upgrade_evidence_preserves_receipt_qc_and_subcontract_history(monkeypat
     assert transfer.from_location == receipt.to_location
     assert transfer.to_location == sample.current_location
 
+    export = EddExport.objects.select_related("version__report__project").get()
+    assert export.version.number == 1 < export.version.report.latest_version
+    edd_label = "electronic deliverable exports"
+    with monkeypatch.context() as missing:
+        missing.setattr(EddExport.objects, "all", EddExport.objects.none)
+        with pytest.raises(SystemExit, match=f"Baseline has no {edd_label}"):
+            run("capture")
+    assert not evidence_path.exists()
+
     run("capture")
     assert not counts_path.exists()
     manifest = json.loads(evidence_path.read_text(encoding="utf-8"))
@@ -65,12 +76,33 @@ def test_upgrade_evidence_preserves_receipt_qc_and_subcontract_history(monkeypat
         ("QC corrective actions", QCCorrectiveAction),
         ("subcontract dispatches", Subcontract),
         ("external source results", SubcontractResult),
+        (edd_label, EddExport),
     ):
         assert manifest[name]["rows"].keys() == {
             str(pk) for pk in model.objects.values_list("pk", flat=True)
         }
+    edd_evidence = manifest[edd_label]
+    assert {"version_id", "mapping", "manifest", "row_counts", "data", "sha256", "size"} <= set(
+        edd_evidence["fields"]
+    )
+    assert str(export.version_id) in manifest["issued report versions"]["rows"]
+
+    edd_url = reverse("portal:edd-download", args=[export.version.report_id, export.pk])
+    get = Client.get
+    edd_responses = []
+
+    def observe_edd_download(client, path, **kwargs):
+        response = get(client, path, **kwargs)
+        if path == edd_url:
+            edd_responses.append((response.wsgi_request.user.client_id, response.status_code))
+            if response.status_code == 200:
+                assert response.content == bytes(export.data)
+        return response
+
     # Candidate migrations may add rows to an existing sample. Verify the baseline IDs.
-    with transaction.atomic():
+    with transaction.atomic(), monkeypatch.context() as download:
+        download.setattr(Client, "get", observe_edd_download)
+        LabClient.objects.create(name="Additional synthetic upgrade client")
         Container.objects.create(
             sample=sample,
             label=f"{sample.lab_id}-02",
@@ -79,6 +111,10 @@ def test_upgrade_evidence_preserves_receipt_qc_and_subcontract_history(monkeypat
         )
         run("verify")
         transaction.set_rollback(True)
+    assert edd_responses == [
+        (export.version.report.project.client_id, 200),
+        (LabClient.objects.get(account_number="EXCSD").pk, 404),
+    ]
     assert json.loads(counts_path.read_text(encoding="utf-8")) == {
         label: len(evidence["rows"]) for label, evidence in manifest.items()
     }
@@ -108,21 +144,34 @@ def test_upgrade_evidence_preserves_receipt_qc_and_subcontract_history(monkeypat
             transaction.set_rollback(True)
 
     source_url = reverse("receipt:subcontract-source-download", args=[corrected.pk])
-    get = Client.get
 
-    def corrupt_download(client, path, **kwargs):
-        response = get(client, path, **kwargs)
-        if path == source_url:
-            response.content = b"different bytes"
-        return response
+    def corrupt_download_at(download_url):
+        def corrupt_download(client, path, **kwargs):
+            response = get(client, path, **kwargs)
+            if path == download_url:
+                response.content = b"different bytes"
+            return response
 
-    with monkeypatch.context() as download:
-        download.setattr(Client, "get", corrupt_download)
-        with pytest.raises(
-            SystemExit, match="Staff download differs from the stored external source"
-        ):
-            run("verify")
+        return corrupt_download
+
+    for download_url, error in (
+        (source_url, "Staff download differs from the stored external source"),
+        (edd_url, "Client download differs from the stored EDD ZIP"),
+    ):
+        with monkeypatch.context() as download:
+            download.setattr(Client, "get", corrupt_download_at(download_url))
+            with pytest.raises(SystemExit, match=error):
+                run("verify")
     assert not failed_counts_path.exists()
+
+    # A substituted ZIP must alter the evidence even when its recorded SHA-256 stays the same.
+    substituted_zip = EddExport.objects.filter(pk=export.pk).extra(
+        select={"data": "%s::bytea"}, select_params=[b"different bytes"]
+    )
+    assert (
+        prepared["collect"](substituted_zip)["rows"][str(export.pk)]
+        != edd_evidence["rows"][str(export.pk)]
+    )
 
     # Hash the bytes as well as the stored digest. Substitute only the historical
     # source PDF in the baseline projection, without modifying the immutable row.
