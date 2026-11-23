@@ -33,10 +33,12 @@ from catalog.models import TestDefinition
 from commercial import invoices
 from commercial.management.commands.seed_commercial_demo import PRICE_LIST
 from commercial.models import InvoiceDraft, InvoiceDraftLine, PriceList
+from core.audit import snapshot
 from core.management.commands.seed_demo import DEMO_LAB_NAME
 from core.models import AuditEvent, Lab
-from receipt.models import CustodyEvent, Order, RequestedTest
-from receipt.services import receive_sample
+from receipt.corrections import correct_sample
+from receipt.models import Container, CustodyEvent, Order, RequestedTest, Sample
+from receipt.services import receive_sample, transfer_sample
 from receipt.subcontract_models import Subcontract, SubcontractResult
 from receipt.subcontracts import dispatch_subcontract, enter_external_result, review_external_result
 from reporting.content import assemble
@@ -46,6 +48,10 @@ from reporting.services import create_report, release_report
 FEE_DESCRIPTION = "Synthetic upgrade verification fee"
 QC_SAMPLE_LABEL = "Synthetic upgrade LCS"
 SUBCONTRACT_REFERENCE = "SYN-UPGRADE-EXTERNAL"
+ORIGINAL_CLIENT_SAMPLE_ID = "SYN-EXT-01"
+CORRECTED_CLIENT_SAMPLE_ID = "SYN-EXT-001"
+RECEIPT_LOCATION = "Receipt bench"
+TRANSFER_LOCATION = "Synthetic dispatch staging"
 
 
 def require(condition, message):
@@ -126,7 +132,7 @@ def prepare_subcontract_history(project, manager):
         container_description="Synthetic bottle",
         container_condition="Intact",
         relinquished_by="Example Courier",
-        client_sample_id="SYN-EXT-01",
+        client_sample_id=ORIGINAL_CLIENT_SAMPLE_ID,
         matrix="water",
         source_type="surface_water",
         collection_type="grab",
@@ -138,8 +144,26 @@ def prepare_subcontract_history(project, manager):
         coolant="wet_ice",
         seal_condition="Intact",
         preservation_check="Recorded for demonstration only",
-        current_location="Receipt bench",
+        current_location=RECEIPT_LOCATION,
         disposition="proceed",
+    )
+    sample = correct_sample(
+        actor=custodian,
+        sample_id=sample.pk,
+        expected_revision=sample.revision,
+        section="identity",
+        client_sample_id=CORRECTED_CLIENT_SAMPLE_ID,
+        reason="Synthetic: corrected the client sample ID against the chain of custody.",
+    )
+    sample = transfer_sample(
+        actor=custodian,
+        sample_id=sample.pk,
+        expected_revision=sample.revision,
+        occurred_at=now - timedelta(hours=2, minutes=30),
+        to_location=TRANSFER_LOCATION,
+        relinquished_by="Synthetic Receiving Custodian",
+        received_by="Synthetic Dispatch Custodian",
+        reason="Synthetic: moved the sample to dispatch staging.",
     )
     contract = dispatch_subcontract(
         actor=custodian,
@@ -199,7 +223,7 @@ def prepare_subcontract_history(project, manager):
 
 @transaction.atomic
 def prepare():
-    """Create synthetic invoice, QC and subcontract history with baseline services."""
+    """Create synthetic invoice, QC, receipt and subcontract history with baseline services."""
     actor = User.objects.get(username="demo_project_manager")
     order = Order.objects.get(coc_reference="DEMO-COC-001")
     draft = invoices.create_invoice_draft(
@@ -220,7 +244,75 @@ def prepare():
     )
     prepare_qc_history()
     prepare_subcontract_history(order.project, actor)
-    print("Prepared a synthetic invoice draft, QC reanalysis and amended subcontract report.")
+    print(
+        "Prepared a synthetic invoice draft, QC reanalysis, receipt correction, "
+        "custody transfer and amended subcontract report."
+    )
+
+
+def require_receipt_history():
+    subcontract = (
+        Subcontract.objects.filter(external_reference=SUBCONTRACT_REFERENCE)
+        .select_related("requested_test__sample__order")
+        .first()
+    )
+    require(subcontract is not None, "The synthetic receipt needs its linked subcontract.")
+    sample = subcontract.requested_test.sample
+    containers = [snapshot(container) for container in sample.containers.order_by("pk")]
+    receipt_actions = ("sample.received", "sample.identity_corrected", "sample.transferred")
+    audit = list(
+        AuditEvent.objects.filter(
+            object_type="receipt.sample", object_id=str(sample.pk), action__in=receipt_actions
+        )
+    )
+    custody = list(sample.custody_events.all())
+    require(
+        tuple(event.action for event in audit) == receipt_actions
+        and [event.kind for event in custody] == ["receipt", "transfer"],
+        "The synthetic sample needs its original receipt, ID correction and custody transfer.",
+    )
+    original, correction, transfer = audit
+    receipt_event, transfer_event = custody
+    require(
+        sample.order.coc_reference == SUBCONTRACT_REFERENCE
+        and original.after.get("order_id") == str(sample.order_id)
+        and original.after.get("custody_event_id") == str(receipt_event.pk)
+        and original.actor_id == receipt_event.actor_id == sample.received_by_id
+        and original.after.get("client_sample_id") == ORIGINAL_CLIENT_SAMPLE_ID
+        and containers
+        and original.after.get("containers") == containers == subcontract.selected_containers
+        and receipt_event.occurred_at == sample.received_at,
+        "The original receipt must retain its sample ID, order, containers and custody event.",
+    )
+    require(
+        correction.before.get("client_sample_id") == ORIGINAL_CLIENT_SAMPLE_ID
+        and correction.after.get("client_sample_id")
+        == sample.client_sample_id
+        == CORRECTED_CLIENT_SAMPLE_ID
+        and correction.before.get("revision") == original.after.get("revision")
+        and correction.actor_id == sample.received_by_id
+        and correction.reason,
+        "The receipt correction must link the original and corrected client sample IDs.",
+    )
+    require(
+        transfer.before.get("location")
+        == transfer_event.from_location
+        == receipt_event.to_location
+        == original.after.get("current_location")
+        == RECEIPT_LOCATION
+        and transfer.after.get("location")
+        == transfer_event.to_location
+        == sample.current_location
+        == subcontract.from_location
+        == TRANSFER_LOCATION
+        and transfer.before.get("revision") == correction.after.get("revision")
+        and transfer.after.get("custody_event_id") == str(transfer_event.pk)
+        and transfer.actor_id == transfer_event.actor_id == sample.received_by_id
+        and transfer.reason == transfer_event.reason
+        and transfer.reason
+        and receipt_event.occurred_at < transfer_event.occurred_at < subcontract.dispatched_at,
+        "The custody transfer must link the original receipt location to dispatch staging.",
+    )
 
 
 def require_qc_history():
@@ -287,6 +379,9 @@ def collect(queryset, expected=None):
 
 def collections(draft):
     return {
+        "orders": Order.objects.all(),
+        "samples": Sample.objects.all(),
+        "containers": Container.objects.all(),
         "custody events": CustodyEvent.objects.all(),
         "audit events": AuditEvent.objects.all(),
         "requested tests": RequestedTest.objects.all(),
@@ -443,6 +538,7 @@ def main():
     querysets = collections(draft)
 
     if mode == "capture":
+        require_receipt_history()
         require_qc_history()
         subcontract_sources()
         manifest = {label: collect(queryset) for label, queryset in querysets.items()}

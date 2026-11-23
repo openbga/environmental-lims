@@ -9,11 +9,13 @@ from django.test import Client
 from django.urls import reverse
 
 from analytical.models import QCCorrectiveAction, QCMeasurement, QCSample
+from core.models import AuditEvent
+from receipt.models import Container, Order, Sample
 from receipt.subcontract_models import Subcontract, SubcontractResult
 
 
 @pytest.mark.django_db
-def test_upgrade_evidence_preserves_qc_and_subcontract_history(monkeypatch, tmp_path):
+def test_upgrade_evidence_preserves_receipt_qc_and_subcontract_history(monkeypatch, tmp_path):
     monkeypatch.setenv("DEMO_PASSWORD", "synthetic-upgrade-test-password")
     call_command("seed_demo", full=True, verbosity=0)
     evidence_path = tmp_path / "evidence.json"
@@ -36,10 +38,28 @@ def test_upgrade_evidence_preserves_qc_and_subcontract_history(monkeypatch, tmp_
     assert not failed.is_current and correction.is_current
     assert action.qc_sample_id == failed.qc_sample_id == correction.qc_sample_id
 
+    sample = Sample.objects.get(order__coc_reference=prepared["SUBCONTRACT_REFERENCE"])
+    container = sample.containers.get()
+    receipt, transfer = sample.custody_events.all()
+    events = AuditEvent.objects.filter(object_type="receipt.sample", object_id=str(sample.pk))
+    original_receipt = events.get(action="sample.received").after
+    sample_correction = events.get(action="sample.identity_corrected")
+    assert original_receipt["client_sample_id"] == sample_correction.before["client_sample_id"]
+    assert original_receipt["client_sample_id"] != sample.client_sample_id
+    assert sample_correction.after["client_sample_id"] == sample.client_sample_id
+    assert original_receipt["containers"][0]["id"] == container.pk
+    assert original_receipt["custody_event_id"] == str(receipt.pk)
+    assert events.get(action="sample.transferred").after["custody_event_id"] == str(transfer.pk)
+    assert transfer.from_location == receipt.to_location
+    assert transfer.to_location == sample.current_location
+
     run("capture")
     assert not counts_path.exists()
     manifest = json.loads(evidence_path.read_text(encoding="utf-8"))
     for name, model in (
+        ("orders", Order),
+        ("samples", Sample),
+        ("containers", Container),
         ("QC samples", QCSample),
         ("QC measurements", QCMeasurement),
         ("QC corrective actions", QCCorrectiveAction),
@@ -49,7 +69,16 @@ def test_upgrade_evidence_preserves_qc_and_subcontract_history(monkeypatch, tmp_
         assert manifest[name]["rows"].keys() == {
             str(pk) for pk in model.objects.values_list("pk", flat=True)
         }
-    run("verify")
+    # Candidate migrations may add rows to an existing sample. Verify the baseline IDs.
+    with transaction.atomic():
+        Container.objects.create(
+            sample=sample,
+            label=f"{sample.lab_id}-02",
+            description="Synthetic additional bottle",
+            condition="Intact",
+        )
+        run("verify")
+        transaction.set_rollback(True)
     assert json.loads(counts_path.read_text(encoding="utf-8")) == {
         label: len(evidence["rows"]) for label, evidence in manifest.items()
     }
@@ -60,6 +89,24 @@ def test_upgrade_evidence_preserves_qc_and_subcontract_history(monkeypatch, tmp_
     assert (original.observed_text, corrected.observed_text) == ("4.200", "4.100")
     failed_counts_path = tmp_path / "failed-counts.json"
     monkeypatch.setenv("UPGRADE_VERIFIED_COUNTS_PATH", str(failed_counts_path))
+
+    # A migration can change receiving records without touching their append-only history.
+    other_sample = Sample.objects.exclude(pk=sample.pk).first()
+    for name, records, changes in (
+        ("orders", Order.objects.filter(pk=sample.order_id), {"instructions": "Changed"}),
+        (
+            "samples",
+            Sample.objects.filter(pk=sample.pk),
+            {"client_sample_id": original_receipt["client_sample_id"]},
+        ),
+        ("containers", Container.objects.filter(pk=container.pk), {"sample": other_sample}),
+    ):
+        with transaction.atomic():
+            records.update(**changes)
+            with pytest.raises(SystemExit, match=rf"{name}: 0 missing, 0 added, and 1 changed"):
+                run("verify")
+            transaction.set_rollback(True)
+
     source_url = reverse("receipt:subcontract-source-download", args=[corrected.pk])
     get = Client.get
 

@@ -176,6 +176,14 @@ The same list is shown in the application under What's new.
 
   The GitHub Actions upgrade rehearsal now checks that QC samples, observations and corrective actions survive migration. It follows a failed observation through reanalysis and correction and verifies that both records still point to the original observation.
 
+- **Changed:** Check receipt records in the upgrade rehearsal (2026-11-22, Deployment)
+
+  The downloadable upgrade report now counts orders, samples and containers checked against the original installation. The rehearsal also follows a corrected client sample ID from receipt through a custody transfer.
+
+  Technical notes:
+
+  > The populated PostgreSQL rehearsal compares all baseline orders, samples and containers after migration. It checks the original receipt, correction history and transfer for one synthetic sample.
+
 - **Added:** Check relative standard error for a quadratic calibration (2026-11-22, Batches & QC)
 
   Choose Quadratic on the calibration fit worksheet to see the relative standard error across all recorded standards, including replicates. The worksheet shows the degrees of freedom and explains when a standard or the number of points prevents the calculation.
