@@ -140,7 +140,8 @@ and the check compares their bytes with the stored files. A pull request into `m
 uses its base commit, and a push to `main` uses the previous tip. The
 application job publishes upgrade notes in the workflow run summary after preservation and
 download checks pass. The same Markdown file is available as an artifact named
-`upgrade-rehearsal-<attempt>`. Its per-category counts cover the baseline rows checked.
+`upgrade-rehearsal-<attempt>`. It lists baseline record counts for both stages. A separate table shows the number of files
+checked in each category on the migrated copy, including zero counts.
 The notes identify both checkout commits, the candidate’s forward migration
 plan on the populated database, changes to package versions between revisions of `uv.lock`, and new or
 revised technical notes from the candidate’s changelog entries.

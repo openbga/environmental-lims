@@ -446,6 +446,14 @@ The same list is shown in the application under What's new.
 
 ### Low impact
 
+- **Changed:** See stored file checks in upgrade reports (2026-11-23)
+
+  The downloadable upgrade rehearsal report lists how many documents and attachments the upgraded application checked in each category. A zero shows where the synthetic installation had no files to check.
+
+  Technical notes:
+
+  > To save counts from your own restored database, run `python manage.py verify_stored_files --format json` and redirect standard output to a file. Check the exit status for success. Details of failing records go to standard error.
+
 - **Fixed:** Result entry grid skips untouched rows and gives clearer errors (2026-11-14, Batches & QC, [#7](https://github.com/openbga/environmental-lims/pull/7))
 
   On the result entry grid, a row left with only the reporting limit the page filled in is now skipped instead of failing, and a blank result reads "Result is required." A stray template comment no longer prints above the grid.

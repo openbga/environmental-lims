@@ -1,3 +1,5 @@
+import json
+
 from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import BinaryField, CharField, F, Func, IntegerField, Q, Value
@@ -67,6 +69,11 @@ def _check_invoices():
 class Command(BaseCommand):
     help = "Verify database-stored files against their recorded SHA-256 and byte lengths."
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--format", choices=("text", "json"), default="text", help="Summary output format."
+        )
+
     def handle(self, *args, **options):
         categories = [
             (
@@ -98,6 +105,8 @@ class Command(BaseCommand):
             if issubclass(model, EvidenceMixin) and not model._meta.proxy
         )
 
+        json_output = options["format"] == "json"
+        summary = {}
         total_checked = total_failures = 0
         for category, rows in categories:
             checked = failures = 0
@@ -106,10 +115,17 @@ class Command(BaseCommand):
                 if problems:
                     failures += 1
                     self.stderr.write(f"{model_label} pk={pk}: {', '.join(problems)}")
-            self.stdout.write(f"{category}: checked={checked} failures={failures}")
+            if json_output:
+                summary[category] = {"checked": checked, "failures": failures}
+            else:
+                self.stdout.write(f"{category}: checked={checked} failures={failures}")
             total_checked += checked
             total_failures += failures
 
-        self.stdout.write(f"Total: checked={total_checked} failures={total_failures}")
+        if json_output:
+            summary["Total"] = {"checked": total_checked, "failures": total_failures}
+            self.stdout.write(json.dumps(summary))
+        else:
+            self.stdout.write(f"Total: checked={total_checked} failures={total_failures}")
         if total_failures:
             raise CommandError("Stored file verification failed.")

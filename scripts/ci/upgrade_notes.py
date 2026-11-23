@@ -14,6 +14,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from core.changelog import parse_entry, sort_key  # noqa: E402
 
+STORED_FILE_CATEGORIES = (
+    "Report PDFs",
+    "Issued invoice PDFs",
+    "Subcontract source PDFs",
+    "EDD export ZIPs",
+    "Laboratory logos",
+    "Equipment event evidence",
+    "Training record evidence",
+    "Nonconformance event evidence",
+)
+
 
 def git_output(checkout, *args):
     return subprocess.check_output(["git", "-C", str(checkout), *args], encoding="utf-8")
@@ -104,6 +115,41 @@ def read_verified_counts(path):
     return counts
 
 
+def read_stored_file_counts(path):
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Stored-file counts contain a duplicate JSON key.")
+            result[key] = value
+        return result
+
+    counts = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_object)
+    if not isinstance(counts, dict) or counts.keys() != {*STORED_FILE_CATEGORIES, "Total"}:
+        raise ValueError("Expected stored-file counts for every known file category and Total.")
+
+    fields = {"checked", "failures"}
+    for row in counts.values():
+        if (
+            not isinstance(row, dict)
+            or row.keys() != fields
+            or any(type(value) is not int or value < 0 for value in row.values())
+        ):
+            raise ValueError(
+                "Expected nonnegative integer checked and failures counts in each row."
+            )
+
+    if any(
+        counts["Total"][field]
+        != sum(counts[category][field] for category in STORED_FILE_CATEGORIES)
+        for field in fields
+    ):
+        raise ValueError("Stored-file totals must equal the sums of the category counts.")
+    if counts["Total"]["failures"]:
+        raise ValueError("Stored-file verification reported failures.")
+    return counts
+
+
 def format_versions(versions):
     return ", ".join(f"`{version}`" for version in sorted(versions)) or "—"
 
@@ -135,6 +181,7 @@ def render_notes(
     entries,
     verified_counts=None,
     restored_counts=None,
+    stored_file_counts=None,
 ):
     base_url = f"https://github.com/{repository}"
     before = f"{base_url}/blob/{baseline}"
@@ -191,6 +238,22 @@ def render_notes(
         else:
             lines += ["| Record category | Matched baseline rows |", "| --- | ---: |"]
             lines += [f"| {label} | {verified_counts[label]} |" for label in categories]
+        lines.append("")
+    if stored_file_counts is not None:
+        lines += [
+            "## Stored-file integrity",
+            "",
+            "After migrating the restored database, the candidate checked these files against",
+            "their recorded SHA-256 and any recorded byte lengths. All checks passed.",
+            "A zero means the restored database had no files in that category.",
+            "",
+            "| File category | Files checked after migration |",
+            "| --- | ---: |",
+        ]
+        lines += [
+            f"| {category} | {stored_file_counts[category]['checked']} |"
+            for category in (*STORED_FILE_CATEGORIES, "Total")
+        ]
         lines.append("")
     lines += ["## Django migrations", ""]
     if plan:
@@ -261,6 +324,9 @@ def main():
     parser.add_argument(
         "--restored-counts", type=Path, help="matched baseline record counts after restore (JSON)"
     )
+    parser.add_argument(
+        "--stored-file-counts", type=Path, help="stored-file verification after migration (JSON)"
+    )
     parser.add_argument("--repository", default="openbga/environmental-lims", metavar="OWNER/REPO")
     args = parser.parse_args()
     if not re.fullmatch(r"[A-Za-z0-9-]+/[A-Za-z0-9_.-]+", args.repository):
@@ -280,6 +346,9 @@ def main():
             raise ValueError(
                 "--restored-counts and --verified-counts must contain identical category counts"
             )
+        stored_file_counts = (
+            read_stored_file_counts(args.stored_file_counts) if args.stored_file_counts else None
+        )
         baseline = git_output(args.baseline, "rev-parse", "--verify", "HEAD").strip()
         candidate = git_output(args.candidate, "rev-parse", "--verify", "HEAD").strip()
         before = locked_versions(args.baseline, baseline)
@@ -301,6 +370,7 @@ def main():
             entries,
             verified_counts=verified_counts,
             restored_counts=restored_counts,
+            stored_file_counts=stored_file_counts,
         )
     )
 

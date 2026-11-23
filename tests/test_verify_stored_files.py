@@ -1,3 +1,4 @@
+import json
 from hashlib import sha256
 from io import StringIO
 
@@ -163,16 +164,23 @@ def evidence_records(staff):
     }
 
 
-def test_empty_database():
+@pytest.mark.parametrize("output_format", [(), ("--format", "json")], ids=["text", "json"])
+def test_empty_database(output_format):
     stdout, stderr = StringIO(), StringIO()
-    call_command("verify_stored_files", stdout=stdout, stderr=stderr)
-    assert stdout.getvalue().splitlines() == [
-        f"{category}: checked=0 failures=0" for category in (*CATEGORIES, "Total")
-    ]
+    call_command("verify_stored_files", *output_format, stdout=stdout, stderr=stderr)
+    if output_format:
+        assert json.loads(stdout.getvalue()) == {
+            category: {"checked": 0, "failures": 0} for category in (*CATEGORIES, "Total")
+        }
+    else:
+        assert stdout.getvalue().splitlines() == [
+            f"{category}: checked=0 failures=0" for category in (*CATEGORIES, "Total")
+        ]
     assert stderr.getvalue() == ""
 
 
-def test_intact_documents_and_optional_evidence(document_records, evidence_records):
+@pytest.mark.parametrize("output_format", [(), ("--format", "json")], ids=["text", "json"])
+def test_intact_documents_and_optional_evidence(document_records, evidence_records, output_format):
     for document in document_records:
         document.save()
     for model, fields in evidence_records.items():
@@ -180,15 +188,24 @@ def test_intact_documents_and_optional_evidence(document_records, evidence_recor
         model.objects.create(**fields, **EVIDENCE)
 
     stdout, stderr = StringIO(), StringIO()
-    call_command("verify_stored_files", stdout=stdout, stderr=stderr)
-    assert stdout.getvalue().splitlines() == [
-        *(f"{category}: checked=1 failures=0" for category in CATEGORIES),
-        "Total: checked=8 failures=0",
-    ]
+    call_command("verify_stored_files", *output_format, stdout=stdout, stderr=stderr)
+    if output_format:
+        assert json.loads(stdout.getvalue()) == {
+            **{category: {"checked": 1, "failures": 0} for category in CATEGORIES},
+            "Total": {"checked": 8, "failures": 0},
+        }
+    else:
+        assert stdout.getvalue().splitlines() == [
+            *(f"{category}: checked=1 failures=0" for category in CATEGORIES),
+            "Total: checked=8 failures=0",
+        ]
     assert stderr.getvalue() == ""
 
 
-def test_corrupt_and_missing_rows_report_ids_and_fail(document_records, evidence_records):
+@pytest.mark.parametrize("output_format", [(), ("--format", "json")], ids=["text", "json"])
+def test_corrupt_and_missing_rows_report_ids_and_fail(
+    document_records, evidence_records, output_format
+):
     report_file, invoice, subcontract, export, logo = document_records
     version = report_file.version
     missing_report = ReportVersion.objects.create(
@@ -229,13 +246,21 @@ def test_corrupt_and_missing_rows_report_ids_and_fail(document_records, evidence
 
     stdout, stderr = StringIO(), StringIO()
     with pytest.raises(CommandError, match="Stored file verification failed"):
-        call_command("verify_stored_files", stdout=stdout, stderr=stderr)
-    assert stdout.getvalue().splitlines() == [
-        "Report PDFs: checked=2 failures=2",
-        "Issued invoice PDFs: checked=3 failures=3",
-        *(f"{category}: checked=1 failures=1" for category in CATEGORIES[2:]),
-        "Total: checked=11 failures=11",
-    ]
+        call_command("verify_stored_files", *output_format, stdout=stdout, stderr=stderr)
+    if output_format:
+        assert json.loads(stdout.getvalue()) == {
+            "Report PDFs": {"checked": 2, "failures": 2},
+            "Issued invoice PDFs": {"checked": 3, "failures": 3},
+            **{category: {"checked": 1, "failures": 1} for category in CATEGORIES[2:]},
+            "Total": {"checked": 11, "failures": 11},
+        }
+    else:
+        assert stdout.getvalue().splitlines() == [
+            "Report PDFs: checked=2 failures=2",
+            "Issued invoice PDFs: checked=3 failures=3",
+            *(f"{category}: checked=1 failures=1" for category in CATEGORIES[2:]),
+            "Total: checked=11 failures=11",
+        ]
     assert stderr.getvalue().splitlines() == [
         f"reporting.ReportVersion pk={version.pk}: SHA-256 mismatch",
         f"reporting.ReportVersion pk={missing_report.pk}: missing ReportFile",

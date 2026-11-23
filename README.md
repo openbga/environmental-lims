@@ -192,11 +192,13 @@ report version. Open the successful GitHub Actions `checks` run and read the app
 job summary for the two tested commits, verified record counts, database migrations,
 changes to locked package versions and technical notes added or revised in the candidate
 changelog. To keep a copy, download the upgrade rehearsal artifact from that run.
-It contains the same Markdown report, with links to the candidate’s changelog entries,
-recovery instructions and acceptance checks.
+The report also lists how many files of each kind passed integrity checks on the migrated
+copy. A zero identifies a category the synthetic database did not exercise. The downloadable
+report links to the candidate’s changelog entries, recovery instructions and acceptance checks.
 
 After restoring a backup, run `python manage.py verify_stored_files` against the restored
-database to check stored documents and attachments. Keep its counts with the other
+database to check stored documents and attachments. Add `--format json` to save a
+machine-readable summary. Keep its counts with the other
 [restore checks](docs/operations.md#verify-the-restore).
 
 After installing, and after each upgrade, run
