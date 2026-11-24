@@ -12,6 +12,7 @@ from psycopg import sql
 
 from analytical.models import QCCorrectiveAction, QCMeasurement, QCSample
 from core.models import AuditEvent
+from laboratory.models import Equipment, EquipmentEvent, NonconformanceEvent, TrainingRecord
 from receipt.models import Client as LabClient
 from receipt.models import Container, CustodyEvent, Order, Sample
 from receipt.subcontract_models import Subcontract, SubcontractResult
@@ -61,6 +62,16 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
 
     export = EddExport.objects.select_related("version__report__project").get()
     assert export.version.number == 1 < export.version.report.latest_version
+    attachment_reference = prepared["LABORATORY_ATTACHMENT_REFERENCE"]
+    calibration, training, nonconformance = (
+        model.objects.with_evidence().get(reference=attachment_reference)
+        for model in (EquipmentEvent, TrainingRecord, NonconformanceEvent)
+    )
+    assert calibration.equipment.asset_id == "SYN-UPGRADE-BAL-01"
+    assert nonconformance.nonconformance.equipment_id == calibration.equipment_id
+    assert training.staff.username == "demo_analyst"
+    assert training.reviewed_by.username == "demo_reviewer"
+
     edd_label = "electronic deliverable exports"
     with monkeypatch.context() as missing:
         missing.setattr(EddExport.objects, "all", EddExport.objects.none)
@@ -92,16 +103,46 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
     )
     assert str(export.version_id) in manifest["issued report versions"]["rows"]
 
+    laboratory_urls = {}
+    for kind, label, record, link in (
+        ("equipment", "equipment event attachments", calibration, "equipment_id"),
+        ("training", "staff training attachments", training, "staff_id"),
+        (
+            "nonconformance",
+            "nonconformance event attachments",
+            nonconformance,
+            "nonconformance_id",
+        ),
+    ):
+        assert manifest[label]["rows"].keys() == {str(record.pk)}
+        assert {
+            link,
+            "evidence_name",
+            "evidence_content_type",
+            "evidence_size",
+            "evidence_sha256",
+            "evidence_data",
+        } <= set(manifest[label]["fields"])
+        url = reverse("laboratory:evidence", args=[kind, record.pk])
+        laboratory_urls[url] = f"Synthetic upgrade evidence for {kind}.\r\n".encode()
+        assert laboratory_urls[url] == bytes(record.evidence_data)
+
     edd_url = reverse("portal:edd-download", args=[export.version.report_id, export.pk])
     get = Client.get
     edd_responses = []
+    laboratory_responses = []
 
-    def observe_edd_download(client, path, **kwargs):
+    def observe_download(client, path, **kwargs):
         response = get(client, path, **kwargs)
+        user = response.wsgi_request.user
         if path == edd_url:
-            edd_responses.append((response.wsgi_request.user.client_id, response.status_code))
+            edd_responses.append((user.client_id, response.status_code))
             if response.status_code == 200:
                 assert response.content == bytes(export.data)
+        if path in laboratory_urls:
+            laboratory_responses.append((path, user.username, response.status_code))
+            if response.status_code == 200:
+                assert response.content == laboratory_urls[path]
         return response
 
     history_tables = {
@@ -126,7 +167,7 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
 
     # Candidate migrations may add rows. Verify and probe only the baseline IDs.
     with transaction.atomic(), monkeypatch.context() as download:
-        download.setattr(Client, "get", observe_edd_download)
+        download.setattr(Client, "get", observe_download)
         LabClient.objects.create(name="Additional synthetic upgrade client")
         Container.objects.create(
             sample=sample,
@@ -154,6 +195,10 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
     assert edd_responses == [
         (export.version.report.project.client_id, 200),
         (LabClient.objects.get(account_number="EXCSD").pk, 404),
+    ]
+    assert laboratory_responses == [
+        *((url, "demo_reviewer", 200) for url in laboratory_urls),
+        *((url, "demo_client", 403) for url in laboratory_urls),
     ]
     assert json.loads(counts_path.read_text(encoding="utf-8")) == {
         label: len(evidence["rows"]) for label, evidence in manifest.items()
@@ -231,6 +276,7 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
             transaction.set_rollback(True)
 
     source_url = reverse("receipt:subcontract-source-download", args=[corrected.pk])
+    training_url = reverse("laboratory:evidence", args=["training", training.pk])
 
     def corrupt_download_at(download_url):
         def corrupt_download(client, path, **kwargs):
@@ -244,12 +290,48 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
     for download_url, error in (
         (source_url, "Staff download differs from the stored external source"),
         (edd_url, "Client download differs from the stored EDD ZIP"),
+        (training_url, "Staff download differs from the stored laboratory training attachment"),
     ):
         with monkeypatch.context() as download:
             download.setattr(Client, "get", corrupt_download_at(download_url))
             with pytest.raises(SystemExit, match=error):
                 run("verify")
+
+    def allow_client_training_download(client, path, **kwargs):
+        response = get(client, path, **kwargs)
+        if path == training_url and response.wsgi_request.user.username == "demo_client":
+            response.status_code = 200
+        return response
+
+    with monkeypatch.context() as download:
+        download.setattr(Client, "get", allow_client_training_download)
+        with pytest.raises(SystemExit, match=r"client requested laboratory training .* 200"):
+            run("verify")
     assert not failed_counts_path.exists()
+
+    # Reject reattachment, substituted bytes and changed metadata in the candidate database.
+    for label, records, changes in (
+        (
+            "equipment event attachments",
+            EquipmentEvent.objects.filter(pk=calibration.pk),
+            {"equipment": Equipment.objects.exclude(pk=calibration.equipment_id).first()},
+        ),
+        (
+            "staff training attachments",
+            TrainingRecord.objects.filter(pk=training.pk),
+            {"evidence_data": bytes(calibration.evidence_data)},
+        ),
+        (
+            "nonconformance event attachments",
+            NonconformanceEvent.objects.filter(pk=nonconformance.pk),
+            {"evidence_name": "changed.txt"},
+        ),
+    ):
+        with transaction.atomic():
+            records.update(**changes)
+            with pytest.raises(SystemExit, match=rf"{label}: 0 missing, 0 added, and 1 changed"):
+                run("verify")
+            transaction.set_rollback(True)
 
     # A substituted ZIP must alter the evidence even when its recorded SHA-256 stays the same.
     substituted_zip = EddExport.objects.filter(pk=export.pk).extra(
