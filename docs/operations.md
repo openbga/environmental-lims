@@ -151,8 +151,12 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
    covers issued report and invoice PDFs (including amendments and voids), subcontract
    source PDFs, electronic deliverable exports, laboratory logos, original result import files and files attached to
    equipment events, training records and nonconformance events. Each issued report version
-   and each issued or voided invoice must have its file. An optional evidence attachment
-   with only part of its file or metadata present also fails.
+   and each issued or voided invoice must have its file. For each original and amended
+   report, the command also recalculates the checksum of the frozen report content used
+   for result downloads. It compares that checksum with the one on the issued version
+   and the copy in its snapshot. A failure identifies the report version by record ID.
+   The `Report PDFs` count includes each version once across the PDF and content checks.
+   An optional evidence attachment with only part of its file or metadata present also fails.
    To save just the counts as JSON, run `python manage.py verify_stored_files --format json > stored-file-counts.json`.
    Each category and the total give the number checked and the number of records with failures.
    Keep the counts with the restore record and check the exit status. A nonzero exit signals a failure.

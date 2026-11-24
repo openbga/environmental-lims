@@ -1,13 +1,15 @@
 import json
 import re
+from contextlib import nullcontext
 from hashlib import sha256
 
 from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
 from django.db import Error as DjangoDatabaseError
 from django.db import connection, transaction
-from django.db.models import BinaryField, CharField, F, Func, IntegerField, Q, Value
-from django.db.models.functions import Cast, JSONObject
+from django.db.models import BinaryField, CharField, F, Func, IntegerField, Q, TextField, Value
+from django.db.models.fields.json import KeyTransform
+from django.db.models.functions import Cast, JSONObject, Substr
 from psycopg import Error as PsycopgError
 from psycopg import sql
 from psycopg.pq import TransactionStatus
@@ -17,11 +19,37 @@ from commercial.models import InvoiceDraft, IssuedInvoice
 from core.models import AuditEvent, LabLogo
 from laboratory.models import EvidenceMixin
 from receipt.models import SubcontractResult
+from reporting.content import fingerprint
 from reporting.models import EddExport, ReportVersion
 
 
+def _report_content_problems(content_json, recorded_hash, snapshot_hash_json):
+    try:
+        content = json.loads(content_json) if content_json is not None else None
+        if not isinstance(content, dict) or not content:
+            return ["missing or invalid report snapshot content"]
+        actual_hash = fingerprint(content)
+    except ValueError, RecursionError:
+        return ["missing or invalid report snapshot content"]
+
+    problems = []
+    if actual_hash != recorded_hash:
+        problems.append("report content SHA-256 does not match the version's digest")
+    if f'"{actual_hash}"' != snapshot_hash_json:
+        problems.append("report content SHA-256 does not match the snapshot's digest")
+    return problems
+
+
 def _check_files(
-    model, binary, checksum, size=None, *, evidence=False, missing="missing file", metadata=None
+    model,
+    binary,
+    checksum,
+    size=None,
+    *,
+    evidence=False,
+    missing="missing file",
+    metadata=None,
+    check_report_content=False,
 ):
     files = model._base_manager.order_by("pk")
     if evidence:
@@ -37,7 +65,7 @@ def _check_files(
             "missing evidence filename or content type",
         )
 
-    # Use PostgreSQL's built-in bytea functions and stream only IDs and comparison values.
+    # Use PostgreSQL's bytea functions to avoid returning the file bytes.
     rows = files.annotate(
         actual_size=Func(binary, function="pg_catalog.octet_length", output_field=IntegerField()),
         actual_hash=Func(
@@ -48,8 +76,21 @@ def _check_files(
         ),
         recorded_size=F(size) if size else Value(None, output_field=IntegerField()),
         metadata_present=metadata[0] if metadata else Value(True),
-    ).values_list("pk", "actual_size", "actual_hash", "recorded_size", checksum, "metadata_present")
-    for pk, actual_size, actual_hash, recorded_size, recorded_hash, has_metadata in rows.iterator():
+    )
+    fields = ("pk", "actual_size", "actual_hash", "recorded_size", checksum, "metadata_present")
+    if check_report_content:
+        # Join the frozen content and PDF measurements in the same query. Do not transfer
+        # the release metadata or more than 67 characters of the quoted, 64-digit hash.
+        rows = rows.annotate(
+            content_json=Cast(KeyTransform("content", "file__snapshot"), TextField()),
+            snapshot_hash_json=Substr(
+                Cast(KeyTransform("content_sha256", "file__snapshot"), TextField()), 1, 67
+            ),
+        )
+        fields += ("content_json", "content_sha256", "snapshot_hash_json")
+    # Report content can be large. Process one row at a time.
+    for row in rows.values_list(*fields).iterator(chunk_size=1 if check_report_content else None):
+        pk, actual_size, actual_hash, recorded_size, recorded_hash, has_metadata, *content = row
         problems = []
         if actual_size is None:
             problems.append(missing)
@@ -66,7 +107,27 @@ def _check_files(
                 problems.append("missing recorded byte length")
             elif actual_size is not None and actual_size != recorded_size:
                 problems.append("byte length mismatch")
+        if check_report_content and actual_size is not None:
+            problems.extend(_report_content_problems(*content))
         yield model._meta.label, pk, actual_size, actual_hash, problems
+
+
+def _check_reports():
+    # Keep the cursor inside a transaction until it closes, so PostgreSQL does not
+    # materialize the entire result on commit. Reuse a caller's transaction if present.
+    needs_transaction = (
+        connection.get_autocommit()
+        and connection.connection.info.transaction_status == TransactionStatus.IDLE
+    )
+    with transaction.atomic(savepoint=False) if needs_transaction else nullcontext():
+        yield from _check_files(
+            ReportVersion,
+            "file__pdf",
+            "pdf_sha256",
+            "pdf_size",
+            missing="missing ReportFile",
+            check_report_content=True,
+        )
 
 
 def _check_invoices():
@@ -110,7 +171,7 @@ def _check_import_sources():
 
 
 class Command(BaseCommand):
-    help = "Verify database-stored files against their recorded SHA-256 and byte lengths."
+    help = "Verify database-stored files and frozen issued report content."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -185,16 +246,7 @@ class Command(BaseCommand):
 
     def _scan(self, output_format):
         categories = [
-            (
-                "Report PDFs",
-                _check_files(
-                    ReportVersion,
-                    "file__pdf",
-                    "pdf_sha256",
-                    "pdf_size",
-                    missing="missing ReportFile",
-                ),
-            ),
+            ("Report PDFs", _check_reports()),
             ("Issued invoice PDFs", _check_invoices()),
             (
                 "Subcontract source PDFs",

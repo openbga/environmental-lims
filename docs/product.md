@@ -150,10 +150,13 @@ checks passed. The notes include new or revised
 technical guidance from the candidate changelog, with links to the tested revision. When
 the baseline predates changelog entries, all candidate technical notes are available for
 reference. A deployer can also check the files in a restored database from the command line.
-Every issued report version and every issued or voided invoice must retain its PDF. Stored
-report, invoice and subcontract PDFs, electronic deliverables, laboratory logos, original
-result import files and attached laboratory evidence must match their recorded hashes and any recorded byte counts. The
-check reports discrepancies by record ID and leaves the restored records intact. Deployers
+Every issued report version and every issued or voided invoice must retain its PDF.
+For each original and amended report, deployers can verify the frozen content used in
+client exports against both copies of its release checksum, on the issued version and
+in the stored snapshot. Stored report, invoice and subcontract PDFs, electronic deliverables,
+laboratory logos, original result import files and attached laboratory evidence must match
+their recorded hashes and any recorded byte counts. The check reports discrepancies by
+record ID and leaves the restored records intact. Deployers
 can save the counts in JSON. The upgrade rehearsal report records how many stored files
 passed the candidate check in each category, including categories with zero files.
 Deployers can save a file inventory alongside a backup and compare it with the restored
