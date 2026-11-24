@@ -192,6 +192,14 @@ The same list is shown in the application under What's new.
 
   Choose Linear through origin in the calibration fit worksheet to see the relative standard error across all recorded standards and replicates. The worksheet shows the degrees of freedom and explains when a zero slope prevents the calculation.
 
+- **Changed:** Verify issued report content after a restore (2026-11-24, Backup and restore)
+
+  Deployers can detect a change to the frozen report content used for client result downloads, even when the stored PDF is intact. The restore check identifies the affected original or amended report version.
+
+  Technical notes:
+
+  > Run `python manage.py verify_stored_files` on the restored database. Each report version must pass both the PDF and content checks to pass under `Report PDFs`. A failure prevents the command from writing a file inventory.
+
 - **Changed:** Verify laboratory attachments after restore and upgrade (2026-11-24)
 
   The downloadable upgrade report now covers evidence attached to equipment events, staff training records and nonconformance events. It checks that staff can retrieve the original files and that a signed-in client is denied each download.

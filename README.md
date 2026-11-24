@@ -206,8 +206,10 @@ copy. A zero identifies a category the synthetic database did not exercise. The 
 report links to the candidate’s changelog entries, recovery instructions and acceptance checks.
 
 After restoring a backup, run `python manage.py verify_stored_files` against the restored
-database to check stored documents, attachments and original result import files. Add `--format json` to save a
-machine-readable summary. To detect a file and its record disappearing together, save a
+database to check stored documents, attachments and original result import files. For each
+issued report version, the command also checks the frozen content used for client result
+downloads against its release checksum. Add `--format json` to save a machine-readable
+summary. To detect a file and its record disappearing together, save a
 file inventory with `--format manifest` when you take the backup and compare it with one
 from the restored database. To keep accepting writes during a logical backup, give
 `pg_dump` and the source inventory command the same exported PostgreSQL snapshot.

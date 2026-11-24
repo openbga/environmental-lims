@@ -22,7 +22,10 @@ from laboratory.models import (
 )
 from receipt.models import Order, Subcontract, SubcontractResult
 from receipt.services import receive_sample
+from reporting import services as reporting_services
+from reporting.content import assemble, fingerprint
 from reporting.models import EddExport, Report, ReportFile, ReportVersion
+from reporting.tests.conftest import build_world, fake_pdf, make_user
 
 PDF = b"%PDF-1.7\x00\xff synthetic private content"
 ZIP = b"PK\x03\x04\x00\xff synthetic zip"
@@ -72,20 +75,81 @@ def _invoice_draft(order, actor, number, status):
 
 
 @pytest.fixture
-def document_records(staff, receipt_data):
+def report_sample(staff, receipt_data):
     actor = staff("restore-custodian", "custodian")
-    sample = receive_sample(actor=actor, **receipt_data)
-    now = timezone.now()
-    report = Report.objects.create(project=sample.order.project, created_by=actor)
-    version = ReportVersion.objects.create(
-        report=report,
-        number=1,
-        content_sha256="a" * 64,
-        pdf_sha256=sha256(PDF).hexdigest(),
-        pdf_size=len(PDF),
-        released_by=actor,
-        released_at=now,
-    )
+    return receive_sample(actor=actor, **receipt_data)
+
+
+@pytest.fixture
+def legacy_report_factory(report_sample):
+    def make(version_digest=None):
+        sample = report_sample
+        actor = sample.received_by
+        now = timezone.now()
+        report = Report.objects.create(
+            project=sample.order.project,
+            title="Synthetic report",
+            created_by=actor,
+            latest_version=1,
+        )
+        report.samples.add(sample)
+        # Legacy release shape, before laboratory identity details and result test references.
+        content = {
+            "schema": 1,
+            "synthetic_notice": True,
+            "lab": {"name": "Example Environmental Lab", "timezone": "UTC"},
+            "report": {"number": report.number, "title": report.title, "narrative": "4 °C"},
+            "client": {"name": "Example Client", "contact_name": "", "email": ""},
+            "project": {"name": "Example Project", "program": ""},
+            "samples": [
+                {
+                    "lab_id": sample.lab_id,
+                    "client_sample_id": sample.client_sample_id,
+                    "results": [{"reported": "0.0500", "unit": "mg/L"}],
+                }
+            ],
+            "batches": [],
+            "methods": [],
+            "qualifiers": [],
+        }
+        digest = fingerprint(content)
+        snapshot = {
+            "content": content,
+            "content_sha256": digest,
+            "release": {
+                "version": 1,
+                "released_by": actor.username,
+                "released_at": now.isoformat(),
+                "amends": None,
+                "reason": "",
+                "changes": [],
+            },
+        }
+        version = ReportVersion.objects.create(
+            report=report,
+            number=1,
+            content_sha256=digest if version_digest is None else version_digest,
+            pdf_sha256=sha256(PDF).hexdigest(),
+            pdf_size=len(PDF),
+            released_by=actor,
+            released_at=now,
+        )
+        return ReportFile(version=version, snapshot=snapshot, pdf=PDF)
+
+    return make
+
+
+@pytest.fixture
+def legacy_report_file(legacy_report_factory):
+    return legacy_report_factory()
+
+
+@pytest.fixture
+def document_records(report_sample, legacy_report_file):
+    sample = report_sample
+    actor = sample.received_by
+    version = legacy_report_file.version
+    now = version.released_at
     draft = _invoice_draft(sample.order, actor, "DRAFT-1", InvoiceDraft.Status.VOIDED)
     dispatch = Subcontract.objects.create(
         requested_test=sample.requested_tests.get(),
@@ -94,7 +158,7 @@ def document_records(staff, receipt_data):
         created_by=actor,
     )
     return (
-        ReportFile(version=version, snapshot={}, pdf=PDF),
+        legacy_report_file,
         IssuedInvoice(
             draft=draft,
             number="INV-1",
@@ -243,6 +307,9 @@ def test_intact_documents_and_optional_evidence(
             assert set(entry) == {"count", "sha256"}
             assert entry["count"] == 1
             assert len(bytes.fromhex(entry["sha256"])) == 32
+        version_pk = document_records[0].version_id
+        row = f'["reporting.ReportVersion","{version_pk}",{len(PDF)},"{sha256(PDF).hexdigest()}"]\n'
+        assert manifest["categories"]["Report PDFs"]["sha256"] == sha256(row.encode()).hexdigest()
     elif output_format:
         assert json.loads(stdout.getvalue()) == {
             **{category: {"checked": 1, "failures": 0} for category in CATEGORIES},
@@ -261,6 +328,133 @@ def _verification_output(*args):
     call_command("verify_stored_files", *args, stdout=stdout, stderr=stderr)
     assert stderr.getvalue() == ""
     return stdout.getvalue()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_original_and_amended_releases_share_one_streamed_report_query(monkeypatch):
+    people = {
+        "analyst": make_user("restore-analyst", "analyst"),
+        "reviewer": make_user("restore-reviewer", "reviewer"),
+        "approver": make_user("restore-approver", "approver", release=True),
+        "pm": make_user("restore-manager", "project_manager"),
+        "custodian": make_user("restore-custodian", "custodian"),
+    }
+    world = build_world(people)
+    report, sample = world["report_a"], world["sample_a"]
+    monkeypatch.setattr(reporting_services, "render_pdf", fake_pdf)
+
+    def release(reason=""):
+        actor = people["approver"]
+        return reporting_services.release_report(
+            actor=actor,
+            report_id=report.pk,
+            expected_fingerprint=assemble(report, actor=actor).fingerprint,
+            reason=reason,
+        )
+
+    original = release()
+    report = reporting_services.update_report(
+        actor=people["pm"],
+        report_id=report.pk,
+        expected_revision=report.revision,
+        samples=[sample],
+        title="Amended outfall report",
+    )
+    amended = release("Correct report title")
+    assert amended.amends_id == original.pk
+    assert amended.content_sha256 != original.content_sha256
+    Report.objects.filter(pk=report.pk).update(narrative="Unissued draft notes")
+
+    def check_cursor(execute, query, params, many, context):
+        if 'FROM "reporting_reportversion"' in query:
+            assert not connection.get_autocommit()
+            assert not context["cursor"].cursor.withhold
+        return execute(query, params, many, context)
+
+    assert connection.get_autocommit()
+    with CaptureQueriesContext(connection) as captured, connection.execute_wrapper(check_cursor):
+        summary = json.loads(_verification_output("--format", "json"))
+    assert connection.get_autocommit()
+    assert summary["Report PDFs"] == {"checked": 2, "failures": 0}
+    report_queries = [q["sql"] for q in captured if 'FROM "reporting_reportversion"' in q["sql"]]
+    (query,) = report_queries
+    pdf_column = '"reporting_reportfile"."pdf"'
+    assert query.count(pdf_column) == 2
+    assert f"pg_catalog.octet_length({pdf_column})" in query
+    assert f"pg_catalog.sha256({pdf_column})" in query
+
+
+@pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
+def test_changed_snapshot_content_fails_with_intact_pdf(legacy_report_file, output_format):
+    report_file = legacy_report_file
+    report_file.snapshot["content"]["samples"][0]["results"][0]["reported"] = "0.05"
+    report_file.save()
+
+    stdout, stderr = StringIO(), StringIO()
+    with pytest.raises(CommandError, match="Stored file verification failed"):
+        call_command("verify_stored_files", *output_format, stdout=stdout, stderr=stderr)
+    if output_format == MANIFEST_FORMAT:
+        assert stdout.getvalue() == ""
+    elif output_format:
+        assert json.loads(stdout.getvalue())["Report PDFs"] == {"checked": 1, "failures": 1}
+    else:
+        assert stdout.getvalue().splitlines()[0] == "Report PDFs: checked=1 failures=1"
+    assert stderr.getvalue().splitlines() == [
+        f"reporting.ReportVersion pk={report_file.version_id}: report content SHA-256 does not "
+        "match the version's digest, report content SHA-256 does not match the snapshot's digest"
+    ]
+
+
+@pytest.mark.parametrize(
+    "snapshot",
+    [[], "synthetic private content", {}, {"content": None}, {"content": {}}, {"content": []}],
+)
+def test_missing_or_malformed_snapshot_content(legacy_report_file, snapshot):
+    report_file = legacy_report_file
+    report_file.snapshot = snapshot
+    report_file.save()
+
+    stdout, stderr = StringIO(), StringIO()
+    with pytest.raises(CommandError, match="Stored file verification failed"):
+        call_command("verify_stored_files", *MANIFEST_FORMAT, stdout=stdout, stderr=stderr)
+    assert stdout.getvalue() == ""
+    assert stderr.getvalue().splitlines() == [
+        f"reporting.ReportVersion pk={report_file.version_id}: "
+        "missing or invalid report snapshot content"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("digest_location", "digest"),
+    [
+        pytest.param("version", "", id="missing-version"),
+        pytest.param("version", "synthetic private content", id="invalid-version"),
+        pytest.param("version", "b" * 64, id="mismatched-version"),
+        pytest.param("snapshot", None, id="missing-snapshot"),
+        pytest.param("snapshot", 5, id="non-string-snapshot"),
+        pytest.param("snapshot", "b" * 65, id="overlong-snapshot"),
+        pytest.param("snapshot", "b" * 64, id="mismatched-snapshot"),
+    ],
+)
+def test_rejects_missing_malformed_or_changed_digest(
+    legacy_report_factory, digest_location, digest
+):
+    report_file = legacy_report_factory(digest if digest_location == "version" else None)
+    if digest_location == "snapshot":
+        if digest is None:
+            del report_file.snapshot["content_sha256"]
+        else:
+            report_file.snapshot["content_sha256"] = digest
+    report_file.save()
+
+    stdout, stderr = StringIO(), StringIO()
+    with pytest.raises(CommandError, match="Stored file verification failed"):
+        call_command("verify_stored_files", *MANIFEST_FORMAT, stdout=stdout, stderr=stderr)
+    assert stdout.getvalue() == ""
+    assert stderr.getvalue().splitlines() == [
+        f"reporting.ReportVersion pk={report_file.version_id}: report content SHA-256 does not "
+        f"match the {digest_location}'s digest"
+    ]
 
 
 def test_marked_import_event_requires_its_file_but_legacy_events_do_not(import_source):
@@ -459,6 +653,7 @@ def test_corrupt_and_missing_rows_report_ids_and_fail(
     )
 
     report_file.pdf = PDF[:-1] + b"x"
+    report_file.snapshot["content"]["report"]["title"] = "Damaged synthetic snapshot"
     invoice.sha256 = "0" * 64
     subcontract.source_size += 1
     export.data = b""
@@ -496,7 +691,9 @@ def test_corrupt_and_missing_rows_report_ids_and_fail(
             "Total: checked=12 failures=12",
         ]
     assert stderr.getvalue().splitlines() == [
-        f"reporting.ReportVersion pk={version.pk}: SHA-256 mismatch",
+        f"reporting.ReportVersion pk={version.pk}: SHA-256 mismatch, report content SHA-256 does "
+        "not match the version's digest, report content SHA-256 does not match the snapshot's "
+        "digest",
         f"reporting.ReportVersion pk={missing_report.pk}: missing ReportFile",
         f"commercial.IssuedInvoice pk={invoice.pk}: SHA-256 mismatch",
         f"commercial.InvoiceDraft pk={missing_issued.pk}: missing IssuedInvoice",
