@@ -180,6 +180,14 @@ The same list is shown in the application under What's new.
 
 ### Medium impact
 
+- **Changed:** Check restored deliverable ZIPs against their export history (2026-11-24, Backup and restore)
+
+  Deployers can check that a restored electronic data deliverable is the ZIP originally generated for an issued report version. The check also flags an export whose ZIP record is missing.
+
+  Technical notes:
+
+  > Run python manage.py verify_stored_files on the restored database. Each ZIP must match one export event by ZIP checksum, report number, version number and report content checksum. A discrepancy fails the EDD export ZIPs check and prevents the command from writing a file inventory.
+
 - **Changed:** Check restored invoice PDFs against their issue history (2026-11-24, Backup and restore)
 
   Deployers can check whether an invoice PDF in a restored backup matches the one originally issued, even after a void. The check also identifies invoices with missing or duplicate issue events.

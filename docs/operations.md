@@ -160,6 +160,10 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
    the recorded invoice number and PDF checksum match. A voided invoice must still match its
    original issue event. An absent, duplicate or inconsistent issue event fails the invoice
    check. Use the issued invoice record ID from the error to trace the draft and its history.
+   For an electronic data deliverable, check the `EDD export ZIPs` category. Each ZIP
+   must have exactly one original export event with the same ZIP checksum, report number,
+   version number and report content checksum. Use the export record ID to investigate
+   a mismatch, or the audit event ID to trace a missing export record.
    An optional evidence attachment with only part of its file or metadata present also fails.
    To save just the counts as JSON, run `python manage.py verify_stored_files --format json > stored-file-counts.json`.
    Each category and the total give the number checked and the number of records with failures.

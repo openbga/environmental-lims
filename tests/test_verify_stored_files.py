@@ -84,11 +84,12 @@ def report_sample(staff, receipt_data):
 
 @pytest.fixture
 def legacy_report_factory(report_sample):
-    def make(version_digest=None):
+    def make(version_digest=None, *, report_pk=None):
         sample = report_sample
         actor = sample.received_by
         now = timezone.now()
         report = Report.objects.create(
+            pk=report_pk,
             project=sample.order.project,
             title="Synthetic report",
             created_by=actor,
@@ -175,13 +176,56 @@ def _record_invoice_issue(invoice, **overrides):
     return AuditEvent.objects.create(**(fields | overrides))
 
 
+def _edd_export_for(version, *, pk):
+    return EddExport(
+        pk=pk,
+        version=version,
+        format_name="NYSDEC",
+        format_version="5",
+        reference_values="20260429",
+        mapping={},
+        row_counts={},
+        data=ZIP,
+        sha256=sha256(ZIP).hexdigest(),
+        size=len(ZIP),
+        created_by=version.released_by,
+    )
+
+
+@pytest.fixture
+def edd_record(legacy_report_file):
+    legacy_report_file.save()
+    return _edd_export_for(legacy_report_file.version, pk=10)
+
+
+def _record_edd_export(export, *, after_overrides=None, **overrides):
+    fields = {
+        "actor": export.created_by,
+        "action": "report.edd_exported",
+        "object_type": "reporting.eddexport",
+        "object_id": str(export.pk),
+        "after": {
+            "report": export.version.report.number,
+            "version": export.version.number,
+            "sha256": export.sha256,
+            "content_sha256": export.version.content_sha256,
+            "format": "NYSDEC 5",
+            "row_counts": export.row_counts,
+        }
+        | (after_overrides or {}),
+    }
+    return AuditEvent.objects.create(**(fields | overrides))
+
+
 @pytest.fixture
 def document_records(report_sample, legacy_report_file, invoice_record):
     sample = report_sample
     actor = sample.received_by
     version = legacy_report_file.version
     now = version.released_at
+    edd_record = _edd_export_for(version, pk=10)
     _record_invoice_issue(invoice_record)
+    _record_edd_export(edd_record)
     dispatch = Subcontract.objects.create(
         requested_test=sample.requested_tests.get(),
         dispatched_at=now,
@@ -204,18 +248,7 @@ def document_records(report_sample, legacy_report_file, invoice_record):
             source_snapshot={},
             entered_by=actor,
         ),
-        EddExport(
-            version=version,
-            format_name="NYSDEC",
-            format_version="5",
-            reference_values="20260429",
-            mapping={},
-            row_counts={},
-            data=ZIP,
-            sha256=sha256(ZIP).hexdigest(),
-            size=len(ZIP),
-            created_by=actor,
-        ),
+        edd_record,
         LabLogo(
             sha256=sha256(PNG).hexdigest(),
             image=PNG,
@@ -450,6 +483,121 @@ def test_invoice_requires_one_original_issuance(invoice_record, record_original,
         _record_invoice_issue(invoice, **other_event)
 
     _assert_invoice_audit_failure(invoice)
+
+
+def test_edd_export_provenance_preserves_the_manifest_and_query_bounds(edd_record):
+    # Two exports can have the same ZIP and released version, each with its own original event.
+    second = _edd_export_for(edd_record.version, pk=2)
+    for export in (edd_record, second):
+        export.save()
+        _record_edd_export(export)
+    _record_edd_export(second, action="edd.version_context_saved")
+    _record_edd_export(second, object_type="reporting.reportversion")
+
+    with CaptureQueriesContext(connection) as captured:
+        manifest = json.loads(_verification_output(*MANIFEST_FORMAT))
+    rows = "".join(
+        f'["reporting.EddExport","{pk}",{len(ZIP)},"{edd_record.sha256}"]\n'
+        for pk in (second.pk, edd_record.pk)
+    )
+    assert manifest["version"] == 1
+    assert manifest["categories"]["EDD export ZIPs"] == {
+        "count": 2,
+        "sha256": sha256(rows.encode("ascii")).hexdigest(),
+    }
+    export_query, missing_query = [
+        q["sql"] for q in captured if 'FROM "reporting_eddexport"' in q["sql"]
+    ]
+    zip_column = '"reporting_eddexport"."data"'
+    assert export_query.count(zip_column) == 2
+    assert f"pg_catalog.octet_length({zip_column})" in export_query
+    assert f"pg_catalog.sha256({zip_column})" in export_query
+    assert 'FROM "core_auditevent"' in export_query
+    assert '"core_auditevent"."after"' not in missing_query
+    assert zip_column not in missing_query
+
+
+@pytest.mark.parametrize("report_pk", [1_234_567, -42])
+def test_edd_export_uses_the_linked_reports_number(legacy_report_factory, report_pk):
+    report_file = legacy_report_factory(report_pk=report_pk)
+    report_file.save()
+    export = _edd_export_for(report_file.version, pk=10)
+    export.save()
+    _record_edd_export(export)
+
+    summary = json.loads(_verification_output("--format", "json"))
+    assert summary["EDD export ZIPs"] == {"checked": 1, "failures": 0}
+
+
+def _assert_edd_audit_failure(export):
+    stdout, stderr = StringIO(), StringIO()
+    with pytest.raises(CommandError, match="Stored file verification failed"):
+        call_command("verify_stored_files", "--format", "json", stdout=stdout, stderr=stderr)
+    assert json.loads(stdout.getvalue())["EDD export ZIPs"] == {"checked": 1, "failures": 1}
+    assert stderr.getvalue().splitlines() == [
+        f"reporting.EddExport pk={export.pk}: missing, ambiguous, or mismatched EDD export event"
+    ]
+
+
+def test_self_consistent_replacement_zip_must_match_the_original_export(edd_record):
+    export = edd_record
+    _record_edd_export(export)
+    export.data += b" synthetic replacement"
+    export.sha256 = sha256(export.data).hexdigest()
+    export.size = len(export.data)
+    export.save()
+
+    _assert_edd_audit_failure(export)
+
+
+@pytest.mark.parametrize(
+    ("record_original", "other_event"),
+    [
+        pytest.param(False, None, id="missing"),
+        pytest.param(False, {"action": "edd.version_context_saved"}, id="wrong-action"),
+        pytest.param(False, {"object_type": "reporting.reportversion"}, id="wrong-type"),
+        pytest.param(False, {"after": []}, id="malformed-payload"),
+        pytest.param(False, {"after_overrides": {"report": "RPT-OTHER"}}, id="wrong-report"),
+        pytest.param(False, {"after_overrides": {"version": 2}}, id="wrong-version"),
+        pytest.param(False, {"after_overrides": {"version": "1"}}, id="string-version"),
+        pytest.param(False, {"after_overrides": {"version": True}}, id="boolean-version"),
+        pytest.param(False, {"after_overrides": {"version": 1.0}}, id="fractional-version"),
+        pytest.param(
+            False, {"after_overrides": {"content_sha256": "a" * 64}}, id="wrong-report-content"
+        ),
+        pytest.param(True, {}, id="duplicate-matching"),
+        pytest.param(True, {"after": {}}, id="duplicate-mismatched"),
+    ],
+)
+def test_edd_requires_one_original_export_event(edd_record, record_original, other_event):
+    edd_record.save()
+    if record_original:
+        _record_edd_export(edd_record)
+    if other_event is not None:
+        _record_edd_export(edd_record, **other_event)
+
+    _assert_edd_audit_failure(edd_record)
+
+
+@pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
+def test_orphan_edd_export_events_are_verification_failures(edd_record, output_format):
+    missing = _record_edd_export(edd_record)
+    malformed = _record_edd_export(edd_record, object_id="synthetic malformed target")
+    _record_edd_export(edd_record, action="edd.version_context_saved")
+    _record_edd_export(edd_record, object_type="reporting.reportversion")
+
+    stdout, stderr = StringIO(), StringIO()
+    with pytest.raises(CommandError, match="Stored file verification failed"):
+        call_command("verify_stored_files", *output_format, stdout=stdout, stderr=stderr)
+    if output_format == MANIFEST_FORMAT:
+        assert stdout.getvalue() == ""
+    elif output_format:
+        assert json.loads(stdout.getvalue())["EDD export ZIPs"] == {"checked": 2, "failures": 2}
+    else:
+        assert "EDD export ZIPs: checked=2 failures=2" in stdout.getvalue().splitlines()
+    assert stderr.getvalue().splitlines() == [
+        f"core.AuditEvent pk={pk}: missing EddExport" for pk in sorted([missing.pk, malformed.pk])
+    ]
 
 
 @pytest.mark.django_db(transaction=True)

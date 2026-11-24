@@ -153,6 +153,9 @@ reference. A deployer can also check the files in a restored database from the c
 Every issued report version and every issued or voided invoice must retain its PDF.
 For each invoice, the number and PDF checksum must agree with the single issue event
 recorded for its draft, including after the invoice is voided.
+Each electronic data deliverable (EDD) ZIP must have exactly one export event. Its ZIP
+checksum, report number, version number and report content checksum must agree with
+the event. An export event left behind without its ZIP record must also fail verification.
 For each original and amended report, deployers can verify the frozen content used in
 client exports against both copies of its release checksum, on the issued version and
 in the stored snapshot. Stored report, invoice and subcontract PDFs, electronic deliverables,
