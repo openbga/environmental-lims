@@ -441,6 +441,9 @@ def batch_detail(request, pk):
                 request.GET.get("cal_page")
             ),
             "calibration_count": batch.calibrations.count(),
+            "source_page": Paginator(selectors.batch_import_history(batch), grid.per_page).get_page(
+                request.GET.get("source_page")
+            ),
             "sequence_page": Paginator(
                 batch.run_sequences.filter(successor__isnull=True)
                 .defer("injections", "reason")
@@ -1094,12 +1097,12 @@ def batch_import(request, pk):
                     preview = importing.parse_import(
                         batch,
                         text,
-                        filename=file.name[:200],
+                        filename=file.name,
                         file_hash=importing.file_digest(data),
                     )
                     commit_form = f.ImportCommitForm(
                         initial={
-                            "filename": file.name[:200],
+                            "filename": file.name,
                             "payload": importing.encode_payload(data),
                             "state_token": preview.state_token,
                         }

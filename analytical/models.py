@@ -331,6 +331,19 @@ class Batch(models.Model):
         return self.number
 
 
+class ImportSourceFile(models.Model):
+    """The uploaded bytes that produced a confirmed batch import."""
+
+    batch = models.ForeignKey(Batch, on_delete=models.PROTECT, related_name="import_source_files")
+    event = models.OneToOneField(
+        "core.AuditEvent", on_delete=models.PROTECT, related_name="import_source_file"
+    )
+    filename = models.CharField(max_length=200)
+    data = models.BinaryField()
+    sha256 = models.CharField(max_length=64)
+    size = models.PositiveIntegerField()
+
+
 class RunSequence(models.Model):
     """One immutable transcription of an instrument run, including its injection order."""
 

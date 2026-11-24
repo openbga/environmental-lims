@@ -33,7 +33,7 @@
     "Every row must match a sample and analyte already in this batch. Import never adds tests or samples.",
     "Any error in the file blocks the whole file.",
     "The same file cannot be imported twice into this batch, even under another name.",
-    "The uploaded file itself is not kept, only the results with the file name, row and digest. Keep your source file.",
+    "After confirmation, staff can download the original CSV under Import source files on the batch.",
     "Replacing an approved or returned result needs a reason in the reason column."
   ],
   "sections": [
@@ -65,7 +65,7 @@
       "items": [
         {
           "label": "Results file (CSV, UTF-8)",
-          "description": "Required file, up to 1024 KiB and 2000 nonblank data rows. UTF-8 with an optional byte-order mark; comma delimiter and CSV quoting. The first row is the header, with no preamble."
+          "description": "Required file, up to 1024 KiB and 2000 nonblank data rows. Use a filename with 1 to 200 printable characters and no directory path. UTF-8 with an optional byte-order mark; comma delimiter and CSV quoting. The first row is the header, with no preamble."
         },
         {
           "label": "Validate and preview",
@@ -218,8 +218,8 @@
     {
       "title": "Provenance, stale and repeated imports",
       "paragraphs": [
-        "The standard importer retains each result’s import source, filename and source row, plus an attributed import event, which records the SHA-256 digest and size of the uploaded bytes, and all prior revisions. It does not retain the uploaded file itself; keep your source file, whose digest identifies it. Receipt Hold or Reject blocks new entry. After success, inspect entered results and submit from the batch page.",
-        "Preview is not a reservation. Confirmation validates the file again against current records and refuses it if the latest revision or preparation dependency of any targeted result changed after the preview, for example a draft someone else saved. Upload the file again so the preview reflects current records. A failed confirmation may display a re-parsed preview but does not commit it. Hidden confirmation data is validated; damaged, oversized or incomplete confirmation data imports nothing.",
+        "Confirmation saves the exact CSV with its attributed import event, SHA-256 digest and byte count. Each result keeps its source filename and row. Staff can download the original file from Import source files on the batch. Receipt Hold or Reject blocks new entry. After success, inspect entered results and submit from the batch page.",
+        "Preview is not a reservation. Confirmation validates the file again against current records and refuses it if the filename, uploaded bytes, latest revision or preparation dependency of any targeted result changed after the preview, for example a draft someone else saved. Upload the file again so the preview reflects current records. A failed confirmation may display a re-parsed preview but does not commit it. Hidden confirmation data is validated; damaged, oversized or incomplete confirmation data imports nothing.",
         "The same uploaded bytes cannot be imported twice into the same batch through this page, even under another filename; the preview names who imported them and when. A changed file is a new import and can create new revisions when the current state and reason permit. Imports through a mapping profile are checked separately, on the file and mapping digests together. To change results already imported, correct the source file or enter the correction by hand."
       ]
     },
@@ -272,6 +272,8 @@
     "analytical/calibration_views.py",
     "analytical/templates/analytical/calibration_detail.html",
     "analytical/tests/test_calibration.py",
-    "analytical/tests/test_calibration_views.py"
+    "analytical/tests/test_calibration_views.py",
+    "analytical/import_views.py",
+    "analytical/tests/test_batch_source_download.py"
   ]
 }

@@ -151,8 +151,8 @@ technical guidance from the candidate changelog, with links to the tested revisi
 the baseline predates changelog entries, all candidate technical notes are available for
 reference. A deployer can also check the files in a restored database from the command line.
 Every issued report version and every issued or voided invoice must retain its PDF. Stored
-report, invoice and subcontract PDFs, electronic deliverables, laboratory logos and attached
-laboratory evidence must match their recorded hashes and any recorded byte counts. The
+report, invoice and subcontract PDFs, electronic deliverables, laboratory logos, original
+result import files and attached laboratory evidence must match their recorded hashes and any recorded byte counts. The
 check reports discrepancies by record ID and leaves the restored records intact. Deployers
 can save the counts in JSON. The upgrade rehearsal report records how many stored files
 passed the candidate check in each category, including categories with zero files.
@@ -174,9 +174,12 @@ digits, units or leading zeros. Digits already lost when a spreadsheet was saved
 recovered. Identifiers and analysis timestamps must be text. Formulas, cached formula results,
 merged cells, error cells and typed dates in the selected sheet are refused; hidden rows and
 columns are included. Macro-enabled, encrypted and external-link workbooks are outside this
-bounded input format. The original file remains the laboratory's record; the application keeps
-its digest, selected worksheet, row/column provenance and mapping snapshot with the import.
-Confirmation rechecks the source and current records atomically. Resource bounds (1 MiB upload,
+bounded input format. From 2026-11-24, confirming a standard CSV or mapped CSV, TSV or XLSX
+result upload retains a staff-downloadable copy on the analytical batch. The stored bytes,
+import audit event and result revisions commit together. A workbook copy includes all its
+sheets, even when the analyst imports just one. The import keeps the file digest, selected
+worksheet, row and column provenance and mapping snapshot as applicable. Earlier imports
+keep the provenance recorded at the time. Confirmation rechecks the source and current records. Resource bounds (1 MiB upload,
 20 MiB expanded workbook, 200 ZIP members, 10,000 worksheet rows, 256 columns, 100,000 cells and
 2,000 results/blank mapped cells) are product choices for synchronous processing. Setup imports
 remain CSV-only. Qualifying a particular instrument/software export still requires representative

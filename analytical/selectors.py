@@ -38,6 +38,28 @@ from .models import (
 )
 from .qc import FAIL, NOT_EVALUATED, PASS
 
+
+def batch_import_history(batch):
+    """One metadata row per confirmed import, including imports that predate file storage."""
+    return (
+        AuditEvent.objects.filter(
+            object_type=batch._meta.label_lower,
+            object_id=str(batch.pk),
+            action="batch.results_imported",
+        )
+        .order_by("-occurred_at", "-pk")
+        .values(
+            "occurred_at",
+            filename=F("after__filename"),
+            worksheet=F("after__worksheet"),
+            imported_by=F("actor__username"),
+            size=F("after__file_bytes"),
+            source_pk=F("import_source_file__pk"),
+            stored=F("after__source_file_stored"),
+        )
+    )
+
+
 # "B-000123", "B123" or "123"; batch numbers start at 1.
 BATCH_NUMBER = re.compile(r"^(?:B-?)?0*(\d+)$", re.IGNORECASE)
 

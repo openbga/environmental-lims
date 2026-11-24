@@ -33,7 +33,7 @@
     "A blank cell in a wide file is skipped. It is not ND and does not change an existing result.",
     "The unit supplied by the file or mapping must match the test unit exactly. Nothing is converted.",
     "The same file, mapping and worksheet cannot be imported twice into this batch.",
-    "The uploaded file is not kept. Keep your source file; its digest identifies it.",
+    "After confirmation, staff can download the whole upload from the batch, including other worksheets in an XLSX workbook.",
     "XLSX imports stored values, not display formatting. Use text timestamps and identifiers; formulas are refused."
   ],
   "sections": [
@@ -67,7 +67,7 @@
         },
         {
           "label": "Results file (CSV, TSV or XLSX)",
-          "description": "Required file, at most 1024 KiB (1 MiB), containing at most 2000 results and blank mapped cells combined. CSV/TSV uses the mapping’s delimiter; a leading UTF-8 byte order mark is ignored for parsing but included in the file digest. XLSX uses the explicitly named worksheet and ignores the delimiter. Legacy XLS, XLSM, XLSB and ODS are refused."
+          "description": "Required file, at most 1024 KiB (1 MiB), containing at most 2000 results and blank mapped cells combined. Use a filename with 1 to 200 printable characters and no directory path. CSV/TSV uses the mapping’s delimiter; a leading UTF-8 byte order mark is ignored for parsing but included in the file digest. XLSX uses the explicitly named worksheet and ignores the delimiter. Legacy XLS, XLSM, XLSB and ODS are refused."
         },
         {
           "label": "Worksheet name",
@@ -128,7 +128,7 @@
         },
         {
           "label": "Original file",
-          "description": "Not stored. Keep the source file in laboratory records; the application retains parsed revisions, mapping snapshot, file digest and provenance."
+          "description": "Confirmation saves the entire uploaded file, even when you import only one worksheet. Staff can download it from Import source files on the batch."
         },
         {
           "label": "How the file is read",
@@ -205,7 +205,7 @@
       "items": [
         {
           "label": "Import result(s) as entered",
-          "description": "Available to analysts only for an error-free preview. Revalidates the same file and worksheet, active profile, current target revisions, preparation evidence and assignments under locks. All rows, their revision history and audit metadata commit together, or none do. Success returns to the batch; review and submit there."
+          "description": "Available to analysts only for an error-free preview. Revalidates the filename, uploaded bytes, selected worksheet, active profile, current target revisions, preparation evidence and assignments under locks. All rows, their revision history and audit metadata commit together, or none do. Success returns to the batch; review and submit there."
         },
         {
           "label": "Start over",
@@ -225,7 +225,7 @@
       "title": "Stale and repeated import rules",
       "paragraphs": [
         "Confirmation refuses an inactive or removed profile, changed mapping meaning, changed file or worksheet selection, changed targeted latest revision or preparation dependency, and no longer valid result evidence. Refresh and preview again so the displayed plan reflects current records. A failed confirmation may display a re-parsed preview but does not silently commit it. Hidden confirmation data is validated; damaged or oversized payloads do not import anything.",
-        "The same raw file digest with the same mapping digest and worksheet cannot be imported twice into the same batch, even with a different filename; the previous actor/time are reported. Change the source meaningfully or correct results by hand. A mapping rename alone does not bypass repeated-file detection. Results are saved as entered with current user attribution, filename/worksheet/source row or column, mapping snapshot, file and mapping digests and audit metadata. This page does not retain an uploaded source file or release reports."
+        "The same raw file digest with the same mapping digest and worksheet cannot be imported twice into the same batch, even with a different filename; the previous actor/time are reported. Change the source meaningfully or correct results by hand. A mapping rename alone does not bypass repeated-file detection. Results are saved as entered with current user attribution, filename/worksheet/source row or column, mapping snapshot, file and mapping digests and audit metadata. The same confirmation saves the uploaded file with its import event. Staff can retrieve the original from the batch."
       ]
     },
     {
@@ -280,6 +280,8 @@
     "analytical/calibration_views.py",
     "analytical/templates/analytical/calibration_detail.html",
     "analytical/tests/test_calibration.py",
-    "analytical/tests/test_calibration_views.py"
+    "analytical/tests/test_calibration_views.py",
+    "analytical/tests/test_batch_source_download.py",
+    "e2e/test_workbook_import.py"
   ]
 }

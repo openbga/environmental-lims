@@ -23,6 +23,7 @@ STORED_FILE_CATEGORIES = (
     "Equipment event evidence",
     "Training record evidence",
     "Nonconformance event evidence",
+    "Import source files",
 )
 
 

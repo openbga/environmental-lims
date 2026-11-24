@@ -10,8 +10,9 @@ from django.db import connection, transaction
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
+from analytical.models import Batch, ImportSourceFile
 from commercial.models import InvoiceDraft, IssuedInvoice, PriceList
-from core.models import LabLogo
+from core.models import AuditEvent, LabLogo
 from laboratory.models import (
     Equipment,
     EquipmentEvent,
@@ -42,6 +43,7 @@ CATEGORIES = (
     "Equipment event evidence",
     "Training record evidence",
     "Nonconformance event evidence",
+    "Import source files",
 )
 MANIFEST_FORMAT = ("--format", "manifest")
 OUTPUT_FORMATS = [(), ("--format", "json"), MANIFEST_FORMAT]
@@ -140,6 +142,32 @@ def document_records(staff, receipt_data):
 
 
 @pytest.fixture
+def import_source(staff, receipt_data):
+    actor = staff("restore-analyst", "analyst")
+    batch = Batch.objects.create(
+        method=receipt_data["tests"][0].method, matrix="water", created_by=actor
+    )
+    data = b"sample,result\r\nSYNTH-1,0.7500\r\n"
+    filename = "synthetic results.csv"
+    digest = sha256(data).hexdigest()
+    event = AuditEvent.objects.create(
+        actor=actor,
+        action="batch.results_imported",
+        object_type="analytical.batch",
+        object_id=str(batch.pk),
+        after={
+            "source_file_stored": True,
+            "filename": filename,
+            "file_sha256": digest,
+            "file_bytes": len(data),
+        },
+    )
+    return ImportSourceFile(
+        batch=batch, event=event, data=data, filename=filename, sha256=digest, size=len(data)
+    )
+
+
+@pytest.fixture
 def evidence_records(staff):
     actor = staff("restore-recorder", "analyst")
     reviewer = staff("restore-reviewer", "reviewer")
@@ -194,7 +222,10 @@ def test_empty_database(output_format):
 
 
 @pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
-def test_intact_documents_and_optional_evidence(document_records, evidence_records, output_format):
+def test_intact_documents_and_optional_evidence(
+    document_records, evidence_records, import_source, output_format
+):
+    import_source.save()
     for document in document_records:
         document.save()
     for model, fields in evidence_records.items():
@@ -215,12 +246,12 @@ def test_intact_documents_and_optional_evidence(document_records, evidence_recor
     elif output_format:
         assert json.loads(stdout.getvalue()) == {
             **{category: {"checked": 1, "failures": 0} for category in CATEGORIES},
-            "Total": {"checked": 8, "failures": 0},
+            "Total": {"checked": 9, "failures": 0},
         }
     else:
         assert stdout.getvalue().splitlines() == [
             *(f"{category}: checked=1 failures=0" for category in CATEGORIES),
-            "Total: checked=8 failures=0",
+            "Total: checked=9 failures=0",
         ]
     assert stderr.getvalue() == ""
 
@@ -230,6 +261,46 @@ def _verification_output(*args):
     call_command("verify_stored_files", *args, stdout=stdout, stderr=stderr)
     assert stderr.getvalue() == ""
     return stdout.getvalue()
+
+
+def test_marked_import_event_requires_its_file_but_legacy_events_do_not(import_source):
+    event = import_source.event
+    old_metadata = event.after.copy()
+    del old_metadata["source_file_stored"]
+    AuditEvent.objects.create(
+        actor=event.actor,
+        action=event.action,
+        object_type=event.object_type,
+        object_id=event.object_id,
+        after=old_metadata,
+    )
+    stdout, stderr = StringIO(), StringIO()
+    with pytest.raises(CommandError, match="Stored file verification failed"):
+        call_command("verify_stored_files", *MANIFEST_FORMAT, stdout=stdout, stderr=stderr)
+    assert stdout.getvalue() == ""
+    assert stderr.getvalue().splitlines() == [
+        f"core.AuditEvent pk={event.pk}: missing ImportSourceFile"
+    ]
+
+
+@pytest.mark.parametrize("change", ["batch", "content"])
+def test_verified_bytes_must_match_the_recorded_import(import_source, change):
+    if change == "batch":
+        import_source.batch = Batch.objects.create(
+            method=import_source.batch.method, matrix="water", created_by=import_source.event.actor
+        )
+    else:
+        import_source.data = import_source.data.replace(b"0.7500", b"0.7501")
+        import_source.sha256 = sha256(import_source.data).hexdigest()
+    import_source.save()
+    stdout, stderr = StringIO(), StringIO()
+    with pytest.raises(CommandError, match="Stored file verification failed"):
+        call_command("verify_stored_files", "--format", "json", stdout=stdout, stderr=stderr)
+    assert json.loads(stdout.getvalue())["Import source files"] == {"checked": 1, "failures": 1}
+    assert stderr.getvalue().splitlines() == [
+        f"analytical.ImportSourceFile pk={import_source.pk}: "
+        "import event does not match the stored source"
+    ]
 
 
 def test_manifest_hashes_stable_pk_ordered_rows(evidence_records):
@@ -363,8 +434,10 @@ def test_snapshot_does_not_reuse_caller_transaction(caller_transaction):
 
 @pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
 def test_corrupt_and_missing_rows_report_ids_and_fail(
-    document_records, evidence_records, output_format
+    document_records, evidence_records, import_source, output_format
 ):
+    import_source.data = import_source.data.replace(b"0.7500", b"0.7501")
+    import_source.save()
     report_file, invoice, subcontract, export, logo = document_records
     version = report_file.version
     missing_report = ReportVersion.objects.create(
@@ -413,14 +486,14 @@ def test_corrupt_and_missing_rows_report_ids_and_fail(
             "Report PDFs": {"checked": 2, "failures": 2},
             "Issued invoice PDFs": {"checked": 3, "failures": 3},
             **{category: {"checked": 1, "failures": 1} for category in CATEGORIES[2:]},
-            "Total": {"checked": 11, "failures": 11},
+            "Total": {"checked": 12, "failures": 12},
         }
     else:
         assert stdout.getvalue().splitlines() == [
             "Report PDFs: checked=2 failures=2",
             "Issued invoice PDFs: checked=3 failures=3",
             *(f"{category}: checked=1 failures=1" for category in CATEGORIES[2:]),
-            "Total: checked=11 failures=11",
+            "Total: checked=12 failures=12",
         ]
     assert stderr.getvalue().splitlines() == [
         f"reporting.ReportVersion pk={version.pk}: SHA-256 mismatch",
@@ -437,4 +510,5 @@ def test_corrupt_and_missing_rows_report_ids_and_fail(
         f"laboratory.TrainingRecord pk={training.pk}: missing file",
         f"laboratory.NonconformanceEvent pk={nonconformance.pk}: "
         "missing evidence filename or content type",
+        f"analytical.ImportSourceFile pk={import_source.pk}: SHA-256 mismatch",
     ]

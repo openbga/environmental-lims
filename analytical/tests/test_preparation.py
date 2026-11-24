@@ -297,7 +297,7 @@ def test_mapped_import_rechecks_preparation_preview_and_preserves_link(lab, anal
         f"{sample.lab_id},{test.definition.analyte.name},0.050,"
         f"{(timezone.now() - timedelta(hours=1)).isoformat()},{a.pk}\n"
     ).encode()
-    preview = importing.parse_profile_import(analysis, profile, data)
+    preview = importing.parse_profile_import(analysis, profile, data, filename="synthetic.csv")
     assert preview.ok, [row.errors for row in preview.rows]
     services.set_batch_preparation(
         actor=analyst, batch_id=prep.pk, prepared_at=prep.prepared_at + timedelta(minutes=10)
@@ -312,7 +312,7 @@ def test_mapped_import_rechecks_preparation_preview_and_preserves_link(lab, anal
             mapping_hash=preview.mapping_hash,
             state_token=preview.state_token,
         )
-    fresh = importing.parse_profile_import(analysis, profile, data)
+    fresh = importing.parse_profile_import(analysis, profile, data, filename="synthetic.csv")
     rows = importing.commit_profile_import(
         actor=analyst,
         batch_id=analysis.pk,

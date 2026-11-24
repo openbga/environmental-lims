@@ -22,6 +22,8 @@ records; it does not certify compliance or accreditation.
   and mapped CSV/TSV or XLSX worksheet imports, results calculated from bench readings that are kept
   with the result and rounded by the laboratory's own rule (dilutions, solids by weight, preparation factors and dry-weight
   correction for soil, alkalinity and EDTA hardness titrations, BOD bottle worksheets), QC evaluation, independent review, control charts and MDL studies.
+  Staff can download the original CSV, TSV or XLSX from its analytical batch after confirming
+  a result import. Earlier imports retain their recorded provenance.
   Staff can inspect each calibration standard’s residual and the coefficient of determination (R²)
   for a linear or quadratic fit with a fitted intercept. An unweighted linear fit also shows
   Pearson correlation (r), including the sign of the relationship. The worksheet shows whether a
@@ -204,7 +206,7 @@ copy. A zero identifies a category the synthetic database did not exercise. The 
 report links to the candidate’s changelog entries, recovery instructions and acceptance checks.
 
 After restoring a backup, run `python manage.py verify_stored_files` against the restored
-database to check stored documents and attachments. Add `--format json` to save a
+database to check stored documents, attachments and original result import files. Add `--format json` to save a
 machine-readable summary. To detect a file and its record disappearing together, save a
 file inventory with `--format manifest` when you take the backup and compare it with one
 from the restored database. To keep accepting writes during a logical backup, give
