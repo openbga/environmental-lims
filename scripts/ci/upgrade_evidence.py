@@ -10,12 +10,14 @@ from io import BytesIO
 from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import DatabaseError, connection, transaction
 from django.db.models import F, JSONField, TextField
 from django.db.models.functions import Cast
 from django.test import Client, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import content_disposition_header
 from psycopg import sql
 from psycopg.errors import RaiseException
 from weasyprint import HTML
@@ -40,6 +42,8 @@ from commercial.models import InvoiceDraft, InvoiceDraftLine, PriceList
 from core.audit import snapshot
 from core.management.commands.seed_demo import DEMO_LAB_NAME
 from core.models import AuditEvent, Lab
+from laboratory import equipment, nonconformance, training
+from laboratory.models import EquipmentEvent, Nonconformance, NonconformanceEvent, TrainingRecord
 from receipt.corrections import correct_sample
 from receipt.models import Client as LabClient
 from receipt.models import Container, CustodyEvent, Order, RequestedTest, Sample
@@ -64,6 +68,12 @@ ORIGINAL_EDD_LOCATION = "SYNTH-OUTFALL-ORIG"
 UPDATED_EDD_LOCATION = "SYNTH-OUTFALL-NEW"
 EDD_EXPORTS = "electronic deliverable exports"
 HISTORY_MUTATION_ERROR = "Historical records cannot be updated or deleted"
+LABORATORY_ATTACHMENT_REFERENCE = "SYN-UPGRADE-LAB-EVIDENCE"
+LABORATORY_ATTACHMENTS = {
+    "equipment": ("equipment event attachments", EquipmentEvent),
+    "training": ("staff training attachments", TrainingRecord),
+    "nonconformance": ("nonconformance event attachments", NonconformanceEvent),
+}
 
 
 def require(condition, message):
@@ -264,9 +274,62 @@ def prepare_edd_export(project, manager):
     )
 
 
+def laboratory_upload(kind):
+    return SimpleUploadedFile(
+        f"synthetic-upgrade-{kind}.txt",
+        f"Synthetic upgrade evidence for {kind}.\r\n".encode(),
+    )
+
+
+def prepare_laboratory_attachments():
+    analyst = User.objects.get(username="demo_analyst")
+    reviewer = User.objects.get(username="demo_reviewer")
+    today = timezone.localdate()
+    asset = equipment.save_equipment(
+        actor=reviewer,
+        asset_id="SYN-UPGRADE-BAL-01",
+        name="Synthetic upgrade balance",
+        equipment_type="balance",
+        location="Synthetic weigh room",
+    )
+    equipment.record_equipment_event(
+        actor=analyst,
+        equipment_id=asset.pk,
+        kind=EquipmentEvent.Kind.CALIBRATION,
+        outcome=EquipmentEvent.Outcome.ACCEPTABLE,
+        performed_on=today,
+        performed_by=analyst,
+        reference=LABORATORY_ATTACHMENT_REFERENCE,
+        evidence=laboratory_upload("equipment"),
+    )
+    training.record_training(
+        actor=reviewer,
+        staff=analyst,
+        record_type=TrainingRecord.Type.TRAINING,
+        title="Synthetic upgrade balance training",
+        completed_on=today,
+        effective_on=today,
+        reviewed_by=reviewer,
+        reviewed_on=today,
+        reference=LABORATORY_ATTACHMENT_REFERENCE,
+        evidence=laboratory_upload("training"),
+    )
+    nonconformance.open_nonconformance(
+        actor=analyst,
+        equipment=asset,
+        title="Synthetic upgrade equipment nonconformance",
+        description="Synthetic documentation issue for the populated upgrade check.",
+        category=Nonconformance.Category.EQUIPMENT,
+        severity=Nonconformance.Severity.MINOR,
+        discovered_on=today,
+        reference=LABORATORY_ATTACHMENT_REFERENCE,
+        evidence=laboratory_upload("nonconformance"),
+    )
+
+
 @transaction.atomic
 def prepare():
-    """Create synthetic history and an exploratory EDD ZIP with baseline services."""
+    """Create synthetic history and stored files with baseline services."""
     actor = User.objects.get(username="demo_project_manager")
     order = Order.objects.get(coc_reference="DEMO-COC-001")
     draft = invoices.create_invoice_draft(
@@ -288,9 +351,11 @@ def prepare():
     prepare_qc_history()
     prepare_subcontract_history(order.project, actor)
     prepare_edd_export(order.project, actor)
+    prepare_laboratory_attachments()
     print(
         "Prepared a synthetic invoice draft, QC reanalysis, receipt correction, "
-        "custody transfer, amended subcontract report and exploratory EDD ZIP."
+        "custody transfer, amended subcontract report, exploratory EDD ZIP and "
+        "laboratory attachments."
     )
 
 
@@ -440,6 +505,10 @@ def collections(draft):
         "issued report versions": ReportVersion.objects.all(),
         "issued report files": ReportFile.objects.all(),
         EDD_EXPORTS: EddExport.objects.all(),
+        **{
+            label: model.objects.filter(evidence_data__isnull=False)
+            for label, model in LABORATORY_ATTACHMENTS.values()
+        },
         "invoice draft": InvoiceDraft.objects.filter(pk=draft.pk),
         "invoice draft lines": draft.lines.all(),
     }
@@ -615,9 +684,76 @@ def require_baseline_edd_zip(export):
         raise SystemExit(f"Stored file for EDD export {export.pk} is not a valid ZIP.") from exc
 
 
+def laboratory_attachments(manifest):
+    for kind, (label, model) in LABORATORY_ATTACHMENTS.items():
+        records = (
+            model.objects.with_evidence().filter(pk__in=manifest[label]["rows"]).order_by("pk")
+        )
+        for record in records:
+            data = bytes(record.evidence_data or b"")
+            require(
+                record.evidence_name
+                and record.evidence_content_type
+                and data
+                and len(data) == record.evidence_size
+                and sha256(data) == record.evidence_sha256,
+                f"Stored file failed the integrity check for laboratory {kind} record {record.pk}.",
+            )
+            yield kind, record
+
+
+def require_baseline_laboratory_attachments(manifest):
+    synthetic_kinds = set()
+    for kind, record in laboratory_attachments(manifest):
+        if record.reference == LABORATORY_ATTACHMENT_REFERENCE:
+            upload = laboratory_upload(kind)
+            require(
+                kind not in synthetic_kinds
+                and record.evidence_name == upload.name
+                and record.evidence_content_type == "text/plain; charset=utf-8"
+                and bytes(record.evidence_data) == upload.read(),
+                f"The baseline needs the original synthetic {kind} attachment.",
+            )
+            synthetic_kinds.add(kind)
+    missing = LABORATORY_ATTACHMENTS.keys() - synthetic_kinds
+    require(
+        not missing, f"The baseline needs synthetic attachments for {', '.join(sorted(missing))}."
+    )
+
+
+def verify_laboratory_downloads(browser, owner, attachments):
+    urls = []
+    for kind, record in attachments:
+        url = reverse("laboratory:evidence", args=[kind, record.pk])
+        response = browser.get(url, secure=True)
+        require(
+            response.status_code == 200
+            and response.headers.get("Content-Type") == record.evidence_content_type
+            and response.headers.get("Content-Disposition")
+            == content_disposition_header(True, record.evidence_name),
+            f"Staff request for laboratory {kind} attachment {record.pk} returned "
+            f"{response.status_code} or the wrong download headers.",
+        )
+        require(
+            response.content == bytes(record.evidence_data),
+            f"Staff download differs from the stored laboratory {kind} attachment {record.pk}.",
+        )
+        urls.append((kind, record.pk, url))
+
+    browser.force_login(owner, backend="django.contrib.auth.backends.ModelBackend")
+    for kind, pk, url in urls:
+        response = browser.get(url, secure=True)
+        require(
+            response.status_code == 403,
+            f"The client requested laboratory {kind} attachment {pk} and received "
+            f"{response.status_code}.",
+        )
+    print("Staff downloaded the original laboratory attachments, and the client received 403.")
+
+
 @override_settings(ALLOWED_HOSTS=["testserver"])
 @transaction.atomic
-def verify_downloads(owner, amendment, sources, export):
+def verify_downloads(owner, amendment, sources, export, attachments):
     browser = Client()
     browser.force_login(owner, backend="django.contrib.auth.backends.ModelBackend")
     for version in (amendment.amends, amendment):
@@ -687,6 +823,7 @@ def verify_downloads(owner, amendment, sources, export):
             f"Staff download differs from the stored external source PDF for result {source.pk}.",
         )
     print("Staff downloaded the original and corrected external source PDFs with matching bytes.")
+    verify_laboratory_downloads(browser, owner, attachments)
     # Discard test sessions, last-login updates and the temporary user.
     transaction.set_rollback(True)
     print("The original and amended PDFs downloaded for their owner match their stored bytes.")
@@ -739,6 +876,7 @@ def main():
         require_baseline_edd_zip(
             edd_export_for_client(owner, manifest[EDD_EXPORTS]["rows"], versions)
         )
+        require_baseline_laboratory_attachments(manifest)
         with path.open("x", encoding="utf-8") as out:
             json.dump(manifest, out, sort_keys=True)
         counts = ", ".join(f"{len(item['rows'])} {label}" for label, item in manifest.items())
@@ -764,7 +902,9 @@ def main():
         versions = manifest["issued report versions"]["rows"]
         owner, amendment = amendment_for_client(versions)
         export = edd_export_for_client(owner, manifest[EDD_EXPORTS]["rows"], versions)
-        verify_downloads(owner, amendment, subcontract_sources(), export)
+        verify_downloads(
+            owner, amendment, subcontract_sources(), export, laboratory_attachments(manifest)
+        )
         if counts_path := os.environ.get("UPGRADE_VERIFIED_COUNTS_PATH"):
             with Path(counts_path).open("x", encoding="utf-8") as out:
                 json.dump(verified_counts, out, sort_keys=True)

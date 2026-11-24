@@ -209,6 +209,7 @@ def test_reports_counts_after_restore_and_upgrade(tmp_path):
     assert result.returncode == 0, result.stderr
     assert "PostgreSQL rejected an update" not in result.stdout
     assert "CI restored a backup of the synthetic baseline" in result.stdout
+    assert "A staff reviewer downloaded" not in result.stdout
     assert "The owning client downloaded the stored exploratory" in result.stdout
     assert (
         "| Record category | After restore on baseline | After upgrade to candidate |\n"
@@ -217,6 +218,51 @@ def test_reports_counts_after_restore_and_upgrade(tmp_path):
         "| electronic deliverable exports | 1 | 1 |\n"
         "| QC measurements | 3 | 3 |\n" in result.stdout
     )
+
+
+def test_reports_laboratory_attachments_and_checks_file_coverage(tmp_path, stored_file_counts):
+    candidate = tmp_path / "candidate"
+    checkout(candidate, "example-project")
+    plan = tmp_path / "plan.json"
+    plan.write_text("[]", encoding="utf-8")
+    verified = tmp_path / "verified-counts.json"
+    verified.write_text(
+        json.dumps(
+            {
+                "equipment event attachments": 1,
+                "staff training attachments": 1,
+                "nonconformance event attachments": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    files = tmp_path / "stored-file-counts.json"
+
+    def notes():
+        files.write_text(json.dumps(stored_file_counts), encoding="utf-8")
+        return run_notes(
+            candidate,
+            candidate,
+            plan,
+            "--verified-counts",
+            str(verified),
+            "--stored-file-counts",
+            str(files),
+        )
+
+    missing = notes()
+    assert missing.returncode != 0 and not missing.stdout
+    assert "missed baseline files in Equipment event evidence" in missing.stderr
+    stored_file_counts["Equipment event evidence"]["checked"] = 1
+    stored_file_counts["Nonconformance event evidence"]["checked"] = 1
+    stored_file_counts["Total"]["checked"] += 2
+    result = notes()
+    assert result.returncode == 0, result.stderr
+    assert (
+        "A staff reviewer downloaded the original equipment, training and nonconformance"
+        in result.stdout
+    )
+    assert "A signed-in client was denied all three downloads." in result.stdout
 
 
 def test_reports_history_protections_only_with_complete_evidence_at_both_stages(tmp_path):

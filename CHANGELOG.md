@@ -176,6 +176,14 @@ The same list is shown in the application under What's new.
 
   Choose Linear through origin in the calibration fit worksheet to see the relative standard error across all recorded standards and replicates. The worksheet shows the degrees of freedom and explains when a zero slope prevents the calculation.
 
+- **Changed:** Verify laboratory attachments after restore and upgrade (2026-11-24)
+
+  The downloadable upgrade report now covers evidence attached to equipment events, staff training records and nonconformance events. It checks that staff can retrieve the original files and that a signed-in client is denied each download.
+
+  Technical notes:
+
+  > The rehearsal attaches three distinct files on the synthetic baseline. After restoring the backup and again after migrating it, CI checks the records, attachment metadata and bytes returned by the staff download route.
+
 - **Added:** Check stored files after restoring a backup (2026-11-23)
 
   Deployers can check issued documents, electronic deliverables, laboratory logos and evidence attachments on a restored database. The check lists how many records it examined in each category and identifies records with missing or mismatched files.

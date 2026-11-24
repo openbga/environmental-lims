@@ -192,6 +192,9 @@ observation retain their values and links. For subcontracted work, it checks the
 laboratory’s original and corrected source PDFs and the transcription cited by each issued
 report version. It also checks that the owning client can download the original electronic
 data deliverable (EDD) ZIP for an issued report after restore and again after migration.
+At both stages, staff must be able to download the original files attached to a synthetic
+equipment event, training record and nonconformance event. The rehearsal also checks that
+a client account is denied access to each attachment.
 Open the successful GitHub Actions `checks` run and read the application
 job summary for the two tested commits, verified record counts, database migrations,
 changes to locked package versions and technical notes added or revised in the candidate

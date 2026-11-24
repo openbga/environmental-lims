@@ -261,7 +261,9 @@ Sign in to GitHub. Under **Artifacts** on the run summary, download `upgrade-reh
 successful application job attempt. Extract `upgrade-notes.md` to keep with your upgrade
 records. The rehearsal restores a PostgreSQL backup into an empty database, then checks the restored
 records, four PDF downloads and an owning client's electronic deliverable ZIP download
-with the previous application. It repeats those checks on
+with the previous application. A staff reviewer also downloads an equipment event attachment,
+a training record attachment and a nonconformance event attachment. The files must match the
+originals, and a signed-in client must be denied each download. CI repeats those checks on
 the same copy after migration. The table counts the baseline rows verified at each stage.
 A separate table lists the files the candidate checked on the migrated copy with
 `verify_stored_files`. A zero identifies a file category absent from that rehearsal.

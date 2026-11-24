@@ -26,6 +26,14 @@ STORED_FILE_CATEGORIES = (
 )
 
 
+# Counts of baseline attachment-bearing rows and their categories in verify_stored_files.
+ATTACHMENT_CATEGORIES = {
+    "equipment event attachments": "Equipment event evidence",
+    "staff training attachments": "Training record evidence",
+    "nonconformance event attachments": "Nonconformance event evidence",
+}
+
+
 def git_output(checkout, *args):
     return subprocess.check_output(["git", "-C", str(checkout), *args], encoding="utf-8")
 
@@ -225,6 +233,12 @@ def render_notes(
         "Both matched their stored bytes, and each issued version cited its reviewed result.",
         "The original and amended client PDF downloads matched their stored bytes.",
     ]
+    if verified_counts and ATTACHMENT_CATEGORIES.keys() <= verified_counts.keys():
+        lines.append(
+            "A staff reviewer downloaded the original equipment, training and nonconformance "
+            "attachments. Their bytes and record links matched the baseline. A signed-in client "
+            "was denied all three downloads."
+        )
     if history_checked:
         lines.extend(
             [
@@ -392,6 +406,12 @@ def main():
         stored_file_counts = (
             read_stored_file_counts(args.stored_file_counts) if args.stored_file_counts else None
         )
+        if verified_counts and stored_file_counts:
+            for label, category in ATTACHMENT_CATEGORIES.items():
+                if stored_file_counts[category]["checked"] < verified_counts.get(label, 0):
+                    raise ValueError(
+                        f"Stored-file verification missed baseline files in {category}."
+                    )
         baseline = git_output(args.baseline, "rev-parse", "--verify", "HEAD").strip()
         candidate = git_output(args.candidate, "rev-parse", "--verify", "HEAD").strip()
         before = locked_versions(args.baseline, baseline)
