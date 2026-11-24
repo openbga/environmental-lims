@@ -1,5 +1,6 @@
 import json
 from contextlib import contextmanager
+from decimal import Decimal
 from hashlib import sha256
 from io import StringIO
 
@@ -11,8 +12,9 @@ from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from analytical.models import Batch, ImportSourceFile
-from commercial.models import InvoiceDraft, IssuedInvoice, PriceList
-from core.models import AuditEvent, LabLogo
+from commercial import invoices
+from commercial.models import InvoiceDraft, IssuedInvoice, PriceList, PriceListItem
+from core.models import AuditEvent, Lab, LabLogo
 from laboratory.models import (
     Equipment,
     EquipmentEvent,
@@ -145,12 +147,41 @@ def legacy_report_file(legacy_report_factory):
 
 
 @pytest.fixture
-def document_records(report_sample, legacy_report_file):
+def invoice_record(report_sample):
+    actor = report_sample.received_by
+    draft = _invoice_draft(report_sample.order, actor, "DRAFT-1", InvoiceDraft.Status.VOIDED)
+    return IssuedInvoice(
+        draft=draft,
+        number="INV-1",
+        issued_at=timezone.now(),
+        issued_by=actor,
+        snapshot={},
+        pdf=PDF,
+        sha256=sha256(PDF).hexdigest(),
+    )
+
+
+def _record_invoice_issue(invoice, **overrides):
+    fields = {
+        "actor": invoice.issued_by,
+        "action": "invoice_draft.issued",
+        "object_type": "commercial.invoicedraft",
+        "object_id": str(invoice.draft_id),
+        "after": {
+            "issued_invoice": {"number": invoice.number, "sha256": invoice.sha256},
+            "billing_contact_name": "Synthetic private contact",
+        },
+    }
+    return AuditEvent.objects.create(**(fields | overrides))
+
+
+@pytest.fixture
+def document_records(report_sample, legacy_report_file, invoice_record):
     sample = report_sample
     actor = sample.received_by
     version = legacy_report_file.version
     now = version.released_at
-    draft = _invoice_draft(sample.order, actor, "DRAFT-1", InvoiceDraft.Status.VOIDED)
+    _record_invoice_issue(invoice_record)
     dispatch = Subcontract.objects.create(
         requested_test=sample.requested_tests.get(),
         dispatched_at=now,
@@ -159,15 +190,7 @@ def document_records(report_sample, legacy_report_file):
     )
     return (
         legacy_report_file,
-        IssuedInvoice(
-            draft=draft,
-            number="INV-1",
-            issued_at=now,
-            issued_by=actor,
-            snapshot={},
-            pdf=PDF,
-            sha256=sha256(PDF).hexdigest(),
-        ),
+        invoice_record,
         SubcontractResult(
             subcontract=dispatch,
             number=1,
@@ -328,6 +351,105 @@ def _verification_output(*args):
     call_command("verify_stored_files", *args, stdout=stdout, stderr=stderr)
     assert stderr.getvalue() == ""
     return stdout.getvalue()
+
+
+def test_issued_and_voided_invoices_share_one_issuance_check(report_sample, staff, monkeypatch):
+    order = report_sample.order
+    actor = staff("restore-manager", "project_manager")
+    Lab.objects.create(name="Synthetic Environmental Laboratory")
+    price_list = PriceList.objects.create(name="Synthetic rates")
+    PriceListItem.objects.create(
+        price_list=price_list,
+        test=report_sample.requested_tests.get().definition,
+        unit_price=Decimal("1.25"),
+    )
+    monkeypatch.setattr(invoices, "render_pdf", lambda content: PDF)
+
+    def issue():
+        draft = invoices.create_invoice_draft(
+            actor=actor,
+            order_id=order.pk,
+            price_list_id=price_list.pk,
+            expected_source_state=invoices.source_state(order, invoices.source_tests(order)),
+        )
+        return invoices.issue_invoice(
+            actor=actor, draft_id=draft.pk, expected_revision=draft.revision
+        )
+
+    original = issue()
+    invoices.void_invoice(
+        actor=actor,
+        draft_id=original.pk,
+        expected_revision=original.revision,
+        reason="Synthetic correction",
+    )
+    replacement = issue()
+
+    with CaptureQueriesContext(connection) as captured:
+        manifest = json.loads(_verification_output(*MANIFEST_FORMAT))
+    rows = "".join(
+        f'["commercial.IssuedInvoice","{draft.issued_invoice.pk}",{len(PDF)},"{sha256(PDF).hexdigest()}"]\n'
+        for draft in (original, replacement)
+    )
+    assert manifest["categories"]["Issued invoice PDFs"] == {
+        "count": 2,
+        "sha256": sha256(rows.encode("ascii")).hexdigest(),
+    }
+    invoice_queries = [q["sql"] for q in captured if 'FROM "commercial_issuedinvoice"' in q["sql"]]
+    (query,) = invoice_queries
+    assert 'FROM "core_auditevent"' in query
+    pdf_column = '"commercial_issuedinvoice"."pdf"'
+    assert query.count(pdf_column) == 2
+    assert f"pg_catalog.octet_length({pdf_column})" in query
+    assert f"pg_catalog.sha256({pdf_column})" in query
+
+
+def _assert_invoice_audit_failure(invoice):
+    stdout, stderr = StringIO(), StringIO()
+    with pytest.raises(CommandError, match="Stored file verification failed"):
+        call_command("verify_stored_files", "--format", "json", stdout=stdout, stderr=stderr)
+    assert json.loads(stdout.getvalue())["Issued invoice PDFs"] == {"checked": 1, "failures": 1}
+    assert stderr.getvalue().splitlines() == [
+        f"commercial.IssuedInvoice pk={invoice.pk}: "
+        "missing, ambiguous, or mismatched invoice issuance event"
+    ]
+
+
+@pytest.mark.parametrize("change", ["pdf-and-digest", "number"])
+def test_stored_invoice_must_match_the_original_issuance(invoice_record, change):
+    invoice = invoice_record
+    _record_invoice_issue(invoice)
+    if change == "pdf-and-digest":
+        invoice.pdf += b" synthetic replacement"
+        invoice.sha256 = sha256(invoice.pdf).hexdigest()
+    else:
+        invoice.number = "INV-REPLACEMENT"
+    invoice.save()
+
+    _assert_invoice_audit_failure(invoice)
+
+
+@pytest.mark.parametrize(
+    ("record_original", "other_event"),
+    [
+        pytest.param(False, None, id="missing"),
+        pytest.param(False, {"action": "invoice_draft.voided"}, id="void-event"),
+        pytest.param(False, {"object_type": "receipt.order"}, id="wrong-object-type"),
+        pytest.param(False, {"object_id": "0"}, id="wrong-draft"),
+        pytest.param(False, {"after": {"issued_invoice": []}}, id="malformed-document"),
+        pytest.param(True, {}, id="duplicate-matching"),
+        pytest.param(True, {"after": {}}, id="duplicate-mismatched"),
+    ],
+)
+def test_invoice_requires_one_original_issuance(invoice_record, record_original, other_event):
+    invoice = invoice_record
+    invoice.save()
+    if record_original:
+        _record_invoice_issue(invoice)
+    if other_event is not None:
+        _record_invoice_issue(invoice, **other_event)
+
+    _assert_invoice_audit_failure(invoice)
 
 
 @pytest.mark.django_db(transaction=True)
@@ -654,7 +776,7 @@ def test_corrupt_and_missing_rows_report_ids_and_fail(
 
     report_file.pdf = PDF[:-1] + b"x"
     report_file.snapshot["content"]["report"]["title"] = "Damaged synthetic snapshot"
-    invoice.sha256 = "0" * 64
+    invoice.pdf = PDF[:-1] + b"x"
     subcontract.source_size += 1
     export.data = b""
     logo.sha256 = "1" * 64
