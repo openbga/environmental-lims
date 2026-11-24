@@ -9,7 +9,7 @@ from django.urls import reverse
 
 from analytical import import_profiles as ip
 from analytical import importing, services
-from analytical.models import ResultRevision
+from analytical.models import ImportSourceFile, ResultRevision
 from analytical.tests.test_import_profiles import analysed, make_profile
 from analytical.tests.xlsx_factory import workbook
 from core.models import AuditEvent
@@ -76,7 +76,7 @@ def test_exact_workbook_http_preview_commit_and_repeat(config, analyst, client, 
     assert preview.ok, preview.file_errors
     assert preview.rows[0].values["result"] == "0.1234567890"
     assert preview.rows[0].source == "Results!row 3"
-    assert not ResultRevision.objects.exists()
+    assert not ResultRevision.objects.exists() and not ImportSourceFile.objects.exists()
     fields = response.context["commit_form"].initial | {"step": "commit"}
     assert fields["worksheet"] == "Results"
     assert client.post(url, fields).status_code == 302
@@ -84,12 +84,15 @@ def test_exact_workbook_http_preview_commit_and_repeat(config, analyst, client, 
     assert revision.value == Decimal("0.1234567890")
     assert revision.supplied_text == "0.1234567890"
     assert revision.source_detail == "synthetic.xlsx:Results!row 3"
-    audit = AuditEvent.objects.get(action="batch.results_imported").after
+    event = AuditEvent.objects.get(action="batch.results_imported")
+    audit = event.after
+    assert bytes(event.import_source_file.data) == data
+    assert audit["source_file_stored"] is True
     assert audit["worksheet"] == "Results" and audit["file_format"] == "xlsx"
     assert audit["file_sha256"] == importing.file_digest(data)
     assert audit["mapping_snapshot"] == ip.snapshot(profile)
     assert client.post(url, fields).status_code == 200
-    assert ResultRevision.objects.count() == 1
+    assert ResultRevision.objects.count() == 1 and ImportSourceFile.objects.count() == 1
 
 
 def test_changed_worksheet_or_bytes_cannot_commit_an_old_preview(config, analyst, batch):
@@ -103,7 +106,7 @@ def test_changed_worksheet_or_bytes_cannot_commit_an_old_preview(config, analyst
     ):
         with pytest.raises(ValidationError, match="changed after the preview"):
             importing.commit_profile_import(**(args | changed))
-    assert not ResultRevision.objects.exists()
+    assert not ResultRevision.objects.exists() and not ImportSourceFile.objects.exists()
 
 
 def test_other_worksheet_in_same_file_is_a_separate_import(config, analyst, batch):
@@ -114,6 +117,9 @@ def test_other_worksheet_in_same_file_is_a_separate_import(config, analyst, batc
         assert preview.ok, preview.file_errors
         importing.commit_profile_import(**commit_args(analyst, batch, profile, data, preview))
     assert ResultRevision.objects.count() == 2
+    sources = ImportSourceFile.objects.select_related("event")
+    assert {source.event.after["worksheet"] for source in sources} == {"Results", "Other"}
+    assert all(bytes(source.data) == data for source in sources)
     assert not parse(batch, profile, data).ok
 
 

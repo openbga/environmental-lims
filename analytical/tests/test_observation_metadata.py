@@ -273,7 +273,7 @@ def test_soil_mapped_import_freezes_explicit_metadata(analyst, soil, layout):
         f"ID,Time,Basis,Solids,{header}\n{result.requested_test.sample.lab_id},"
         f"{entry()['analysis_started_at'].isoformat()},dry,82.125,{payload}\n"
     ).encode()
-    preview = importing.parse_profile_import(batch, profile, data)
+    preview = importing.parse_profile_import(batch, profile, data, filename="synthetic.csv")
     assert preview.ok, preview
     revisions = importing.commit_profile_import(
         actor=analyst,

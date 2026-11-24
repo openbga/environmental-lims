@@ -11,7 +11,8 @@
       "title": "Enter or import results",
       "steps": [
         "Select [[Enter results]] to type them in the grid.",
-        "Or open [[Import results]] and choose a standard CSV file or a saved mapping."
+        "Or open [[Import results]] and choose a standard CSV file or a saved mapping.",
+        "To retrieve a confirmed upload, select its filename under [[Import source files]]."
       ]
     },
     {
@@ -108,7 +109,7 @@
         },
         {
           "label": "Import results",
-          "description": "A menu with the two import paths: Standard CSV file opens the standard CSV validation and preview flow; With a saved mapping opens profile-mapped CSV/TSV import."
+          "description": "Standard CSV file opens the standard CSV preview. With a saved mapping opens the mapped CSV, TSV or XLSX preview."
         },
         {
           "label": "Enter results",
@@ -117,6 +118,31 @@
         {
           "label": "Add tests",
           "description": "Analysts can add eligible requested tests while membership is open."
+        }
+      ]
+    },
+    {
+      "title": "Import source files",
+      "paragraphs": [
+        "Staff can retrieve confirmed uploads on open and closed batches. The table lists one row per confirmed import for this batch, newest first. Its page links move through imports independently of the sample and result filters.",
+        "No result files imported means this batch has no confirmed result imports. No stored file means the import recorded its source without retaining an upload, including imports completed before file storage was available. If an expected upload is missing, the row shows file unavailable. Contact the deployment administrator to check the backup."
+      ],
+      "items": [
+        {
+          "label": "Source file",
+          "description": "Select the filename to download the exact upload, including every worksheet in an XLSX workbook. The download keeps CSV, TSV, TXT and XLSX filename extensions. Other names have .txt appended. Only rows with stored files offer a download."
+        },
+        {
+          "label": "Worksheet",
+          "description": "The worksheet selected for an XLSX import. A dash means no worksheet was recorded."
+        },
+        {
+          "label": "Bytes",
+          "description": "Size of the original upload in bytes. A dash means the import has no recorded byte count."
+        },
+        {
+          "label": "Imported by / Imported at",
+          "description": "The username and local date and time of the confirmed import."
         }
       ]
     },
@@ -518,6 +544,10 @@
     "analytical/tests/test_calibration_views.py",
     "analytical/run_sequence_views.py",
     "analytical/run_sequences.py",
-    "analytical/tests/test_run_sequence_views.py"
+    "analytical/tests/test_run_sequence_views.py",
+    "analytical/import_views.py",
+    "analytical/importing.py",
+    "analytical/tests/test_batch_source_download.py",
+    "e2e/test_workbook_import.py"
   ]
 }

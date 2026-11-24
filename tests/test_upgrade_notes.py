@@ -86,6 +86,7 @@ def stored_file_counts():
         "Equipment event evidence": 0,
         "Training record evidence": 1,
         "Nonconformance event evidence": 0,
+        "Import source files": 0,
         "Total": 5,
     }
     return {
@@ -335,6 +336,7 @@ def test_reports_migrated_stored_file_counts_separately(tmp_path, stored_file_co
         "| Equipment event evidence | 0 |\n"
         "| Training record evidence | 1 |\n"
         "| Nonconformance event evidence | 0 |\n"
+        "| Import source files | 0 |\n"
         "| Total | 5 |\n\n"
         "## Django migrations" in result.stdout
     )

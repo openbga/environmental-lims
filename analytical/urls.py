@@ -83,6 +83,11 @@ urlpatterns = [
     path("batches/<int:pk>/entry/", views.batch_entry, name="batch-entry"),
     path("batches/<int:pk>/import/", views.batch_import, name="batch-import"),
     path(
+        "batches/<int:pk>/import-sources/<int:source_pk>/download/",
+        import_views.batch_import_source_download,
+        name="batch-import-source-download",
+    ),
+    path(
         "batches/<int:pk>/import-mapped/",
         import_views.batch_import_mapped,
         name="batch-import-mapped",

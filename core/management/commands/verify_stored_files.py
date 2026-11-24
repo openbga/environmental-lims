@@ -7,20 +7,23 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import Error as DjangoDatabaseError
 from django.db import connection, transaction
 from django.db.models import BinaryField, CharField, F, Func, IntegerField, Q, Value
+from django.db.models.functions import Cast, JSONObject
 from psycopg import Error as PsycopgError
 from psycopg import sql
 from psycopg.pq import TransactionStatus
 
+from analytical.models import Batch, ImportSourceFile
 from commercial.models import InvoiceDraft, IssuedInvoice
-from core.models import LabLogo
+from core.models import AuditEvent, LabLogo
 from laboratory.models import EvidenceMixin
 from receipt.models import SubcontractResult
 from reporting.models import EddExport, ReportVersion
 
 
-def _check_files(model, binary, checksum, size=None, *, evidence=False, missing="missing file"):
+def _check_files(
+    model, binary, checksum, size=None, *, evidence=False, missing="missing file", metadata=None
+):
     files = model._base_manager.order_by("pk")
-    metadata_present = Value(True)
     if evidence:
         files = files.exclude(
             evidence_data__isnull=True,
@@ -29,7 +32,10 @@ def _check_files(model, binary, checksum, size=None, *, evidence=False, missing=
             evidence_sha256="",
             evidence_size__isnull=True,
         )
-        metadata_present = ~(Q(evidence_name="") | Q(evidence_content_type=""))
+        metadata = (
+            ~(Q(evidence_name="") | Q(evidence_content_type="")),
+            "missing evidence filename or content type",
+        )
 
     # Use PostgreSQL's built-in bytea functions and stream only IDs and comparison values.
     rows = files.annotate(
@@ -41,7 +47,7 @@ def _check_files(model, binary, checksum, size=None, *, evidence=False, missing=
             output_field=CharField(),
         ),
         recorded_size=F(size) if size else Value(None, output_field=IntegerField()),
-        metadata_present=metadata_present,
+        metadata_present=metadata[0] if metadata else Value(True),
     ).values_list("pk", "actual_size", "actual_hash", "recorded_size", checksum, "metadata_present")
     for pk, actual_size, actual_hash, recorded_size, recorded_hash, has_metadata in rows.iterator():
         problems = []
@@ -49,8 +55,8 @@ def _check_files(model, binary, checksum, size=None, *, evidence=False, missing=
             problems.append(missing)
         elif actual_size == 0:
             problems.append("empty stored file")
-        if not has_metadata:
-            problems.append("missing evidence filename or content type")
+        if metadata and not has_metadata:
+            problems.append(metadata[1])
         if not recorded_hash:
             problems.append("missing recorded SHA-256")
         elif actual_hash is not None and actual_hash != recorded_hash:
@@ -71,6 +77,36 @@ def _check_invoices():
     ).order_by("pk")
     for pk in missing.values_list("pk", flat=True).iterator():
         yield InvoiceDraft._meta.label, pk, None, None, ["missing IssuedInvoice"]
+
+
+def _check_import_sources():
+    # Match only the recorded source fields, leaving the rest of the audit payload in PostgreSQL.
+    matches_event = Q(
+        event__action="batch.results_imported",
+        event__object_type=Batch._meta.label_lower,
+        event__object_id=Cast("batch_id", CharField()),
+        event__after__contains=JSONObject(
+            source_file_stored=Value(True),
+            filename=F("filename"),
+            file_sha256=F("sha256"),
+            file_bytes=F("size"),
+        ),
+    )
+    yield from _check_files(
+        ImportSourceFile,
+        "data",
+        "sha256",
+        "size",
+        metadata=(matches_event, "import event does not match the stored source"),
+    )
+    missing = AuditEvent.objects.filter(
+        action="batch.results_imported",
+        object_type=Batch._meta.label_lower,
+        after__source_file_stored=True,
+        import_source_file__isnull=True,
+    ).order_by("pk")
+    for pk in missing.values_list("pk", flat=True).iterator():
+        yield AuditEvent._meta.label, pk, None, None, ["missing ImportSourceFile"]
 
 
 class Command(BaseCommand):
@@ -177,6 +213,8 @@ class Command(BaseCommand):
             for model in apps.get_models()
             if issubclass(model, EvidenceMixin) and not model._meta.proxy
         )
+
+        categories.append(("Import source files", _check_import_sources()))
 
         summary = {}
         total_checked = total_failures = 0

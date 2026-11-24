@@ -6,14 +6,17 @@ importing, and the result entry rules in services."""
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
+from django.utils.http import content_disposition_header
+from django.views.decorators.http import require_safe
 
 from core.concurrency import protect_form
 
 from . import forms as f
 from . import import_profiles, importing, selectors, services
-from .models import ImportProfile
+from .models import Batch, ImportProfile, ImportSourceFile
 from .views import (
     _batch,
     _cleaned,
@@ -151,6 +154,27 @@ def _change(row):
 
 
 @login_required
+@require_safe
+def batch_import_source_download(request, pk, source_pk):
+    _staff(request)
+    files = ImportSourceFile.objects.filter(batch_id=pk, batch__kind=Batch.Kind.ANALYTICAL)
+    fields = ("filename", "size") if request.method == "HEAD" else ("filename", "size", "data")
+    source = get_object_or_404(files.only(*fields), pk=source_pk)
+    filename = source.filename
+    if not filename.lower().endswith((".csv", ".tsv", ".txt", ".xlsx")):
+        filename += ".txt"
+    response = HttpResponse(
+        b"" if request.method == "HEAD" else bytes(source.data),
+        content_type="application/octet-stream",
+    )
+    response["Content-Disposition"] = content_disposition_header(True, filename)
+    response["Content-Length"] = str(source.size)
+    response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+@login_required
 def batch_import_mapped(request, pk):
     _staff(request)
     batch = _batch(pk)
@@ -204,13 +228,13 @@ def batch_import_mapped(request, pk):
                     batch,
                     profile,
                     data,
-                    filename=file.name[:200],
+                    filename=file.name,
                     worksheet=upload.cleaned_data["worksheet"],
                 )
                 if len(data) <= importing.MAX_BYTES:
                     commit_form = f.MappedImportCommitForm(
                         initial={
-                            "filename": file.name[:200],
+                            "filename": file.name,
                             "payload": importing.encode_payload(data),
                             "profile_id": profile.pk,
                             "mapping_hash": preview.mapping_hash,

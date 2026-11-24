@@ -11,16 +11,18 @@ import hashlib
 import io
 import json
 from dataclasses import dataclass, field
+from pathlib import PureWindowsPath
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
 from accounts.roles import require_role
+from core.audit import record_event
 from core.models import AuditEvent
 
 from . import import_profiles, services, workbook_import
-from .models import Batch, ImportProfile, Result, ResultRevision
+from .models import Batch, ImportProfile, ImportSourceFile, Result, ResultRevision
 from .parsing import parse_timestamp
 from .preparation import lock_work_batches
 
@@ -77,6 +79,19 @@ class ImportPreview:
     unused_columns: list = field(default_factory=list)
     preamble_rows: int = 0
     worksheet: str = ""
+
+    def __post_init__(self):
+        if self.file_hash and (
+            not isinstance(self.filename, str)
+            or not self.filename.strip()
+            or len(self.filename) > 200
+            or not self.filename.isprintable()
+            or self.filename in (".", "..")
+            or PureWindowsPath(self.filename).name != self.filename
+        ):
+            self.file_errors.append(
+                "Use a filename of up to 200 printable characters without a directory path."
+            )
 
     @property
     def ok(self):
@@ -136,6 +151,8 @@ def parse_import(batch, text, *, filename="upload.csv", file_hash=""):
 
     With the uploaded bytes' `file_hash`, a file already imported into the batch is refused."""
     preview = ImportPreview(filename=filename, file_hash=file_hash)
+    if preview.file_errors:
+        return preview
     if "\x00" in text:
         preview.file_errors.append("The file contains NUL characters; it is not a text CSV.")
         return preview
@@ -187,7 +204,7 @@ def parse_import(batch, text, *, filename="upload.csv", file_hash=""):
         preview.file_errors.append(f"Malformed CSV near row {reader.line_num}: {exc}")
     if not preview.rows and not preview.file_errors:
         preview.file_errors.append("The file has a header but no data rows.")
-    preview.state_token = _state_token(preview.rows)
+    preview.state_token = _state_token(preview)
     return preview
 
 
@@ -251,8 +268,8 @@ def _validate_row(row, lookup, seen, batch, tz, now):
         )
 
 
-def _write_rows(*, actor, batch, preview, filename, audit_extra=None):
-    """Write every previewed row inside the caller's transaction, then record one audit event."""
+def _write_rows(*, actor, batch, preview, data, audit_extra=None):
+    """Write the revisions, import event and any original upload in the caller's transaction."""
     # Lock every affected Result in pk order first (the release recheck's order), then
     # enter rows in file order.
     list(
@@ -283,22 +300,27 @@ def _write_rows(*, actor, batch, preview, filename, audit_extra=None):
                 solids_reference=row.values.get("solids_reference", ""),
                 prepared_aliquot_id=row.entry.get("prepared_aliquot_id"),
                 source=ResultRevision.Source.IMPORT,
-                source_detail=row.detail or f"{filename[:150]}:row {row.line}",
+                source_detail=row.detail or f"{preview.filename[:150]}:row {row.line}",
             )
         )
-    from core.audit import record_event
-
-    record_event(
-        actor=actor,
-        action="batch.results_imported",
-        obj=batch,
-        after={
-            "filename": filename,
-            "rows": len(revisions),
-            "revision_ids": [r.pk for r in revisions],
-        }
-        | (audit_extra or {}),
-    )
+    after = {
+        "filename": preview.filename,
+        "rows": len(revisions),
+        "revision_ids": [r.pk for r in revisions],
+        **(audit_extra or {}),
+    }
+    if data is not None:
+        after.update(file_sha256=preview.file_hash, file_bytes=len(data), source_file_stored=True)
+    event = record_event(actor=actor, action="batch.results_imported", obj=batch, after=after)
+    if data is not None:
+        ImportSourceFile.objects.create(
+            batch=batch,
+            event=event,
+            filename=preview.filename,
+            data=data,
+            sha256=preview.file_hash,
+            size=len(data),
+        )
     return revisions
 
 
@@ -307,16 +329,14 @@ def commit_import(
 ):
     """Revalidate the file and write every row, or nothing. Returns the revisions.
 
-    Pass the uploaded bytes as `data` so the audit event records their SHA-256 (`text` is then
-    read from them) and the same bytes cannot be imported into the batch twice; `text` alone is
-    for callers without an original file. `state_token` comes from the preview: if any targeted
-    result changed since, the import is refused, as for the mapped import."""
+    Pass the uploaded bytes as `data` to keep the original file with its import event, record
+    its SHA-256 and refuse a duplicate import. Text-only callers have no original file.
+    The preview state token detects a change to the filename, file contents or a targeted result."""
     require_role(actor, services.ANALYST)
-    source = {}
+    file_hash = ""
     if data is not None:
         text = decode_upload(data)
-        source = {"file_sha256": file_digest(data), "file_bytes": len(data)}
-    file_hash = source.get("file_sha256", "")
+        file_hash = file_digest(data)
     with transaction.atomic():
         initial = parse_import(
             Batch.objects.get(pk=batch_id), text, filename=filename, file_hash=file_hash
@@ -340,11 +360,10 @@ def commit_import(
             )
         if state_token is not None and preview.state_token != state_token:
             raise ValidationError(
-                "A result in this batch changed after the preview. Preview the file again."
+                "The filename, file contents or a result changed after the preview. "
+                "Preview the file again."
             )
-        return _write_rows(
-            actor=actor, batch=batch, preview=preview, filename=filename, audit_extra=source
-        )
+        return _write_rows(actor=actor, batch=batch, preview=preview, data=data)
 
 
 # ------------------------------------------------------------------ mapped (profile) import
@@ -361,6 +380,8 @@ def parse_profile_import(batch, profile, data, *, filename="upload.txt", workshe
         mapping_hash=import_profiles.mapping_hash(profile),
         file_hash=file_digest(data),
     )
+    if preview.file_errors:
+        return preview
     try:
         if len(data) > MAX_BYTES:
             raise ValidationError(f"The file is larger than {MAX_BYTES // 1024} KiB.")
@@ -410,11 +431,7 @@ def parse_profile_import(batch, profile, data, *, filename="upload.txt", workshe
         if not row.errors:
             _validate_row(row, lookup, seen, batch, tz, now)
         preview.rows.append(row)
-    preview.state_token = hashlib.sha256(
-        json.dumps(
-            [preview.file_hash, preview.mapping_hash, preview.worksheet, _state_token(preview.rows)]
-        ).encode()
-    ).hexdigest()
+    preview.state_token = _state_token(preview)
     if not preview.rows and not preview.file_errors:
         preview.file_errors.append(
             "The file has a header but no values to import."
@@ -455,8 +472,8 @@ def _already_imported(earlier, what):
     )
 
 
-def _state_token(rows):
-    """Fingerprint of the results the rows would follow, so a commit can refuse a stale preview."""
+def _state_token(preview):
+    """Bind a confirmation to the previewed result state and original upload provenance."""
     state = sorted(
         f"{row.result.pk}:{row.previous.pk if row.previous else 0}:"
         + json.dumps(
@@ -466,9 +483,12 @@ def _state_token(rows):
             sort_keys=True,
             default=str,
         )
-        for row in rows
+        for row in preview.rows
         if row.result is not None
     )
+    if preview.file_hash:
+        evidence = (preview.filename, preview.file_hash, preview.mapping_hash, preview.worksheet)
+        return hashlib.sha256(json.dumps([evidence, state]).encode()).hexdigest()
     return hashlib.sha256("|".join(state).encode()).hexdigest()
 
 
@@ -516,18 +536,16 @@ def commit_profile_import(
             )
         if preview.state_token != state_token:
             raise ValidationError(
-                "The file, worksheet or a result in this batch changed after the preview. "
+                "The filename, file contents, worksheet or a result changed after the preview. "
                 "Preview the file again."
             )
         return _write_rows(
             actor=actor,
             batch=batch,
             preview=preview,
-            filename=filename,
+            data=data,
             audit_extra={
                 "import_kind": "mapped",
-                "file_sha256": preview.file_hash,
-                "file_bytes": len(data),
                 "file_bom_removed": data.startswith(codecs.BOM_UTF8),
                 "mapping_sha256": preview.mapping_hash,
                 "mapping_snapshot": import_profiles.snapshot(profile),

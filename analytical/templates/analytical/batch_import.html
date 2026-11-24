@@ -14,7 +14,7 @@
   <legend class="visually-hidden">Results file</legend>
   {% for field in upload.visible_fields %}{{ field.as_field_group }}{% endfor %}
   {% for field in upload.hidden_fields %}{{ field }}{% endfor %}
-  <p class="vr-form-note">One CSV file imports into {{ batch.number }}. Up to {{ max_kib }} KiB and {{ max_rows }} rows, comma separated, UTF-8. Header names are exact: {{ columns|join:", " }}. Rows must match a sample and analyte already in this batch. Timestamps are ISO 8601; without a UTC offset they are read in {{ time_zone }}, and a time that is ambiguous or does not exist there (daylight saving change) is rejected. A timestamp with an offset is used as given. Nothing is saved until you confirm the preview, and any error blocks the whole file. The uploaded file itself is not stored, only the results with the file name and row: keep your source file.</p>
+  <p class="vr-form-note">One CSV file imports into {{ batch.number }}. Up to {{ max_kib }} KiB and {{ max_rows }} rows, comma separated, UTF-8. Header names are exact: {{ columns|join:", " }}. Rows must match a sample and analyte already in this batch. Timestamps are ISO 8601; without a UTC offset they are read in {{ time_zone }}, and a time that is ambiguous or does not exist there (daylight saving change) is rejected. A timestamp with an offset is used as given. Nothing is saved until you confirm the preview, and any error blocks the whole file. After confirmation, staff can download the original CSV from Import source files on the batch.</p>
   </fieldset>
 {% endform_page %}
 {% else %}

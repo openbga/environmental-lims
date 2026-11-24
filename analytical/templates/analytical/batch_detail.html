@@ -80,6 +80,19 @@
 {% endpanel %}
 {% endif %}
 
+{% panel title="Import source files" heading_id="import-sources-heading" count=source_page.paginator.count table=True class="mb-3" %}
+  {% list_results items=source_page noun="imports" page_parameter="source_page" empty_title="No result files imported" empty_body="Confirmed batch result imports appear here." %}
+  <div class="vr-table-wrap"><table class="table vr-table" aria-labelledby="import-sources-heading">
+    <thead><tr><th scope="col">Source file</th><th scope="col">Worksheet</th><th scope="col" class="text-end">Bytes</th><th scope="col">Imported by</th><th scope="col">Imported at</th></tr></thead>
+    <tbody>{% for row in source_page %}<tr>
+      <th scope="row" class="vr-wrap">{% if row.source_pk %}<a class="vr-row-link" href="{% url 'analytical:batch-import-source-download' batch.pk row.source_pk %}" download><span class="visually-hidden">Download </span>{{ row.filename }}</a>{% else %}{{ row.filename }} <span class="vr-muted">({% if row.stored %}file unavailable{% else %}no stored file{% endif %})</span>{% endif %}</th>
+      <td class="vr-wrap">{{ row.worksheet|default:"—" }}</td><td class="text-end">{{ row.size|default_if_none:"—" }}</td><td>{{ row.imported_by }}</td>
+      <td class="vr-nowrap"><time datetime="{{ row.occurred_at|date:'c' }}">{{ row.occurred_at|date:"Y-m-d H:i T" }}</time></td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% endlist_results %}
+{% endpanel %}
+
 {% panel title="Calibration evidence" heading_id="calibrations-heading" count=calibration_count table=True class="mb-3" %}
   {% fill actions %}{% if can_enter %}<a class="btn btn-outline-secondary btn-sm" href="{% url 'analytical:calibration-create' batch.pk %}">{% icon name="plus-lg" %}Record calibration</a>{% endif %}{% endfill %}
   {% panel_section %}<p class="vr-form-note">Instrument-reported curves are recorded evidence; method acceptance is not evaluated. Select evidence explicitly in the single-result Enter result or Correct result form. The grid, imports and BOD5 bottle worksheet do not link calibration evidence.</p>{% endpanel_section %}

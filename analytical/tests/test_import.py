@@ -5,7 +5,8 @@ from django.core.exceptions import ValidationError
 
 from analytical import services as svc
 from analytical.importing import commit_import, decode_upload, parse_import
-from analytical.models import ResultRevision
+from analytical.models import ImportSourceFile, ResultRevision
+from core.models import AuditEvent
 from receipt.models import RequestedTest
 
 pytestmark = pytest.mark.django_db
@@ -47,6 +48,8 @@ def test_valid_file_previews_cleanly_and_commits_exact_text(config, analyst, bat
     assert lead.supplied_text == "0.0120" and lead.source == "import"
     assert by["Copper (synthetic)"].kind == "non_detect" and by["Copper (synthetic)"].value is None
     assert by["Lead (synthetic)"].source_detail == "run1.csv:row 2"
+    assert not ImportSourceFile.objects.exists()
+    assert "source_file_stored" not in AuditEvent.objects.get(action="batch.results_imported").after
 
 
 def test_errors_are_reported_per_row_and_nothing_is_written(config, analyst, batch):
@@ -119,25 +122,42 @@ def test_import_needs_analyst_and_existing_result_needs_reason(config, analyst, 
     assert "awaiting review" in parse_import(batch, text).rows[0].errors[0]
 
 
-def test_strict_import_page_records_the_source_file_hash(config, client, analyst, batch):
-    """The audit event of a strict import identifies the exact uploaded bytes, BOM and line
-    endings included, as the mapped import does."""
+def test_strict_import_page_retains_exact_source_and_audit_provenance(
+    config, client, analyst, batch
+):
+    """The source retains the BOM and line endings used for the import event digest."""
     from django.urls import reverse
 
     from analytical.importing import encode_payload, file_digest
-    from core.models import AuditEvent
 
     raw = b"\xef\xbb\xbf" + fix_times(csv_text(OK1), config).replace("\n", "\r\n").encode()
     client.force_login(analyst)
-    commit = preview_page(client, batch, raw).context["commit_form"].initial
+    too_long = preview_page(client, batch, raw, name="x" * 197 + ".csv")
+    assert b"up to 200 printable characters" in too_long.content
+    assert b'name="step" value="commit"' not in too_long.content
+    filename = " run1.csv"
+    commit = preview_page(client, batch, raw, name=filename).context["commit_form"].initial
     assert commit["payload"] == encode_payload(raw)
+    assert commit["filename"] == filename
+    refused = client.post(
+        reverse("analytical:batch-import", args=[batch.pk]),
+        commit | {"step": "commit", "filename": "renamed.csv"},
+    )
+    assert b"changed after the preview" in refused.content
+    assert not AuditEvent.objects.filter(action="batch.results_imported").exists()
+    assert not ImportSourceFile.objects.exists()
     done = client.post(
         reverse("analytical:batch-import", args=[batch.pk]), commit | {"step": "commit"}
     )
     assert done.status_code == 302
-    after = AuditEvent.objects.get(action="batch.results_imported").after
-    assert after["file_sha256"] == file_digest(raw) and after["file_bytes"] == len(raw)
-    assert after["filename"] == "run1.csv"
+    event = AuditEvent.objects.get(action="batch.results_imported")
+    source = event.import_source_file
+    assert source.batch_id == batch.pk and bytes(source.data) == raw
+    assert event.after["file_sha256"] == source.sha256 == file_digest(raw)
+    assert event.after["file_bytes"] == source.size == len(raw)
+    assert event.after["filename"] == source.filename == filename
+    assert event.after["source_file_stored"] is True
+    assert event.after["revision_ids"] == [ResultRevision.objects.get().pk]
 
 
 def preview_page(client, batch, raw, name="run1.csv"):
@@ -163,6 +183,7 @@ def test_strict_commit_refuses_a_preview_made_stale_by_another_entry(config, ana
     with pytest.raises(ValidationError, match="changed after the preview"):
         commit_import(actor=analyst, batch_id=batch.pk, data=raw, state_token=preview.state_token)
     assert ResultRevision.objects.get().supplied_text == "0.0130"
+    assert not ImportSourceFile.objects.exists()
 
 
 def test_strict_import_refuses_the_same_file_twice(config, analyst, batch):
@@ -176,6 +197,7 @@ def test_strict_import_refuses_the_same_file_twice(config, analyst, batch):
     with pytest.raises(ValidationError, match="Nothing was imported"):
         commit_import(actor=analyst, batch_id=batch.pk, data=raw, state_token=again.state_token)
     assert ResultRevision.objects.count() == 1
+    assert ImportSourceFile.objects.count() == 1
     # A changed file is a new import, and a mapped import of these bytes is judged separately.
     edited = raw.replace(b"0.0120", b"0.0125")
     assert parse_import(batch, decode_upload(edited), file_hash=file_digest(edited)).ok
@@ -198,3 +220,47 @@ def test_strict_import_page_refuses_a_repeated_commit(config, client, analyst, b
     missing = {k: v for k, v in commit.items() if k != "state_token"}
     assert client.post(url, missing).status_code == 200
     assert ResultRevision.objects.count() == 1
+
+
+def test_strict_upload_requires_the_previewed_bytes(config, analyst, batch):
+    from analytical.importing import file_digest
+
+    raw = fix_times(csv_text(OK1), config).encode()
+    preview = parse_import(batch, decode_upload(raw), file_hash=file_digest(raw))
+    with pytest.raises(ValidationError, match="changed after the preview"):
+        commit_import(
+            actor=analyst,
+            batch_id=batch.pk,
+            data=raw.replace(b"0.0120", b"0.0130"),
+            state_token=preview.state_token,
+        )
+    assert not ImportSourceFile.objects.exists() and not ResultRevision.objects.exists()
+    assert not AuditEvent.objects.filter(action="batch.results_imported").exists()
+
+
+def test_source_storage_failure_rolls_back_results_and_audit(config, analyst, batch, monkeypatch):
+    from django.db import IntegrityError
+
+    raw = fix_times(csv_text(OK1), config).encode()
+    prior_events = AuditEvent.objects.count()
+
+    def fail_storage(**kwargs):
+        raise IntegrityError("Synthetic storage failure")
+
+    monkeypatch.setattr(ImportSourceFile.objects, "create", fail_storage)
+    with pytest.raises(IntegrityError, match="Synthetic storage failure"):
+        commit_import(actor=analyst, batch_id=batch.pk, data=raw)
+    assert not ResultRevision.objects.exists() and not ImportSourceFile.objects.exists()
+    assert AuditEvent.objects.count() == prior_events
+
+
+@pytest.mark.parametrize("filename", ["path/file.csv", r"path\file.csv", "line\nbreak.csv"])
+def test_file_preview_requires_a_printable_basename(config, analyst, batch, filename):
+    from analytical.importing import file_digest
+
+    raw = fix_times(csv_text(OK1), config).encode()
+    preview = parse_import(batch, decode_upload(raw), filename=filename, file_hash=file_digest(raw))
+    assert not preview.ok and "filename" in preview.file_errors[0]
+    with pytest.raises(ValidationError):
+        commit_import(actor=analyst, batch_id=batch.pk, data=raw, filename=filename)
+    assert not ImportSourceFile.objects.exists() and not ResultRevision.objects.exists()

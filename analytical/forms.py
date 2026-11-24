@@ -768,7 +768,7 @@ class UploadPayloadField(forms.CharField):
 
 
 class ImportCommitForm(forms.Form):
-    filename = forms.CharField(widget=forms.HiddenInput, max_length=200)
+    filename = forms.CharField(widget=forms.HiddenInput, max_length=200, strip=False)
     payload = UploadPayloadField()
     state_token = forms.CharField(widget=forms.HiddenInput, max_length=64)
 
@@ -1080,7 +1080,7 @@ class MappedImportUploadForm(forms.Form):
 
 
 class MappedImportCommitForm(forms.Form):
-    filename = forms.CharField(widget=forms.HiddenInput, max_length=200)
+    filename = forms.CharField(widget=forms.HiddenInput, max_length=200, strip=False)
     payload = UploadPayloadField()
     profile_id = forms.IntegerField(widget=forms.HiddenInput)
     mapping_hash = forms.CharField(widget=forms.HiddenInput, max_length=64)

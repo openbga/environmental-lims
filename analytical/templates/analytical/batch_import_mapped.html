@@ -15,7 +15,7 @@
   <legend class="visually-hidden">Results file and mapping</legend>
   {% for field in upload.visible_fields %}{{ field.as_field_group }}{% endfor %}
   {% for field in upload.hidden_fields %}{{ field }}{% endfor %}
-  <p class="vr-form-note">One file imports into {{ batch.number }}. Up to {{ max_kib }} KiB and {{ max_rows }} results or blank mapped cells. Use comma or tab delimited UTF-8 as the mapping says, or select a worksheet from an XLSX workbook. Rows must name a sample and analyte already in this batch. Nothing is saved until you confirm the preview, and any error blocks the whole file. The file name, worksheet, row and mapping are recorded. Keep your source file; the upload itself is not stored.</p>
+  <p class="vr-form-note">One file imports into {{ batch.number }}. Up to {{ max_kib }} KiB and {{ max_rows }} results or blank mapped cells. Use comma or tab delimited UTF-8 as the mapping says, or select a worksheet from an XLSX workbook. Rows must name a sample and analyte already in this batch. Nothing is saved until you confirm the preview, and any error blocks the whole file. The file name, worksheet, row and mapping are recorded. Confirmation saves the entire uploaded file, including other worksheets in an XLSX workbook. Staff can download it from the batch.</p>
   <p class="vr-form-note">For XLSX, use a values-only table with text sample IDs, analyte names, units and analysis timestamps. Numbers are read exactly as stored, without display formatting. Formulas, merged cells and typed date cells are refused. Hidden rows and columns are included. See Help for workbook limits.</p>
   </fieldset>
 {% endform_page %}
@@ -37,7 +37,7 @@
       {% fact label="Mapping SHA-256" class="vr-id" %}<span title="{{ preview.mapping_hash }}">{{ preview.mapping_hash|slice:":16" }}…</span>{% endfact %}
       {% fact label="File SHA-256 (uploaded bytes)" class="vr-id" %}<span title="{{ preview.file_hash }}">{{ preview.file_hash|slice:":16" }}…</span>{% endfact %}
       {% fact label="Results" %}{{ shown.new }} new · {{ shown.revisions }} new revision{{ shown.revisions|pluralize }} of an existing result{% endfact %}
-      {% fact label="Original file" wide=True %}<strong>Not stored by this application.</strong> It keeps the imported results as parsed, the mapping snapshot and the digest above. Keep the source file in the laboratory's own records.{% endfact %}
+      {% fact label="Original file" wide=True %}Confirmation saves the entire uploaded file. Staff can download it from Import source files on the batch.{% endfact %}
       {% fact label="How the file is read" wide=True %}{% if preview.worksheet %}XLSX stored text and numeric values, without display formatting or calculation. Digits already lost when the workbook was saved cannot be recovered. Only the named worksheet is imported.{% else %}As UTF-8 text; a leading byte order mark is ignored and line endings are read as uploaded.{% endif %} The digest covers the file exactly as uploaded.{% endfact %}
       {% if preview.preamble_rows %}{% fact label="Rows above the header" %}{{ preview.preamble_rows }} ignored{% endfact %}{% endif %}
       {% fact label="Columns not mapped" wide=True %}{% if preview.unused_columns %}{{ preview.unused_columns|join:", " }} <span class="vr-muted">(not read)</span>{% else %}none{% endif %}{% endfact %}

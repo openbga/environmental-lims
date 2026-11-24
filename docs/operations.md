@@ -8,7 +8,9 @@ shell or secret manager, never in Git, tickets or logs.
 ## What is protected
 
 All state is in PostgreSQL: results and revisions, custody and audit events, issued report PDFs
-and snapshots, subcontract source PDFs and EDD exports are binary columns in the same database.
+and snapshots, subcontract source PDFs, EDD exports and confirmed result import uploads are
+kept in the same database. Allow up to 1 MiB of source data per confirmed file import when
+sizing the database and its backups, including separate imports of worksheets from one file.
 There is no file storage to back up separately. The container filesystem is disposable.
 
 Treat every dump as sensitive. It holds lab records and account data, including each user's
@@ -147,7 +149,7 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
 4. Run `python manage.py verify_stored_files` on the restored database. This read-only check
    compares stored bytes with their recorded SHA-256 and, where available, byte count. It
    covers issued report and invoice PDFs (including amendments and voids), subcontract
-   source PDFs, electronic deliverable exports, laboratory logos, and files attached to
+   source PDFs, electronic deliverable exports, laboratory logos, original result import files and files attached to
    equipment events, training records and nonconformance events. Each issued report version
    and each issued or voided invoice must have its file. An optional evidence attachment
    with only part of its file or metadata present also fails.
@@ -197,6 +199,11 @@ current schema. Project policy is backward-compatible migrations, so the previou
 against a newer schema, but check the migrations added since it (a dropped or renamed column
 breaks it). Do not restore the
 database: that would discard records entered since the backup.
+
+Migration `analytical.0015` adds storage for new confirmed file imports. When rolling back
+application code, keep the migrated schema and its files. Migration reversal is refused
+once a source file exists. Older application versions can read the existing results but
+cannot download source files or retain new uploads.
 
 One case to check: holding-time rules that name an analyte (migration `analytical.0009`). A
 release from before that change reads every active rule as method-wide, so it holds each

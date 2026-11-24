@@ -115,6 +115,7 @@ def test_long_layout_maps_aliases_keeps_exact_text_and_records_provenance(config
     assert by["Copper (synthetic)"].kind == "non_detect" and by["Copper (synthetic)"].value is None
     event = AuditEvent.objects.get(action="batch.results_imported")
     after = event.after
+    assert bytes(event.import_source_file.data) == text.encode()
     assert event.actor == analyst and after["import_kind"] == "mapped" and after["rows"] == 2
     assert after["file_sha256"] == importing.file_digest(text.encode()) == preview.file_hash
     assert after["mapping_sha256"] == ip.mapping_hash(profile)
@@ -178,7 +179,7 @@ def test_exact_decimals_are_kept_and_lossy_values_are_rejected(config, analyst, 
         text=text,
         filename="x.csv",
         mapping_hash=ip.mapping_hash(profile),
-        state_token=parse(batch, profile, text).state_token,
+        state_token=parse(batch, profile, text, filename="x.csv").state_token,
     )
     lead = next(r for r in revisions if r.analyte_name.startswith("Lead"))
     assert lead.supplied_text == "0.1000000001" and lead.value == Decimal("0.1000000001")
@@ -216,10 +217,10 @@ def test_wide_layout_tab_delimited_lists_blank_cells_and_imports_the_rest(config
     assert texts[("VR-DEMO-2", "Le")].supplied_text == "0.0075"
     assert ("VR-DEMO-2", "Co") not in texts  # the blank cell imported nothing
     assert texts[("VR-DEMO-1", "Le")].source_detail == "wide.tsv:row 3, column Pb"
-    assert (
-        AuditEvent.objects.get(action="batch.results_imported").after["blank_cells_not_imported"]
-        == 1
-    )
+    event = AuditEvent.objects.get(action="batch.results_imported")
+    assert event.after["blank_cells_not_imported"] == 1
+    assert event.import_source_file.filename == "wide.tsv"
+    assert bytes(event.import_source_file.data) == text.encode()
 
 
 def test_wide_mapping_needs_unit_and_reporting_limit_for_each_column(config, analyst):
@@ -263,7 +264,7 @@ def test_us_date_format_header_row_and_ambiguous_time(config, analyst, batch):
 def test_repeat_commit_cannot_duplicate_and_a_changed_mapping_is_refused(config, analyst, batch):
     profile = make_profile(analyst)
     text = example("schema_example_long.csv")
-    token = parse(batch, profile, text).state_token
+    token = parse(batch, profile, text, filename="a.csv").state_token
     args = {
         "actor": analyst,
         "batch_id": batch.pk,
@@ -308,7 +309,7 @@ def test_repeat_commit_cannot_duplicate_and_a_changed_mapping_is_refused(config,
 def test_a_result_entered_after_the_preview_blocks_the_commit(config, analyst, batch):
     profile = make_profile(analyst)
     text = example("schema_example_long.csv")
-    preview = parse(batch, profile, text)
+    preview = parse(batch, profile, text, filename="a.csv")
     assert preview.ok
     result = preview.rows[0].result
     svc.enter_result(
@@ -388,9 +389,19 @@ def test_http_journey_from_mapping_to_preview_to_commit(config, client, analyst,
     assert client.get(url).status_code == 200
     from django.core.files.uploadedfile import SimpleUploadedFile
 
-    upload = SimpleUploadedFile(
-        "run.csv", example("schema_example_long.csv").encode(), content_type="text/csv"
+    raw = example("schema_example_long.csv").encode()
+    too_long = client.post(
+        url,
+        {
+            "step": "preview",
+            "profile": profile.pk,
+            "file": SimpleUploadedFile("x" * 197 + ".csv", raw),
+        },
     )
+    assert b"up to 200 printable characters" in too_long.content
+    assert b'name="step" value="commit"' not in too_long.content
+    filename = " run.csv"
+    upload = SimpleUploadedFile(filename, raw, content_type="text/csv")
     preview = client.post(url, {"step": "preview", "profile": profile.pk, "file": upload})
     page = preview.content.decode()
     assert preview.status_code == 200 and "passed validation" in page
@@ -398,11 +409,17 @@ def test_http_journey_from_mapping_to_preview_to_commit(config, client, analyst,
     assert not ResultRevision.objects.exists()  # preview writes nothing
     ctx = preview.context
     commit = ctx["commit_form"].initial | {"step": "commit"}
+    assert commit["filename"] == filename
+    refused = client.post(url, commit | {"filename": "renamed.csv"})
+    assert b"changed after the preview" in refused.content
+    assert not ResultRevision.objects.exists()
     done = client.post(url, commit)
     assert done.status_code == 302 and done.url == reverse(
         "analytical:batch-detail", args=[batch.pk]
     )
     assert ResultRevision.objects.filter(source="import").count() == 2
+    event = AuditEvent.objects.get(action="batch.results_imported")
+    assert event.after["filename"] == event.import_source_file.filename == filename
     again = client.post(url, commit)  # a repeated submit is refused, nothing duplicated
     assert again.status_code == 200 and ResultRevision.objects.count() == 2
     assert b"Nothing was imported" in again.content
@@ -450,7 +467,7 @@ def test_preview_digest_provenance_and_repeat_detection_match_the_committed_byte
     page = preview.content.decode()
     assert preview.status_code == 200 and "passed validation" in page
     assert digest in page and "File SHA-256 (uploaded bytes)" in page
-    assert "Not stored by this application" in page and "Keep the source file" in page
+    assert "Confirmation saves the entire uploaded file." in page
     # Post back exactly the hidden fields the browser would hold.
     hidden = {}
     for tag in re.findall(r"<input[^>]*type=\"hidden\"[^>]*>", page):
@@ -501,7 +518,7 @@ def test_mapping_form_labels_fit_and_the_note_has_room(config, client, analyst):
     assert ">Wide (one row per sample)</option>" in page
     assert ">MM/DD/YYYY HH:MM AM/PM</option>" in page
     assert 'class="vr-form-note mt-3 mb-0"><strong>Long:</strong>' in page
-    assert "not the uploaded file: keep your source file" in page
+    assert "Staff can download the original file from the batch after confirming an import." in page
 
 
 def test_stale_profile_edit_keeps_newer_mapping(client, config, analyst):
