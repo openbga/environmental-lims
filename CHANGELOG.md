@@ -172,6 +172,14 @@ The same list is shown in the application under What's new.
 
 ### Medium impact
 
+- **Added:** Check stored files at the same snapshot as a backup (2026-11-24, Backup and restore)
+
+  Deployers can take a PostgreSQL backup and a matching inventory of stored files while staff continue working. After restoring the backup, they can compare inventories to detect missing or changed files.
+
+  Technical notes:
+
+  > Pass the same exported PostgreSQL snapshot ID to pg_dump and to verify_stored_files with --snapshot. Keep the exporting transaction open until both commands finish. Generate the comparison inventory on the restored database with --format manifest.
+
 - **Added:** Inspect relative standard error for calibration fits through the origin (2026-11-24, Batches & QC)
 
   Choose Linear through origin in the calibration fit worksheet to see the relative standard error across all recorded standards and replicates. The worksheet shows the degrees of freedom and explains when a zero slope prevents the calculation.

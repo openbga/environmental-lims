@@ -1,9 +1,15 @@
 import json
+import re
 from hashlib import sha256
 
 from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
+from django.db import Error as DjangoDatabaseError
+from django.db import connection, transaction
 from django.db.models import BinaryField, CharField, F, Func, IntegerField, Q, Value
+from psycopg import Error as PsycopgError
+from psycopg import sql
+from psycopg.pq import TransactionStatus
 
 from commercial.models import InvoiceDraft, IssuedInvoice
 from core.models import LabLogo
@@ -77,8 +83,71 @@ class Command(BaseCommand):
             default="text",
             help="Summary format. Use manifest to compare verified files before and after restore.",
         )
+        parser.add_argument(
+            "--snapshot",
+            metavar="ID",
+            help="Use a PostgreSQL snapshot whose exporting transaction is still open.",
+        )
 
     def handle(self, *args, **options):
+        output_format = options["format"]
+        snapshot = options["snapshot"]
+        if snapshot is None:
+            summary, total_checked, total_failures = self._scan(output_format)
+        else:
+            summary, total_checked, total_failures = self._scan_snapshot(snapshot, output_format)
+
+        if output_format == "manifest":
+            if not total_failures:
+                self.stdout.write(
+                    json.dumps({"version": 1, "categories": summary}, indent=2, sort_keys=True)
+                )
+        elif output_format == "json":
+            summary["Total"] = {"checked": total_checked, "failures": total_failures}
+            self.stdout.write(json.dumps(summary))
+        else:
+            self.stdout.write(f"Total: checked={total_checked} failures={total_failures}")
+        if total_failures:
+            raise CommandError("Stored file verification failed.")
+
+    def _scan_snapshot(self, snapshot, output_format):
+        # pg_export_snapshot() returns two eight-digit hex fields and a decimal counter.
+        if not isinstance(snapshot, str) or not re.fullmatch(
+            r"[0-9A-F]{8}-[0-9A-F]{8}-[1-9][0-9]{0,9}", snapshot
+        ):
+            raise CommandError("--snapshot requires a PostgreSQL snapshot ID.")
+
+        try:
+            autocommit = connection.get_autocommit()
+        except DjangoDatabaseError:
+            raise CommandError(
+                "Could not connect to PostgreSQL for snapshot verification."
+            ) from None
+        if (
+            not autocommit
+            or connection.connection.info.transaction_status != TransactionStatus.IDLE
+        ):
+            raise CommandError("Snapshot verification requires a fresh PostgreSQL transaction.")
+
+        try:
+            with transaction.atomic(durable=True):
+                # SET needs a SQL literal. Keep the snapshot ID out of Django's query logs.
+                with connection.connection.cursor() as cursor:
+                    cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+                    try:
+                        cursor.execute(
+                            sql.SQL("SET TRANSACTION SNAPSHOT {}").format(sql.Literal(snapshot))
+                        )
+                    except PsycopgError:
+                        raise CommandError(
+                            "Could not import the PostgreSQL snapshot. Use the same database "
+                            "and keep the exporting transaction open during import."
+                        ) from None
+                return self._scan(output_format)
+        except DjangoDatabaseError, PsycopgError:
+            raise CommandError("A PostgreSQL error interrupted stored file verification.") from None
+
+    def _scan(self, output_format):
         categories = [
             (
                 "Report PDFs",
@@ -109,13 +178,11 @@ class Command(BaseCommand):
             if issubclass(model, EvidenceMixin) and not model._meta.proxy
         )
 
-        json_output = options["format"] == "json"
-        manifest_output = options["format"] == "manifest"
         summary = {}
         total_checked = total_failures = 0
         for category, rows in categories:
             checked = failures = 0
-            digest = sha256() if manifest_output else None
+            digest = sha256() if output_format == "manifest" else None
             for model_label, pk, actual_size, actual_hash, problems in rows:
                 checked += 1
                 if problems:
@@ -129,22 +196,10 @@ class Command(BaseCommand):
                     digest.update((row + "\n").encode("ascii"))
             if digest is not None:
                 summary[category] = {"count": checked, "sha256": digest.hexdigest()}
-            elif json_output:
+            elif output_format == "json":
                 summary[category] = {"checked": checked, "failures": failures}
             else:
                 self.stdout.write(f"{category}: checked={checked} failures={failures}")
             total_checked += checked
             total_failures += failures
-
-        if manifest_output:
-            if not total_failures:
-                self.stdout.write(
-                    json.dumps({"version": 1, "categories": summary}, indent=2, sort_keys=True)
-                )
-        elif json_output:
-            summary["Total"] = {"checked": total_checked, "failures": total_failures}
-            self.stdout.write(json.dumps(summary))
-        else:
-            self.stdout.write(f"Total: checked={total_checked} failures={total_failures}")
-        if total_failures:
-            raise CommandError("Stored file verification failed.")
+        return summary, total_checked, total_failures

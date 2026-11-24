@@ -49,18 +49,55 @@ your IP must be on the database allow list (the Blueprint default is empty, so n
 If you cannot connect externally, use the dashboard **Recovery → Create export**
 instead, which yields a `.dir.tar.gz` directory-format archive for `pg_restore`.
 
-If you plan to compare stored files after the restore, pause application writes before
-starting the backup. Keep writes paused until the backup and its source inventory both
-finish. Save the inventory alongside the backup using the
-[restore verification instructions](#verify-the-restore).
+For a backup with a comparable file inventory, use the shared snapshot procedure below.
+For a dump alone, run:
 
 ```sh
-export SOURCE_URL='postgresql://USER:PASSWORD@HOST/roots'   # placeholder
+export SOURCE_URL='postgresql://USER@HOST/roots'   # placeholder; put the password in .pgpass
 pg_dump --format=directory --jobs=4 --no-owner --file=roots-$(date -u +%Y%m%dT%H%MZ).dump "$SOURCE_URL"
 ```
 
 Encrypt and copy the result off-provider, then record its date and size. Also capture a
 verification summary (see below) beside it so a later restore can be compared.
+
+### Take a backup with a matching file inventory
+
+Use the same password-free `SOURCE_URL` in both terminals, with your usual PostgreSQL
+password file. Staff can continue entering records. Run the backup between deployments
+so the source schema stays stable.
+
+In the first terminal, run `psql -X --dbname="$SOURCE_URL"` and export a snapshot:
+
+```sql
+BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
+SELECT pg_export_snapshot();
+```
+
+Leave that session open. In a second terminal, in the source application environment, run
+the following, pasting the returned ID at the prompt. Set `backup_root` to an existing
+private backup directory outside the source checkout.
+
+```sh
+backup_root=/path/to/private/backups
+printf 'PostgreSQL snapshot ID: '
+read -r backup_snapshot
+backup_dir=$(mktemp -d "$backup_root/roots-backup-XXXXXXXX") &&
+  pg_dump --dbname="$SOURCE_URL" --snapshot="$backup_snapshot" --format=directory --jobs=4 --no-owner \
+    --file="$backup_dir/database.dump" &&
+  DATABASE_URL="$SOURCE_URL" python manage.py verify_stored_files --snapshot "$backup_snapshot" --format manifest \
+    > "$backup_dir/source-files.json"
+```
+
+Check the exit status before accepting the pair. If either command fails or the exporting
+session disconnects before both tools import the snapshot, start again with a fresh snapshot
+and directory. If you also want [source record counts](#verify-the-restore), run the
+summary query in the exporting session before closing it. Once both commands finish,
+enter `ROLLBACK;` there. Encrypt and retain the successful dump and inventory together. After
+restoring `database.dump`, compare the inventories as described below.
+
+PostgreSQL makes an exported snapshot available for import while its transaction is open.
+Both readers see the same committed records, including when another session adds a file
+between the dump and the inventory check. [PostgreSQL 17 snapshot synchronization](https://www.postgresql.org/docs/17/functions-admin.html#FUNCTIONS-SNAPSHOT-SYNCHRONIZATION-TABLE) · [pg_dump snapshot option](https://www.postgresql.org/docs/17/app-pgdump.html)
 
 ## Restore into an isolated database
 
@@ -85,14 +122,14 @@ not delete the original until you have verified the new one.
 
 ## Verify the restore
 
-Counts only compare meaningfully at a consistent boundary. `pg_dump` itself reads one
-snapshot, but queries you run separately do not share it, and the live database keeps changing.
-Either suspend the web service (writes quiet) while you take the dump and run the source
-summary, or skip the source comparison and rely on the self-consistency checks below, which
-need no live comparison. Run the restored-database checks with the app configured as in
-production (`DEBUG=false`) and `DATABASE_URL` set to the restored database.
+For a source comparison, run the summary queries in the interactive transaction that exported
+the backup snapshot. Alternatively, pause writes before the backup and keep them paused
+through all source checks. With a provider export that does not share its snapshot, this
+pause is necessary to compare a separately captured inventory or summary. The restored
+database can also be checked on its own. Run the restore checks with the source application
+version, `DEBUG=false` and `DATABASE_URL` pointing to the restored database.
 
-Source summary, taken with writes quiet; save the output beside the dump:
+Save this source summary beside the dump:
 
 ```sql
 select 'audit', count(*), max(id::text) from core_auditevent
@@ -120,9 +157,9 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
    Use the reported record IDs to investigate on the restored copy. PostgreSQL reads every
    stored file for this check, so allow time proportional to the volume of files.
    To compare the full set of files, save a source inventory when you take the backup.
-   Keep application writes paused from before the dump starts until both the dump and the
-   source inventory finish. Use a new output path for each backup and retain the inventory
-   with it. Generate the inventory with the application connected to the source database.
+   The [shared snapshot procedure](#take-a-backup-with-a-matching-file-inventory) produces
+   `source-files.json` while the application is accepting writes. If writes are paused
+   throughout the backup and source checks, run this on the source instead:
 
    ```sh
    python manage.py verify_stored_files --format manifest > source-files.json
