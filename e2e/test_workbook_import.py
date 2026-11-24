@@ -89,10 +89,15 @@ def test_excel_worksheet_preview_errors_commit_and_provenance(page, demo):
     button.focus()
     page.keyboard.press("Enter")
     expect(page.get_by_text("Imported 1 result(s) from synthetic.xlsx as entered.")).to_be_visible()
-    with page.expect_download() as downloaded:
-        page.get_by_role("link", name="Download synthetic.xlsx").click()
-    assert downloaded.value.suggested_filename == "synthetic.xlsx"
-    assert downloaded.value.path().read_bytes() == good
+    source_file = page.get_by_role("link", name="Download synthetic.xlsx")
+    with page.expect_download() as clicked:
+        source_file.click()
+    assert clicked.value.suggested_filename == "synthetic.xlsx"
+    assert clicked.value.path().read_bytes() == good
+    source_file.focus()
+    with page.expect_download() as activated:
+        page.keyboard.press("Enter")
+    assert activated.value.path().read_bytes() == good
     revision = ResultRevision.objects.get(result__batch=batch)
     assert revision.value == Decimal("5.1234567890")
     assert revision.supplied_text == "5.1234567890"
