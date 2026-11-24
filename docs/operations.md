@@ -265,7 +265,9 @@ with the previous application. It repeats those checks on
 the same copy after migration. The table counts the baseline rows verified at each stage.
 A separate table lists the files the candidate checked on the migrated copy with
 `verify_stored_files`. A zero identifies a file category absent from that rehearsal.
-CI publishes the report after the file check succeeds.
+The published report confirms that PostgreSQL rejected updates and deletions on a baseline
+audit event, custody event, issued report version and stored report PDF at both stages.
+The rehearsal runs those checks only on its disposable restored copy.
 The synthetic source database stays at its original schema throughout.
 Orders, samples and containers have separate counts. The receipt check follows the original
 client sample ID, its correction and the custody transfer to the sample’s current location.

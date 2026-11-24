@@ -10,12 +10,14 @@ from io import BytesIO
 from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 
-from django.db import transaction
+from django.db import DatabaseError, connection, transaction
 from django.db.models import F, JSONField, TextField
 from django.db.models.functions import Cast
 from django.test import Client, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from psycopg import sql
+from psycopg.errors import RaiseException
 from weasyprint import HTML
 
 from accounts.models import User
@@ -61,6 +63,7 @@ EDD_REPORT_TITLE = "Outfall 001 weekly monitoring"
 ORIGINAL_EDD_LOCATION = "SYNTH-OUTFALL-ORIG"
 UPDATED_EDD_LOCATION = "SYNTH-OUTFALL-NEW"
 EDD_EXPORTS = "electronic deliverable exports"
+HISTORY_MUTATION_ERROR = "Historical records cannot be updated or deleted"
 
 
 def require(condition, message):
@@ -442,6 +445,61 @@ def collections(draft):
     }
 
 
+def verify_history_protections(manifest):
+    """Probe one preserved row per table. The caller has already verified every baseline ID."""
+    append_to_reason = "reason = reason || ' [upgrade rehearsal probe]'"
+    verified = []
+    for label, collection, model, change in (
+        ("Audit events", "audit events", AuditEvent, append_to_reason),
+        ("Custody events", "custody events", CustodyEvent, append_to_reason),
+        (
+            "Issued report versions",
+            "issued report versions",
+            ReportVersion,
+            "released_at = released_at + interval '1 second'",
+        ),
+        (
+            "Stored report PDFs",
+            "issued report files",
+            ReportFile,
+            "pdf = pdf || decode('00', 'hex')",
+        ),
+    ):
+        target = min(manifest[collection]["rows"])
+        table = sql.Identifier(model._meta.db_table)
+        pk = sql.Identifier(model._meta.pk.column)
+        update = sql.SQL("UPDATE {} SET {} WHERE {} = %s").format(table, sql.SQL(change), pk)
+        delete = sql.SQL("DELETE FROM {} WHERE {} = %s").format(table, pk)
+        for operation, statement in (("UPDATE", update), ("DELETE", delete)):
+            probe = f"History protection failed for {label} row {target} ({operation})"
+            try:
+                with transaction.atomic(), connection.cursor() as cursor:
+                    cursor.execute(statement, [target])
+                    affected = cursor.rowcount
+                    # Roll back a statement that succeeds because the protection is missing.
+                    transaction.set_rollback(True)
+            except DatabaseError as exc:
+                # The atomic block has rolled back to a usable connection. Only the
+                # rejection from prevent_record_mutation() counts as a passing probe.
+                cause = exc.__cause__
+                if (
+                    not isinstance(cause, RaiseException)
+                    or cause.diag.message_primary != HISTORY_MUTATION_ERROR
+                ):
+                    sqlstate = getattr(cause, "sqlstate", None) or "unknown"
+                    raise SystemExit(
+                        f"{probe}: unexpected database error (SQLSTATE {sqlstate}). "
+                        f"Expected '{HISTORY_MUTATION_ERROR}'."
+                    ) from None
+            else:
+                raise SystemExit(
+                    f"{probe}: statement completed (row count {affected}). "
+                    f"Expected '{HISTORY_MUTATION_ERROR}'."
+                )
+        verified.append(label)
+    return verified
+
+
 def amendment_for_client(version_ids):
     owner = User.objects.get(username="demo_client")
     amendment = (
@@ -701,6 +759,8 @@ def main():
                 f"and {len(changed)} changed against {len(before)} baseline rows.",
             )
             verified_counts[label] = len(after)
+        if history_path := os.environ.get("UPGRADE_HISTORY_CHECKS_PATH"):
+            verified_history = verify_history_protections(manifest)
         versions = manifest["issued report versions"]["rows"]
         owner, amendment = amendment_for_client(versions)
         export = edd_export_for_client(owner, manifest[EDD_EXPORTS]["rows"], versions)
@@ -708,6 +768,10 @@ def main():
         if counts_path := os.environ.get("UPGRADE_VERIFIED_COUNTS_PATH"):
             with Path(counts_path).open("x", encoding="utf-8") as out:
                 json.dump(verified_counts, out, sort_keys=True)
+        if history_path:
+            with Path(history_path).open("x", encoding="utf-8") as out:
+                json.dump(verified_history, out)
+            print("PostgreSQL rejected both UPDATE and DELETE for each protected history table.")
         print("Verified the recorded baseline data and downloads.")
 
 

@@ -200,6 +200,14 @@ The same list is shown in the application under What's new.
 
   > CI takes a logical backup of the populated distribution-branch database and restores it into a second, empty database. The previous application checks the restored copy before the candidate applies its migrations and repeats the checks. Each stage must verify the same baseline record counts before CI publishes the report.
 
+- **Changed:** Verify history protections after restore and upgrade (2026-11-23)
+
+  Deployers can check the upgrade rehearsal report to see whether PostgreSQL protected audit events, custody events, issued report versions and stored report PDFs at both stages.
+
+  Technical notes:
+
+  > The rehearsal attempts an update and a deletion on one baseline record in each category on the disposable restored copy. Each attempt must raise the expected database error after restore and again after migration before CI publishes the report.
+
 - **Changed:** Check QC history during upgrade rehearsals (2026-11-22)
 
   The GitHub Actions upgrade rehearsal now checks that QC samples, observations and corrective actions survive migration. It follows a failed observation through reanalysis and correction and verifies that both records still point to the original observation.

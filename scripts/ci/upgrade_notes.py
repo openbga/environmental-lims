@@ -115,6 +115,17 @@ def read_verified_counts(path):
     return counts
 
 
+def check_history_receipt(path):
+    categories = ("Audit events", "Custody events", "Issued report versions", "Stored report PDFs")
+    checked = json.loads(path.read_text(encoding="utf-8"))
+    if (
+        not isinstance(checked, list)
+        or len(checked) != len(categories)
+        or any(category not in checked for category in categories)
+    ):
+        raise ValueError(f"Incomplete history protection checks in {path.name}.")
+
+
 def read_stored_file_counts(path):
     def unique_object(pairs):
         result = {}
@@ -182,6 +193,7 @@ def render_notes(
     verified_counts=None,
     restored_counts=None,
     stored_file_counts=None,
+    history_checked=False,
 ):
     base_url = f"https://github.com/{repository}"
     before = f"{base_url}/blob/{baseline}"
@@ -213,6 +225,14 @@ def render_notes(
         "Both matched their stored bytes, and each issued version cited its reviewed result.",
         "The original and amended client PDF downloads matched their stored bytes.",
     ]
+    if history_checked:
+        lines.extend(
+            [
+                "After restore and again after migration, PostgreSQL rejected an update and a",
+                "deletion on each of the four records tested. These were an audit event, a custody",
+                "event, an issued report version and a stored report PDF.",
+            ]
+        )
     if verified_counts and "electronic deliverable exports" in verified_counts:
         lines.append(
             "The owning client downloaded the stored exploratory electronic data deliverable "
@@ -335,6 +355,13 @@ def main():
     parser.add_argument(
         "--stored-file-counts", type=Path, help="stored-file verification after migration (JSON)"
     )
+    parser.add_argument(
+        "--history-checks",
+        nargs=2,
+        metavar=("RESTORED", "UPGRADED"),
+        type=Path,
+        help="history protection checks after restore and after migration (JSON)",
+    )
     parser.add_argument("--repository", default="openbga/environmental-lims", metavar="OWNER/REPO")
     args = parser.parse_args()
     if not re.fullmatch(r"[A-Za-z0-9-]+/[A-Za-z0-9_.-]+", args.repository):
@@ -344,6 +371,14 @@ def main():
 
     try:
         plan = read_plan(args.plan)
+        if args.history_checks:
+            restored, upgraded = args.history_checks
+            if restored.samefile(upgraded):
+                raise ValueError(
+                    "The restore and upgrade stages require separate history receipts."
+                )
+            for receipt in args.history_checks:
+                check_history_receipt(receipt)
         verified_counts = (
             read_verified_counts(args.verified_counts) if args.verified_counts else None
         )
@@ -379,6 +414,7 @@ def main():
             verified_counts=verified_counts,
             restored_counts=restored_counts,
             stored_file_counts=stored_file_counts,
+            history_checked=bool(args.history_checks),
         )
     )
 

@@ -142,7 +142,9 @@ stage the owning client downloads the original ZIP, and the rehearsal compares i
 frozen recipient mappings and report-version link with the baseline. A pull request into `main`
 uses its base commit, and a push to `main` uses the previous tip. The
 application job publishes upgrade notes in the workflow run summary after preservation and
-download checks pass. The same Markdown file is available as an artifact named
+download checks pass. On the disposable restored copy, the rehearsal also attempts to update
+and delete one baseline audit event, custody event, issued report version and stored report PDF.
+Each attempt must raise the history protection error before and after migration. The same Markdown file is available as an artifact named
 `upgrade-rehearsal-<attempt>`. It lists baseline record counts for both stages. A separate table shows the number of files
 checked in each category on the migrated copy, including zero counts.
 The notes identify both checkout commits, the candidate’s forward migration

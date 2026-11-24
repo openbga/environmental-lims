@@ -80,6 +80,7 @@ jobs:
           DATABASE_URL: postgresql://roots:roots@127.0.0.1:5432/roots_upgrade
           UPGRADE_EVIDENCE_PATH: ${{ runner.temp }}/upgrade-evidence.json
           UPGRADE_VERIFIED_COUNTS_PATH: ${{ runner.temp }}/restored-counts.json
+          UPGRADE_HISTORY_CHECKS_PATH: ${{ runner.temp }}/restored-history.json
         run: |
           # Use the service's matching PostgreSQL tools. Bash pipefail checks both commands.
           docker exec "$POSTGRES_CONTAINER" pg_dump -U roots --format=custom roots_baseline |
@@ -91,6 +92,7 @@ jobs:
           DATABASE_URL: postgresql://roots:roots@127.0.0.1:5432/roots_upgrade
           UPGRADE_EVIDENCE_PATH: ${{ runner.temp }}/upgrade-evidence.json
           UPGRADE_VERIFIED_COUNTS_PATH: ${{ runner.temp }}/upgrade-counts.json
+          UPGRADE_HISTORY_CHECKS_PATH: ${{ runner.temp }}/upgraded-history.json
         run: |
           .venv/bin/python manage.py shell --no-imports < scripts/ci/upgrade_plan.py > "$RUNNER_TEMP/upgrade-plan.json"
           .venv/bin/python manage.py migrate --noinput
@@ -103,6 +105,7 @@ jobs:
           .venv/bin/python scripts/ci/upgrade_notes.py --baseline .upgrade-baseline --candidate . \
             --repository "$GITHUB_REPOSITORY" --plan "$RUNNER_TEMP/upgrade-plan.json" \
             --stored-file-counts "$RUNNER_TEMP/stored-file-counts.json" \
+            --history-checks "$RUNNER_TEMP/restored-history.json" "$RUNNER_TEMP/upgraded-history.json" \
             --restored-counts "$RUNNER_TEMP/restored-counts.json" \
             --verified-counts "$RUNNER_TEMP/upgrade-counts.json" > "$RUNNER_TEMP/upgrade-notes.md"
           cat "$RUNNER_TEMP/upgrade-notes.md" >> "$GITHUB_STEP_SUMMARY"

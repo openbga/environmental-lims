@@ -207,6 +207,7 @@ def test_reports_counts_after_restore_and_upgrade(tmp_path):
     )
 
     assert result.returncode == 0, result.stderr
+    assert "PostgreSQL rejected an update" not in result.stdout
     assert "CI restored a backup of the synthetic baseline" in result.stdout
     assert "The owning client downloaded the stored exploratory" in result.stdout
     assert (
@@ -216,6 +217,37 @@ def test_reports_counts_after_restore_and_upgrade(tmp_path):
         "| electronic deliverable exports | 1 | 1 |\n"
         "| QC measurements | 3 | 3 |\n" in result.stdout
     )
+
+
+def test_reports_history_protections_only_with_complete_evidence_at_both_stages(tmp_path):
+    project = tmp_path / "project"
+    checkout(project, "example-project")
+    plan = tmp_path / "plan.json"
+    plan.write_text("[]", encoding="utf-8")
+    categories = ["Custody events", "Audit events", "Stored report PDFs", "Issued report versions"]
+    restored = tmp_path / "restored.json"
+    upgraded = tmp_path / "upgraded.json"
+    restored.write_text(json.dumps(categories), encoding="utf-8")
+    upgraded.write_text(json.dumps(list(reversed(categories))), encoding="utf-8")
+
+    def notes(after_migration=upgraded):
+        return run_notes(
+            project, project, plan, "--history-checks", str(restored), str(after_migration)
+        )
+
+    repeated = notes(restored)
+    assert repeated.returncode != 0 and "separate history receipts" in repeated.stderr
+    assert not repeated.stdout
+    result = notes()
+    assert result.returncode == 0, result.stderr
+    assert "After restore and again after migration, PostgreSQL rejected an update" in result.stdout
+    for path in (restored, upgraded):
+        path.write_text(json.dumps([*categories[:-1], categories[0]]), encoding="utf-8")
+        result = notes()
+        assert result.returncode != 0
+        assert path.name in result.stderr
+        assert not result.stdout
+        path.write_text(json.dumps(categories), encoding="utf-8")
 
 
 def test_reports_migrated_stored_file_counts_separately(tmp_path, stored_file_counts):
