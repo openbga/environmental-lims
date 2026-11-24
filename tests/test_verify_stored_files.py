@@ -1,10 +1,13 @@
 import json
+from contextlib import contextmanager
 from hashlib import sha256
 from io import StringIO
 
 import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import connection, transaction
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from commercial.models import InvoiceDraft, IssuedInvoice, PriceList
@@ -222,9 +225,9 @@ def test_intact_documents_and_optional_evidence(document_records, evidence_recor
     assert stderr.getvalue() == ""
 
 
-def _manifest_output():
+def _verification_output(*args):
     stdout, stderr = StringIO(), StringIO()
-    call_command("verify_stored_files", *MANIFEST_FORMAT, stdout=stdout, stderr=stderr)
+    call_command("verify_stored_files", *args, stdout=stdout, stderr=stderr)
     assert stderr.getvalue() == ""
     return stdout.getvalue()
 
@@ -238,8 +241,8 @@ def test_manifest_hashes_stable_pk_ordered_rows(evidence_records):
         f'["laboratory.EquipmentEvent","10",{len(PDF)},"{sha256(PDF).hexdigest()}"]\n'
         f'["laboratory.EquipmentEvent","42",{len(PDF)},"{sha256(PDF).hexdigest()}"]\n'
     ).encode("ascii")
-    manifest = _manifest_output()
-    assert manifest == _manifest_output()
+    manifest = _verification_output(*MANIFEST_FORMAT)
+    assert manifest == _verification_output(*MANIFEST_FORMAT)
     assert json.loads(manifest)["categories"]["Equipment event evidence"] == {
         "count": 2,
         "sha256": sha256(expected_rows).hexdigest(),
@@ -250,7 +253,7 @@ def test_manifest_hashes_stable_pk_ordered_rows(evidence_records):
 def test_manifest_detects_changes_with_the_same_file_count(evidence_records, change):
     fields = evidence_records[EquipmentEvent] | EVIDENCE
     original = EquipmentEvent.objects.create(**fields)
-    before = json.loads(_manifest_output())["categories"]
+    before = json.loads(_verification_output(*MANIFEST_FORMAT))["categories"]
 
     if change == "content":
         different_pdf = PDF[:-1] + b"x"
@@ -261,12 +264,101 @@ def test_manifest_detects_changes_with_the_same_file_count(evidence_records, cha
         original.delete()
         EquipmentEvent.objects.create(**fields)
 
-    after = json.loads(_manifest_output())["categories"]
+    after = json.loads(_verification_output(*MANIFEST_FORMAT))["categories"]
     recorded = before.pop("Equipment event evidence")
     restored = after.pop("Equipment event evidence")
     assert after == before
     assert restored["count"] == recorded["count"] == 1
     assert restored["sha256"] != recorded["sha256"]
+
+
+@contextmanager
+def _exported_snapshot():
+    exporter = connection.copy()
+    try:
+        exporter.set_autocommit(False)
+        with exporter.cursor() as cursor:
+            cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+            cursor.execute("SELECT pg_catalog.pg_export_snapshot()")
+            (snapshot,) = cursor.fetchone()
+        yield snapshot
+    finally:
+        exporter.close()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
+def test_snapshot_verifies_committed_files_at_export_time(staff, output_format):
+    uploader = staff("snapshot-uploader", "admin")
+    logo_fields = {"uploaded_by": uploader, "content_type": "image/png", "width": 8, "height": 8}
+    LabLogo.objects.create(image=PNG, sha256=sha256(PNG).hexdigest(), size=len(PNG), **logo_fields)
+    before = _verification_output(*output_format)
+
+    def check_transaction(execute, query, params, many, context):
+        with connection.connection.cursor() as cursor:
+            cursor.execute("SHOW transaction_isolation")
+            assert cursor.fetchone() == ("repeatable read",)
+            cursor.execute("SHOW transaction_read_only")
+            assert cursor.fetchone() == ("on",)
+        return execute(query, params, many, context)
+
+    with _exported_snapshot() as snapshot:
+        later = PNG + b" committed after export"
+        LabLogo.objects.create(
+            image=later, sha256=sha256(later).hexdigest(), size=len(later), **logo_fields
+        )
+        with connection.execute_wrapper(check_transaction):
+            assert _verification_output(*output_format, "--snapshot", snapshot) == before
+        assert connection.get_autocommit()
+        assert _verification_output(*output_format) != before
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
+def test_expired_snapshot_fails_without_an_inventory(output_format):
+    with _exported_snapshot() as snapshot:
+        pass
+
+    stdout, stderr = StringIO(), StringIO()
+    with CaptureQueriesContext(connection) as captured:
+        with pytest.raises(CommandError, match="Could not import the PostgreSQL snapshot") as error:
+            call_command(
+                "verify_stored_files",
+                *output_format,
+                "--snapshot",
+                snapshot,
+                stdout=stdout,
+                stderr=stderr,
+            )
+
+    assert snapshot not in str(error.value)
+    assert all(snapshot not in query["sql"] for query in captured)
+    assert stdout.getvalue() == stderr.getvalue() == ""
+    assert connection.get_autocommit()
+    assert _verification_output(*output_format)
+
+
+@pytest.mark.parametrize("snapshot", ["", "synthetic invalid snapshot"])
+def test_malformed_snapshot_fails_without_an_inventory(snapshot):
+    stdout, stderr = StringIO(), StringIO()
+    with pytest.raises(CommandError, match=r"^--snapshot requires a PostgreSQL snapshot ID\.$"):
+        call_command("verify_stored_files", snapshot=snapshot, stdout=stdout, stderr=stderr)
+    assert stdout.getvalue() == stderr.getvalue() == ""
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("caller_transaction", ["django", "psycopg"])
+def test_snapshot_does_not_reuse_caller_transaction(caller_transaction):
+    connection.ensure_connection()
+    begin = (
+        transaction.atomic if caller_transaction == "django" else connection.connection.transaction
+    )
+    with _exported_snapshot() as snapshot, begin():
+        stdout, stderr = StringIO(), StringIO()
+        with pytest.raises(CommandError, match="requires a fresh PostgreSQL transaction"):
+            call_command("verify_stored_files", snapshot=snapshot, stdout=stdout, stderr=stderr)
+        assert stdout.getvalue() == stderr.getvalue() == ""
+        assert _verification_output()
 
 
 @pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
