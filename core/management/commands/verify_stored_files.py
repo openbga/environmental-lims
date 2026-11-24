@@ -21,7 +21,7 @@ from django.db.models import (
     Value,
 )
 from django.db.models.fields.json import KeyTransform
-from django.db.models.functions import Cast, JSONObject, Substr
+from django.db.models.functions import Cast, Concat, Greatest, JSONObject, Length, LPad, Substr
 from psycopg import Error as PsycopgError
 from psycopg import sql
 from psycopg.pq import TransactionStatus
@@ -178,6 +178,58 @@ def _check_invoices():
         yield InvoiceDraft._meta.label, pk, None, None, ["missing IssuedInvoice"]
 
 
+def _check_edd_exports():
+    export_events = AuditEvent.objects.filter(
+        action="report.edd_exported", object_type=EddExport._meta.label_lower
+    )
+    # Match Report.number's minimum width without truncating any digits or padding before a sign.
+    report_id = Cast(OuterRef("version__report_id"), TextField())
+    padded_id = LPad(report_id, Greatest(Value(6), Length(report_id)), Value("0"))
+    report_number = Concat(
+        Value("RPT-"),
+        Func(
+            padded_id,
+            Value(r"^(0+)-"),
+            Value(r"-\1"),
+            function="pg_catalog.regexp_replace",
+            output_field=TextField(),
+        ),
+        output_field=TextField(),
+    )
+    matches_export = Q(
+        after__contains=JSONObject(
+            report=report_number,
+            sha256=OuterRef("sha256"),
+            content_sha256=OuterRef("version__content_sha256"),
+        ),
+        audit_version=Cast(OuterRef("version__number"), TextField()),
+    )
+    events = (
+        export_events.filter(object_id=Cast(OuterRef("pk"), CharField()))
+        .order_by()
+        .values("object_id")
+        # Compare the JSON representation since JSONB numeric equality accepts 1.0 as 1.
+        .alias(audit_version=Cast(KeyTransform("version", "after"), TextField()))
+        .annotate(event_count=Count("pk"), matching_count=Count("pk", filter=matches_export))
+        .filter(event_count=1, matching_count=1)
+    )
+    yield from _check_files(
+        EddExport,
+        "data",
+        "sha256",
+        "size",
+        metadata=(Exists(events), "missing, ambiguous, or mismatched EDD export event"),
+    )
+
+    # Join on the recorded ID text so malformed IDs count as missing and cannot raise a cast error.
+    exports = EddExport._base_manager.alias(object_id=Cast("pk", CharField())).filter(
+        object_id=OuterRef("object_id")
+    )
+    missing = export_events.filter(~Exists(exports)).order_by("pk")
+    for pk in missing.values_list("pk", flat=True).iterator():
+        yield AuditEvent._meta.label, pk, None, None, ["missing EddExport"]
+
+
 def _check_import_sources():
     # Match only the recorded source fields, leaving the rest of the audit payload in PostgreSQL.
     matches_event = Q(
@@ -209,7 +261,7 @@ def _check_import_sources():
 
 
 class Command(BaseCommand):
-    help = "Verify database-stored files, invoice issuance history, and frozen report content."
+    help = "Verify database-stored files, issuance and export history, and frozen report content."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -290,7 +342,7 @@ class Command(BaseCommand):
                 "Subcontract source PDFs",
                 _check_files(SubcontractResult, "source_pdf", "source_sha256", "source_size"),
             ),
-            ("EDD export ZIPs", _check_files(EddExport, "data", "sha256", "size")),
+            ("EDD export ZIPs", _check_edd_exports()),
             ("Laboratory logos", _check_files(LabLogo, "image", "sha256", "size")),
         ]
         categories.extend(
