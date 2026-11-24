@@ -1,19 +1,21 @@
 import json
 import runpy
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 from django.core.management import call_command
-from django.db import transaction
+from django.db import connection, transaction
 from django.test import Client
 from django.urls import reverse
+from psycopg import sql
 
 from analytical.models import QCCorrectiveAction, QCMeasurement, QCSample
 from core.models import AuditEvent
 from receipt.models import Client as LabClient
-from receipt.models import Container, Order, Sample
+from receipt.models import Container, CustodyEvent, Order, Sample
 from receipt.subcontract_models import Subcontract, SubcontractResult
-from reporting.models import EddExport
+from reporting.models import EddExport, ReportFile, ReportVersion
 
 
 @pytest.mark.django_db
@@ -22,8 +24,10 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
     call_command("seed_demo", full=True, verbosity=0)
     evidence_path = tmp_path / "evidence.json"
     counts_path = tmp_path / "verified-counts.json"
+    history_path = tmp_path / "history-checks.json"
     monkeypatch.setenv("UPGRADE_EVIDENCE_PATH", str(evidence_path))
     monkeypatch.setenv("UPGRADE_VERIFIED_COUNTS_PATH", str(counts_path))
+    monkeypatch.setenv("UPGRADE_HISTORY_CHECKS_PATH", str(history_path))
     script = Path(__file__).resolve().parents[1] / "scripts/ci/upgrade_evidence.py"
 
     def run(mode):
@@ -66,6 +70,7 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
 
     run("capture")
     assert not counts_path.exists()
+    assert not history_path.exists()
     manifest = json.loads(evidence_path.read_text(encoding="utf-8"))
     for name, model in (
         ("orders", Order),
@@ -99,7 +104,27 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
                 assert response.content == bytes(export.data)
         return response
 
-    # Candidate migrations may add rows to an existing sample. Verify the baseline IDs.
+    history_tables = {
+        model._meta.db_table: manifest[label]["rows"]
+        for model, label in (
+            (AuditEvent, "audit events"),
+            (CustodyEvent, "custody events"),
+            (ReportVersion, "issued report versions"),
+            (ReportFile, "issued report files"),
+        )
+    }
+    probes = []
+
+    def observe_probe(execute, statement, params, many, context):
+        if isinstance(statement, sql.Composed):
+            words = statement.as_string().split()
+            if words[0] in {"UPDATE", "DELETE"}:
+                table = words[1 if words[0] == "UPDATE" else 2].strip('"')
+                if table in history_tables:
+                    probes.append((table, words[0], str(params[0])))
+        return execute(statement, params, many, context)
+
+    # Candidate migrations may add rows. Verify and probe only the baseline IDs.
     with transaction.atomic(), monkeypatch.context() as download:
         download.setattr(Client, "get", observe_edd_download)
         LabClient.objects.create(name="Additional synthetic upgrade client")
@@ -109,8 +134,23 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
             description="Synthetic additional bottle",
             condition="Intact",
         )
-        run("verify")
+        AuditEvent.objects.create(
+            pk=UUID(int=0), actor=receipt.actor, action="synthetic.candidate_event"
+        )
+        with connection.execute_wrapper(observe_probe):
+            run("verify")
         transaction.set_rollback(True)
+    assert len(probes) == 8
+    for table, baseline_ids in history_tables.items():
+        update, delete = [(action, pk) for name, action, pk in probes if name == table]
+        assert (update[0], delete[0]) == ("UPDATE", "DELETE")
+        assert update[1] == delete[1] and update[1] in baseline_ids
+    assert json.loads(history_path.read_text(encoding="utf-8")) == [
+        "Audit events",
+        "Custody events",
+        "Issued report versions",
+        "Stored report PDFs",
+    ]
     assert edd_responses == [
         (export.version.report.project.client_id, 200),
         (LabClient.objects.get(account_number="EXCSD").pk, 404),
@@ -124,7 +164,54 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
     ).order_by("number")
     assert (original.observed_text, corrected.observed_text) == ("4.200", "4.100")
     failed_counts_path = tmp_path / "failed-counts.json"
+    failed_history_path = tmp_path / "failed-history-checks.json"
     monkeypatch.setenv("UPGRADE_VERIFIED_COUNTS_PATH", str(failed_counts_path))
+    monkeypatch.setenv("UPGRADE_HISTORY_CHECKS_PATH", str(failed_history_path))
+
+    # Force deferred constraints to run before changing trigger definitions in this test.
+    # Each failed probe must leave the database usable and preserve the row.
+    audit_rows = AuditEvent.objects.filter(pk=min(manifest["audit events"]["rows"]))
+    original_reason = audit_rows.get().reason
+    with transaction.atomic(), connection.cursor() as cursor:
+        cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
+        cursor.execute("ALTER TABLE core_auditevent DISABLE TRIGGER audit_immutable")
+        cursor.execute(
+            "CREATE TRIGGER rehearsal_key_update_only BEFORE UPDATE OF id ON core_auditevent "
+            "FOR EACH ROW EXECUTE FUNCTION prevent_record_mutation()"
+        )
+        with pytest.raises(SystemExit, match=r"Audit events .* \(UPDATE\).*row count 1"):
+            run("verify")
+        assert audit_rows.get().reason == original_reason
+        cursor.execute(
+            "CREATE TRIGGER rehearsal_update_only BEFORE UPDATE ON core_auditevent "
+            "FOR EACH ROW EXECUTE FUNCTION prevent_record_mutation()"
+        )
+        with pytest.raises(SystemExit, match=r"Audit events .* \(DELETE\).*row count 1"):
+            run("verify")
+        assert audit_rows.get().reason == original_reason
+        with monkeypatch.context() as opt_out:
+            opt_out.delenv("UPGRADE_HISTORY_CHECKS_PATH")
+            opt_out.delenv("UPGRADE_VERIFIED_COUNTS_PATH")
+            run("verify")
+        transaction.set_rollback(True)
+
+    # A foreign-key violation cannot substitute for the original history guard.
+    with transaction.atomic(), connection.cursor() as cursor:
+        cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
+        cursor.execute(
+            "ALTER TABLE reporting_reportversion DISABLE TRIGGER issued_record_immutable"
+        )
+        cursor.execute(
+            "CREATE TRIGGER rehearsal_update_only BEFORE UPDATE ON reporting_reportversion "
+            "FOR EACH ROW EXECUTE FUNCTION prevent_record_mutation()"
+        )
+        with pytest.raises(SystemExit, match=r"Issued report versions .* \(DELETE\).*23503"):
+            run("verify")
+        version_pk = min(manifest["issued report versions"]["rows"])
+        assert ReportVersion.objects.filter(pk=version_pk).exists()
+        transaction.set_rollback(True)
+    assert not failed_history_path.exists()
+    assert not failed_counts_path.exists()
 
     # A migration can change receiving records without touching their append-only history.
     other_sample = Sample.objects.exclude(pk=sample.pk).first()
@@ -212,5 +299,6 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
     with pytest.raises(SystemExit, match=r"QC measurements: 1 missing, 0 added, and 0 changed"):
         run("verify")
     assert not failed_counts_path.exists()
+    assert not failed_history_path.exists()
     with pytest.raises(SystemExit, match="The baseline needs a failed QC observation"):
         run("capture")

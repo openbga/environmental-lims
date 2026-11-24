@@ -135,7 +135,9 @@ must retain its link to the independently reviewed transcription it cited. A cli
 able to download the same original and amended PDFs after the upgrade. The rehearsal also
 covers a stored exploratory electronic data deliverable (EDD). Its frozen recipient mappings
 and report-version link must survive the restore and migration. The owning client must
-receive the exact ZIP generated on the baseline at both stages.
+receive the exact ZIP generated on the baseline at both stages. At each stage PostgreSQL must
+also reject updates and deletions on a baseline audit event, custody event, issued report
+version and stored report PDF. The rehearsal tests these protections on the disposable copy.
 
 Since 2026-11-19, the successful rehearsal provides upgrade notes for
 the two commits it tested. Deployers can inspect the migrations, changes to locked package
