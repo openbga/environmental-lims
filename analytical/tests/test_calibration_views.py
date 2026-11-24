@@ -433,7 +433,10 @@ def test_linear_through_origin_fits_all_rows_and_keeps_evidence_read_only(
     ):
         assert shown in html
     assert "Calibration factor (counts per" not in html
-    assert "Relative standard error (RSE)" not in worksheet_html(response)
+    worksheet = worksheet_html(response)
+    assert "Relative standard error (RSE)" in worksheet
+    assert ">58.6301969978</span>%" in worksheet
+    assert "3 recorded points − 1 fitted term = 2" in worksheet
     assert R_SQUARED not in worksheet_html(response)
     assert "EPA Method 8000D advises against this combination." not in worksheet_html(response)
     for weighting in ("", "equal"):
@@ -455,7 +458,9 @@ def test_linear_through_origin_fits_all_rows_and_keeps_evidence_read_only(
         worksheet = worksheet_html(response)
         assert f"<dt>Weighting</dt><dd>{label}</dd>" in worksheet
         assert "EPA Method 8000D advises against this combination." in worksheet
-        assert all(metric not in worksheet for metric in (R_SQUARED, PEARSON_R, "RSE"))
+        assert all(metric not in worksheet for metric in (R_SQUARED, PEARSON_R))
+        assert "Relative standard error (RSE)" in worksheet
+        assert "3 recorded points − 1 fitted term = 2" in worksheet
         assert response.context["show_error_limits"]
         assert [row["standard"] for row in weighted_fit["rows"]] == [
             point["standard"] for point in points
@@ -748,9 +753,8 @@ def test_flat_fit_explains_the_unavailable_refit(
         2 * len(responses)
     )
     worksheet = worksheet_html(response)
-    if model != "linear_origin":
-        assert "Relative standard error (RSE)" in worksheet
-        assert f"Unavailable because the {reason} is zero." in worksheet
+    assert "Relative standard error (RSE)" in worksheet
+    assert f"Unavailable because the {reason} is zero." in worksheet
     if r_squared_shown is None:
         assert R_SQUARED not in worksheet
         assert PEARSON_R not in worksheet

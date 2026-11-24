@@ -19,7 +19,7 @@
       "steps": [
         "In [[Calibration fit worksheet]], choose the [[Model]] and [[Weighting]] your method specifies. For [[Linear through origin]], leaving the weighting blank uses equal weights.",
         "To compare errors, enter a [[Maximum absolute percent error]]. If your method uses a different limit at the lowest concentration, also enter [[Maximum error at lowest concentration]].",
-        "Select [[Calculate fit]]. Review the [[Equation]] and fitted coefficients. For [[Linear]] or [[Quadratic]], check [[Relative standard error (RSE)]].",
+        "Select [[Calculate fit]]. Review the [[Equation]], fitted coefficients and [[Relative standard error (RSE)]].",
         "In [[Standard points]], review [[Absolute percent error]] and, if you entered limits, [[Limit comparison]]."
       ]
     },
@@ -149,11 +149,11 @@
         },
         {
           "label": "Relative standard error (RSE)",
-          "description": "Shown after a successful Linear, Quadratic or Average calibration factor calculation. For each recorded point, subtract the recorded concentration from its unrounded back-calculated concentration and divide by the recorded concentration. Square these relative errors, sum them, divide by the degrees of freedom, take the square root and multiply by 100. The selected weights affect the fitted Linear or Quadratic model. Each point, including each replicate, contributes once to RSE. RSE requires a nonzero recorded concentration and a back-calculated concentration for every point, and positive degrees of freedom. For Quadratic, this requires a unique inverse within the recorded range for each point. A zero slope for Linear or zero mean factor for Average calibration factor also leaves RSE unavailable. Apply your method and laboratory SOP for acceptance."
+          "description": "Shown for every fitted model. For each recorded point, subtract the recorded concentration from its unrounded back-calculated concentration and divide by the recorded concentration. Square these relative errors, sum them, divide by the degrees of freedom, take the square root and multiply by 100. The selected weights affect the fitted coefficients. Each point, including each replicate, contributes once to RSE. RSE requires a nonzero recorded concentration and a back-calculated concentration for every point, and positive degrees of freedom. For Quadratic, this requires a unique inverse within the recorded range for each point. A zero slope for either linear model or a zero mean calibration factor also leaves RSE unavailable. Apply your method and laboratory SOP for acceptance."
         },
         {
           "label": "RSE degrees of freedom",
-          "description": "The number of recorded points minus the number of fitted terms. Linear uses two terms (slope and intercept), Quadratic uses three (quadratic coefficient, linear coefficient and intercept), and Average calibration factor uses one (the mean factor). Quadratic still uses three terms if its quadratic coefficient is zero. RSE requires a positive difference."
+          "description": "The number of recorded points minus the number of fitted terms. Linear through origin uses one term (slope), Linear uses two (slope and intercept), Quadratic uses three (quadratic coefficient, linear coefficient and intercept), and Average calibration factor uses one (the mean factor). Quadratic still uses three terms if its quadratic coefficient is zero. RSE requires a positive difference."
         },
         {
           "label": "Slope / Linear coefficient (b)",

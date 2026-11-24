@@ -69,12 +69,10 @@
               {% if fit.r_squared is None %}Unavailable because all recorded responses are equal.{% else %}<span class="vr-id">{{ fit.r_squared }}</span>{% endif %}
             {% endfact %}
           {% endif %}
-          {% if fit.rse %}
-            {% fact label="Relative standard error (RSE)" wide=True %}
-              {% if fit.rse.reason %}Unavailable because {{ fit.rse.reason }}.{% else %}<span class="vr-id">{{ fit.rse.percent }}</span>%{% endif %}
-            {% endfact %}
-            {% fact label="RSE degrees of freedom" wide=True %}{{ fit.rse.points }} recorded points − {{ fit.rse.terms }} fitted term{{ fit.rse.terms|pluralize }} = {{ fit.rse.degrees_of_freedom }}{% endfact %}
-          {% endif %}
+          {% fact label="Relative standard error (RSE)" wide=True %}
+            {% if fit.rse.reason %}Unavailable because {{ fit.rse.reason }}.{% else %}<span class="vr-id">{{ fit.rse.percent }}</span>%{% endif %}
+          {% endfact %}
+          {% fact label="RSE degrees of freedom" wide=True %}{{ fit.rse.points }} recorded points − {{ fit.rse.terms }} fitted term{{ fit.rse.terms|pluralize }} = {{ fit.rse.degrees_of_freedom }}{% endfact %}
         </dl>
         <p class="vr-muted">In the equation, x is concentration ({{ curve.unit }}) and y is predicted response ({{ curve.response_unit }}). Residual is observed response minus predicted response.
           {% if fit_model == "average_factor" %}Each factor is observed response divided by concentration. Every row, including replicates, counts equally in the mean. Predictions and residuals use the unrounded mean factor.

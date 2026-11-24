@@ -286,10 +286,10 @@ Absolute percent error is the size of that difference divided by the entered con
 times 100. Back-calculation is unavailable for a linear fit with zero slope or an average
 factor of zero. A zero entered concentration prevents the percentage comparison.
 
-For a free-intercept line, a quadratic or an average calibration factor, read
-**Relative standard error (RSE)** to inspect the error across
-all standards, including replicates. The average factor needs at least two points, the line
-three and the quadratic four. If any recorded concentration is zero or a standard has no
+Read **Relative standard error (RSE)** to inspect the error across all standards, including
+replicates. A line through the origin and an average calibration factor each need at least
+two points at distinct positive concentrations. A line with a fitted intercept needs at least
+three recorded points and a quadratic needs four. If any recorded concentration is zero or a standard has no
 back-calculated concentration, the worksheet explains why RSE is unavailable. Follow the
 laboratory's method and SOP for acceptance. A closed batch still accepts evidence because
 closing freezes membership only.

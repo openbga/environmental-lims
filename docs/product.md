@@ -308,16 +308,19 @@ unavailable for that standard. The limits apply to the current worksheet view. T
 makes the acceptance decision under its own method and SOP.
 [US EPA Method 8000D Rev. 5, March 2018, §11.5.4.1, checked 2026-11-21](https://www.epa.gov/sites/default/files/2015-12/documents/8000d.pdf#page=39).
 
-For a free-intercept linear fit, a quadratic fit or an average external-standard factor, staff
-can inspect the relative standard error across the recorded calibration points. US EPA SW-846
+Staff can inspect relative standard error (RSE) across the recorded calibration points for
+all four worksheet models. US EPA SW-846
 Method 8000D Rev. 5 (March 2018), section 11.5.4.2, defines it as a percentage. The worksheet sums
 the squared relative concentration errors, divides by the number of points minus the number
-of fitted terms, takes the square root and multiplies by 100. The average factor has one fitted term,
-the line has two and the quadratic has three, even when its quadratic coefficient is zero. Each
+of fitted terms, takes the square root and multiplies by 100. The average factor and the line
+through the origin each fit one parameter. A line with a fitted intercept uses two and the
+quadratic uses three, even when its quadratic coefficient is zero. Each
 replicate counts as a point. The selected weights affect the fitted coefficients. Each point
 contributes once to the error calculation using the unrounded fit. RSE requires nonzero
 recorded concentrations and positive degrees of freedom. For a line, its slope must be
-nonzero, and for an average-factor fit, its mean factor must be nonzero.
+nonzero, and for an average-factor fit, its mean factor must be nonzero. The US EPA identifies
+one fitted parameter for a line through the origin in its 1998 clarification of the RSE formula.
+[US EPA SW-846 clarification, August 7, 1998, attachment 2, p. 9, checked 2026-11-24](https://www.epa.gov/sites/default/files/2015-10/documents/memo7.pdf#page=16).
 
 A quadratic needs at least four recorded points across at least three distinct concentrations
 for this statistic. Every standard must have a nonzero recorded concentration and a unique

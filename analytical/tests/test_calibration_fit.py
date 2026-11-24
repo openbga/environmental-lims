@@ -447,6 +447,13 @@ def test_zero_intercept_fit_uses_every_recorded_point_and_preserves_original_tex
     assert fit == {
         "slope": "3.05555555556",  # Exact slope is 55/18.
         "intercept": "0",
+        "rse": {
+            "percent": "104.277654371",
+            "reason": None,
+            "points": 4,
+            "terms": 1,
+            "degrees_of_freedom": 3,
+        },
         "back_calculation_unavailable": False,
         "rows": [
             dict(
@@ -498,14 +505,16 @@ def test_zero_intercept_fit_calculates_residuals_before_display_rounding(weighti
     assert [row["residual"] for row in fit["rows"]] == ["-5.00000000000E-35", "5.00000000000E-35"]
     assert [row["back_calculated"] for row in fit["rows"]] == ["1.00000000000E+14"] * 2
     assert [row["absolute_percent_error"] for row in fit["rows"]] == ["5.00000000000E-47"] * 2
+    assert fit["rse"]["percent"] == "7.07106781187E-47"
 
 
 @pytest.mark.parametrize(
-    ("weighting", "slope", "calculated_rows"),
+    ("weighting", "slope", "rse", "calculated_rows"),
     [
         (
             "inverse",
             "2.625",  # Sum(y) / sum(x) = 21/8.
+            "115.470053838",
             [
                 ("2.625", "-3.625", "-0.380952380952", "138.095238095"),
                 ("5.25", "-5.25", "0", "100"),
@@ -516,6 +525,7 @@ def test_zero_intercept_fit_calculates_residuals_before_display_rounding(weighti
         (
             "inverse_square",
             "2",  # Mean(y/x) = (-1 + 0 + 4 + 5) / 4.
+            "147.196014439",
             [
                 ("2", "-3", "-0.5", "150"),
                 ("4", "-4", "0", "100"),
@@ -525,7 +535,9 @@ def test_zero_intercept_fit_calculates_residuals_before_display_rounding(weighti
         ),
     ],
 )
-def test_weighted_zero_intercept_fit_uses_every_recorded_point(weighting, slope, calculated_rows):
+def test_weighted_zero_intercept_fit_uses_every_recorded_point(
+    weighting, slope, rse, calculated_rows
+):
     points = [
         point("1.00", "-1", "Standard 1"),
         point("2.000", "0.000", "Standard 2"),
@@ -539,6 +551,7 @@ def test_weighted_zero_intercept_fit_uses_every_recorded_point(weighting, slope,
     assert fit == {
         "slope": slope,
         "intercept": "0",
+        "rse": {"percent": rse, "reason": None, "points": 4, "terms": 1, "degrees_of_freedom": 3},
         "back_calculation_unavailable": False,
         "rows": [
             dict(
