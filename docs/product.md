@@ -151,6 +151,8 @@ technical guidance from the candidate changelog, with links to the tested revisi
 the baseline predates changelog entries, all candidate technical notes are available for
 reference. A deployer can also check the files in a restored database from the command line.
 Every issued report version and every issued or voided invoice must retain its PDF.
+For each invoice, the number and PDF checksum must agree with the single issue event
+recorded for its draft, including after the invoice is voided.
 For each original and amended report, deployers can verify the frozen content used in
 client exports against both copies of its release checksum, on the issued version and
 in the stored snapshot. Stored report, invoice and subcontract PDFs, electronic deliverables,

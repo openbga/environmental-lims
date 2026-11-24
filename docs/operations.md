@@ -156,6 +156,10 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
    for result downloads. It compares that checksum with the one on the issued version
    and the copy in its snapshot. A failure identifies the report version by record ID.
    The `Report PDFs` count includes each version once across the PDF and content checks.
+   For an invoice, the command checks that its draft has exactly one issue event and that
+   the recorded invoice number and PDF checksum match. A voided invoice must still match its
+   original issue event. An absent, duplicate or inconsistent issue event fails the invoice
+   check. Use the issued invoice record ID from the error to trace the draft and its history.
    An optional evidence attachment with only part of its file or metadata present also fails.
    To save just the counts as JSON, run `python manage.py verify_stored_files --format json > stored-file-counts.json`.
    Each category and the total give the number checked and the number of records with failures.

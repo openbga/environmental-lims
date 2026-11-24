@@ -7,7 +7,19 @@ from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
 from django.db import Error as DjangoDatabaseError
 from django.db import connection, transaction
-from django.db.models import BinaryField, CharField, F, Func, IntegerField, Q, TextField, Value
+from django.db.models import (
+    BinaryField,
+    CharField,
+    Count,
+    Exists,
+    F,
+    Func,
+    IntegerField,
+    OuterRef,
+    Q,
+    TextField,
+    Value,
+)
 from django.db.models.fields.json import KeyTransform
 from django.db.models.functions import Cast, JSONObject, Substr
 from psycopg import Error as PsycopgError
@@ -131,7 +143,33 @@ def _check_reports():
 
 
 def _check_invoices():
-    yield from _check_files(IssuedInvoice, "pdf", "sha256")
+    # The original issuance is unique for each draft, including drafts later voided.
+    # Count all issuance events and compare just the relevant fields within PostgreSQL.
+    matches_invoice = Q(
+        after__contains=JSONObject(
+            issued_invoice=JSONObject(number=OuterRef("number"), sha256=OuterRef("sha256"))
+        )
+    )
+    events = (
+        AuditEvent.objects.filter(
+            action="invoice_draft.issued",
+            object_type=InvoiceDraft._meta.label_lower,
+            object_id=Cast(OuterRef("draft_id"), CharField()),
+        )
+        .order_by()
+        .values("object_id")
+        .annotate(
+            event_count=Count("pk"),
+            matching_count=Count("pk", filter=matches_invoice),
+        )
+        .filter(event_count=1, matching_count=1)
+    )
+    yield from _check_files(
+        IssuedInvoice,
+        "pdf",
+        "sha256",
+        metadata=(Exists(events), "missing, ambiguous, or mismatched invoice issuance event"),
+    )
     missing = InvoiceDraft.objects.filter(
         status__in=[InvoiceDraft.Status.ISSUED, InvoiceDraft.Status.VOIDED],
         issued_invoice__isnull=True,
@@ -171,7 +209,7 @@ def _check_import_sources():
 
 
 class Command(BaseCommand):
-    help = "Verify database-stored files and frozen issued report content."
+    help = "Verify database-stored files, invoice issuance history, and frozen report content."
 
     def add_arguments(self, parser):
         parser.add_argument(

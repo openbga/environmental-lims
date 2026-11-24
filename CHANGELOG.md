@@ -180,6 +180,14 @@ The same list is shown in the application under What's new.
 
 ### Medium impact
 
+- **Changed:** Check restored invoice PDFs against their issue history (2026-11-24, Backup and restore)
+
+  Deployers can check whether an invoice PDF in a restored backup matches the one originally issued, even after a void. The check also identifies invoices with missing or duplicate issue events.
+
+  Technical notes:
+
+  > Run `python manage.py verify_stored_files` on the restored database. Each invoice number and PDF checksum must match the original issue event for its draft. A failed check reports the issued invoice record ID and prevents the command from writing a file inventory.
+
 - **Added:** Check stored files at the same snapshot as a backup (2026-11-24, Backup and restore)
 
   Deployers can take a PostgreSQL backup and a matching inventory of stored files while staff continue working. After restoring the backup, they can compare inventories to detect missing or changed files.
