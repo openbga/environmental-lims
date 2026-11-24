@@ -450,8 +450,7 @@ def calculate_fit(points, weighting, model="linear", *, max_error=None, lowest_m
         )
     else:
         fit["back_calculation_unavailable"] = not b
-    if model == "linear":
         fit["rse"] = _relative_standard_error(
-            observations, b, c, terms=2, coefficient_label="fitted slope"
+            observations, b, c, terms=1 if linear_origin else 2, coefficient_label="fitted slope"
         )
     return fit

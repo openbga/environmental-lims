@@ -6,7 +6,7 @@ What was added or changed in OpenBGA Environmental LIMS, newest first. Changes a
 grouped by the calendar month they were merged in and ranked from high to low impact.
 The same list is shown in the application under What's new.
 
-## November 2026 (2026-11-11 to 2026-11-23)
+## November 2026 (2026-11-11 to 2026-11-24)
 
 ### High impact
 
@@ -171,6 +171,10 @@ The same list is shown in the application under What's new.
   > No migration. New optional settings, documented in `docs/operations.md` and `.env.example`: `CONTENT_SECURITY_POLICY` (replaces the default policy), `MAX_REQUEST_BODY_BYTES` (12 MiB by default), `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS` and `ALLAUTH_TRUSTED_CLIENT_IP_HEADER` (set it only where the platform supplies a client-address header that clients cannot forge). A deployment that adds its own scripts or embeds content may need to adjust the policy.
 
 ### Medium impact
+
+- **Added:** Inspect relative standard error for calibration fits through the origin (2026-11-24, Batches & QC)
+
+  Choose Linear through origin in the calibration fit worksheet to see the relative standard error across all recorded standards and replicates. The worksheet shows the degrees of freedom and explains when a zero slope prevents the calculation.
 
 - **Added:** Check stored files after restoring a backup (2026-11-23)
 

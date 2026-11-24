@@ -369,6 +369,8 @@ def test_linear_through_origin_shows_fixed_intercept_and_only_recorded_rows(sign
     weighting = field(form, "Weighting")
     button = form.get_by_role("button", name="Calculate fit", exact=True)
     residual = table.get_by_role("columnheader", name="Residual (counts)", exact=True)
+    rse = form.get_by_text(RSE, exact=True).locator("xpath=following-sibling::dd")
+    degrees_of_freedom = form.get_by_text(RSE_DF, exact=True).locator("xpath=following-sibling::dd")
     expect(residual).to_have_count(0)
 
     pick(model, label="Linear through origin")
@@ -384,7 +386,9 @@ def test_linear_through_origin_shows_fixed_intercept_and_only_recorded_rows(sign
     expect(form).to_contain_text("0 (counts), fixed")
     expect(form).to_contain_text("Unweighted (equal weights)")
     expect(form.get_by_text(R_SQUARED, exact=True)).to_have_count(0)
-    expect(form.get_by_text(RSE, exact=True)).to_have_count(0)
+    expect(form.get_by_text(PEARSON_R, exact=True)).to_have_count(0)
+    expect(rse).to_have_text("58.6301969978%")
+    expect(degrees_of_freedom).to_have_text("3 recorded points − 1 fitted term = 2")
     expect(residual).to_be_visible()
     expect(table.get_by_role("row")).to_have_count(len(rows) + 1)
     for row in rows:
@@ -401,17 +405,19 @@ def test_linear_through_origin_shows_fixed_intercept_and_only_recorded_rows(sign
     field(form, MAXIMUM_ERROR).fill("50")
     field(form, LOWEST_MAXIMUM_ERROR).fill("20")
     weight_label = form.locator("#fit-results").get_by_text("Weighting", exact=True)
-    for value, label, slope, high_row in (
+    for value, label, slope, fit_rse, high_row in (
         (
             "inverse_square",
             "1/x² (inverse concentration squared)",
             "3",
+            "66.6666666667%",
             "High 2 10.0 6 4 3.33333333333 66.6666666667 50 Over limit",
         ),
         (
             "inverse",
             "1/x (inverse concentration)",
             "3.5",
+            "59.7614304667%",
             "High 2 10.0 7 3 2.85714285714 42.8571428571 50 At or below limit",
         ),
     ):
@@ -424,7 +430,8 @@ def test_linear_through_origin_shows_fixed_intercept_and_only_recorded_rows(sign
         expect(form).to_contain_text("EPA Method 8000D advises against this combination.")
         expect(form.get_by_text(R_SQUARED, exact=True)).to_have_count(0)
         expect(form.get_by_text(PEARSON_R, exact=True)).to_have_count(0)
-        expect(form.get_by_text(RSE, exact=True)).to_have_count(0)
+        expect(rse).to_have_text(fit_rse)
+        expect(degrees_of_freedom).to_have_text("3 recorded points − 1 fitted term = 2")
         expect(table.get_by_role("row")).to_have_count(len(rows) + 1)
         expect(table.get_by_role("row", name=high_row, exact=True)).to_be_visible()
 
@@ -434,9 +441,8 @@ def test_linear_through_origin_shows_fixed_intercept_and_only_recorded_rows(sign
     r_squared = form.get_by_text(R_SQUARED, exact=True).locator("xpath=following-sibling::dd")
     expect(r_squared).to_have_text("0.927536231884")
     expect(form.get_by_text(PEARSON_R, exact=True)).to_have_count(0)
-    rse = form.get_by_text(RSE, exact=True).locator("xpath=following-sibling::dd")
     expect(rse).to_have_text("17.6776695297%")
-    expect(form).to_contain_text("3 recorded points − 2 fitted terms = 1")
+    expect(degrees_of_freedom).to_have_text("3 recorded points − 2 fitted terms = 1")
     curve.refresh_from_db()
     assert (curve.model_text, curve.source_reference, curve.points) == (MODEL, SOURCE, points)
     assert not page.console_errors
