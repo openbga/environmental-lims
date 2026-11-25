@@ -209,7 +209,8 @@ After restoring a backup, run `python manage.py verify_stored_files` against the
 database to check stored documents, attachments and original result import files. For each
 issued report version, the command checks the PDF and frozen results against the original
 release or amendment event. It flags an event whose issued version is missing. For issued
-and voided invoices, it checks the PDF and invoice number against the original issue event.
+and voided invoices, it checks the PDF, invoice number and issuer against the original
+issue event. A surviving issue event can also identify an invoice lost along with its draft.
 For an electronic data deliverable, it checks that the original export event identifies
 the same ZIP and issued report version. For subcontracted tests, it checks each original
 and corrected source PDF against the history of the external result entered by staff.

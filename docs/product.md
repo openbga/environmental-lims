@@ -152,7 +152,9 @@ the baseline predates changelog entries, all candidate technical notes are avail
 reference. A deployer can also check the files in a restored database from the command line.
 Every issued report version and every issued or voided invoice must retain its PDF.
 For each invoice, the number and PDF checksum must agree with the single issue event
-recorded for its draft, including after the invoice is voided.
+recorded for its draft, including after the invoice is voided. The issuing staff member
+must match both the event actor and the issuer recorded in the event. An issue event
+whose target no longer identifies a draft with an issued invoice must fail verification.
 Each electronic data deliverable (EDD) ZIP must have exactly one export event. Its ZIP
 checksum, report number, version number and report content checksum must agree with
 the event. An export event left behind without its ZIP record must also fail verification.

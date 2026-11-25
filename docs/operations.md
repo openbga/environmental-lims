@@ -160,9 +160,13 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
    mismatch. If an event survives without its version, the command reports the audit event
    ID. The `Report PDFs` count includes each version once and each orphan event once.
    For an invoice, the command checks that its draft has exactly one issue event and that
-   the recorded invoice number and PDF checksum match. A voided invoice must still match its
-   original issue event. An absent, duplicate or inconsistent issue event fails the invoice
-   check. Use the issued invoice record ID from the error to trace the draft and its history.
+   the recorded invoice number and PDF checksum match. The issuer on the invoice must match
+   both the staff member who performed the issue action and the issuer recorded in its details.
+   A voided invoice must still match its original issue event. Under `Issued invoice PDFs`,
+   use the invoice ID to investigate an absent, duplicate or inconsistent issue event. If the
+   document is missing from an issued or voided draft, the check reports that draft once.
+   For an issue event whose draft is also missing or whose target is invalid, the check
+   reports the audit event ID.
    For an electronic data deliverable, check the `EDD export ZIPs` category. Each ZIP
    must have exactly one original export event with the same ZIP checksum, report number,
    version number and report content checksum. Use the export record ID to investigate

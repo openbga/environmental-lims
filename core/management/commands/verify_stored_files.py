@@ -202,21 +202,31 @@ def _check_reports():
 
 
 def _check_invoices():
+    draft_type = InvoiceDraft._meta.label_lower
+    issued_statuses = (InvoiceDraft.Status.ISSUED, InvoiceDraft.Status.VOIDED)
+    issue_events = AuditEvent.objects.filter(action="invoice_draft.issued")
     # The original issuance is unique for each draft, including drafts later voided.
     # Count all issuance events and compare just the relevant fields within PostgreSQL.
     matches_invoice = Q(
+        actor_id=OuterRef("issued_by_id"),
+        audit_issuer=Cast(OuterRef("issued_by_id"), TextField()),
         after__contains=JSONObject(
             issued_invoice=JSONObject(number=OuterRef("number"), sha256=OuterRef("sha256"))
-        )
+        ),
     )
     events = (
-        AuditEvent.objects.filter(
-            action="invoice_draft.issued",
-            object_type=InvoiceDraft._meta.label_lower,
+        issue_events.filter(
+            object_type=draft_type,
             object_id=Cast(OuterRef("draft_id"), CharField()),
         )
         .order_by()
         .values("object_id")
+        # Compare JSON text so only the original integer representation matches.
+        .alias(
+            audit_issuer=Cast(
+                KeyTransform("issued_by", KeyTransform("issued_invoice", "after")), TextField()
+            ),
+        )
         .annotate(
             event_count=Count("pk"),
             matching_count=Count("pk", filter=matches_invoice),
@@ -230,11 +240,22 @@ def _check_invoices():
         metadata=(Exists(events), "missing, ambiguous, or mismatched invoice issuance event"),
     )
     missing = InvoiceDraft.objects.filter(
-        status__in=[InvoiceDraft.Status.ISSUED, InvoiceDraft.Status.VOIDED],
+        status__in=issued_statuses,
         issued_invoice__isnull=True,
     ).order_by("pk")
     for pk in missing.values_list("pk", flat=True).iterator():
         yield InvoiceDraft._meta.label, pk, None, None, ["missing IssuedInvoice"]
+
+    # Match the draft PK as text so malformed IDs cannot raise a cast error. Issued and
+    # voided drafts with no invoice are already reported above, once per draft.
+    drafts = (
+        InvoiceDraft.objects.alias(target_id=Cast("pk", CharField()), target_type=Value(draft_type))
+        .filter(target_id=OuterRef("object_id"), target_type=OuterRef("object_type"))
+        .filter(Q(issued_invoice__isnull=False) | Q(status__in=issued_statuses))
+    )
+    missing = issue_events.filter(~Exists(drafts)).order_by("pk")
+    for pk in missing.values_list("pk", flat=True).iterator():
+        yield AuditEvent._meta.label, pk, None, None, ["missing or invalid issued invoice target"]
 
 
 def _check_subcontract_sources():
