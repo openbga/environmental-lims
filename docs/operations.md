@@ -176,6 +176,11 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
    PDF byte count and SHA-256 must agree with that entry. Use the subcontract result ID
    to trace a file with inconsistent history, or the audit event ID to find an entry whose
    source is missing.
+   Under `Equipment event evidence`, the command compares attached calibration and maintenance
+   files with the audit entry for the original work or correction. It checks the filename,
+   checksum, equipment, event, kind of work, staff member who recorded it and any event it
+   corrected. A surviving entry that mentions an attachment can reveal a missing file or
+   equipment event. Use the reported equipment event or audit event ID to investigate.
    Under `Training record evidence`, each attached file must match the filename and checksum
    in the original training or correction event. The event must identify the same record,
    trainee, staff member who entered it and, for a correction, the record it corrected.

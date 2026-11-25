@@ -1,5 +1,6 @@
 import json
 from contextlib import contextmanager
+from datetime import timedelta
 from decimal import Decimal
 from hashlib import sha256
 from io import StringIO
@@ -17,7 +18,7 @@ from analytical.models import Batch, ImportSourceFile
 from commercial import invoices
 from commercial.models import InvoiceDraft, IssuedInvoice, PriceList, PriceListItem
 from core.models import AuditEvent, Lab, LabLogo
-from laboratory import training
+from laboratory import equipment, training
 from laboratory.models import (
     Equipment,
     EquipmentEvent,
@@ -340,24 +341,40 @@ def import_source(staff, receipt_data):
 
 
 @pytest.fixture
-def evidence_records(staff):
+def nonconformance_evidence_fields(staff):
     actor = staff("restore-recorder", "analyst")
-    today = timezone.localdate()
-    equipment = Equipment.objects.create(asset_id="SYNTH-1", name="Balance", created_by=actor)
-    nonconformance = Nonconformance.objects.create(discovered_on=today, opened_by=actor)
-    return {
-        EquipmentEvent: dict(
-            equipment=equipment,
-            kind=EquipmentEvent.Kind.MAINTENANCE,
-            performed_on=today,
-            performed_by=actor,
-            outcome=EquipmentEvent.Outcome.COMPLETED,
-            recorded_by=actor,
-        ),
-        NonconformanceEvent: dict(
-            nonconformance=nonconformance, kind=NonconformanceEvent.Kind.NOTE, actor=actor
-        ),
-    }
+    nonconformance = Nonconformance.objects.create(
+        discovered_on=timezone.localdate(), opened_by=actor
+    )
+    return {"nonconformance": nonconformance, "kind": NonconformanceEvent.Kind.NOTE, "actor": actor}
+
+
+@pytest.fixture
+def equipment_event_factory(staff):
+    recorder = staff("restore-equipment-recorder", "reviewer")
+    performer = staff("restore-equipment-performer", "analyst")
+    asset = equipment.save_equipment(
+        actor=recorder, asset_id="SYNTH-1", name="Synthetic balance", location="Synthetic bench"
+    )
+
+    def record(*, kind=EquipmentEvent.Kind.MAINTENANCE, attached=True, **overrides):
+        outcome = (
+            EquipmentEvent.Outcome.ACCEPTABLE
+            if kind == EquipmentEvent.Kind.CALIBRATION
+            else EquipmentEvent.Outcome.COMPLETED
+        )
+        fields = {
+            "actor": recorder,
+            "equipment_id": asset.pk,
+            "performed_on": timezone.localdate(),
+            "performed_by": performer,
+            "outcome": outcome,
+            "description": "Synthetic private equipment notes",
+            "evidence": SimpleUploadedFile(EVIDENCE["evidence_name"], PDF) if attached else None,
+        }
+        return equipment.record_equipment_event(kind=kind, **(fields | overrides))
+
+    return record
 
 
 @pytest.fixture
@@ -408,15 +425,23 @@ def test_empty_database(output_format):
 
 @pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
 def test_intact_documents_and_optional_evidence(
-    document_records, evidence_records, import_source, training_record_factory, output_format
+    document_records,
+    nonconformance_evidence_fields,
+    import_source,
+    equipment_event_factory,
+    training_record_factory,
+    output_format,
 ):
     import_source.save()
     report_file, invoice, _, export, logo = document_records
     for document in (report_file, invoice, export, logo):
         document.save()
-    for model, fields in evidence_records.items():
-        model.objects.create(**fields)
-        model.objects.create(**fields, **EVIDENCE)
+    NonconformanceEvent.objects.create(**nonconformance_evidence_fields)
+    NonconformanceEvent.objects.create(**nonconformance_evidence_fields, **EVIDENCE)
+    equipment_event_factory()
+    equipment_event_factory(
+        attached=False, reference="Synthetic equipment reference without a file"
+    )
     training_record_factory()
     training_record_factory(attached=False, reference="Synthetic reference without a file")
 
@@ -473,6 +498,221 @@ def _restore_with_history_defect(model, trigger):
             yield
         finally:
             cursor.execute(sql.SQL("ALTER TABLE {} ENABLE TRIGGER {}").format(*table_and_trigger))
+
+
+def _equipment_event(record):
+    return AuditEvent.objects.get(
+        object_type=Equipment._meta.label_lower,
+        object_id=str(record.equipment_id),
+        after__event=record.pk,
+    )
+
+
+def _assert_equipment_verification_failed(
+    *problems, checked=None, output_format=("--format", "json")
+):
+    stdout, stderr = StringIO(), StringIO()
+    with pytest.raises(CommandError, match=r"^Stored file verification failed\.?$"):
+        call_command("verify_stored_files", *output_format, stdout=stdout, stderr=stderr)
+    if output_format == MANIFEST_FORMAT:
+        assert stdout.getvalue() == ""
+    else:
+        checked = len(problems) if checked is None else checked
+        assert json.loads(stdout.getvalue())["Equipment event evidence"] == {
+            "checked": checked,
+            "failures": len(problems),
+        }
+    assert stderr.getvalue().splitlines() == list(problems)
+
+
+def _equipment_history_problem(record):
+    return (
+        f"laboratory.EquipmentEvent pk={record.pk}: "
+        "missing, ambiguous, or mismatched equipment evidence event"
+    )
+
+
+@pytest.mark.parametrize("defect", ["bytes", "length", "replacement", "filename"])
+def test_equipment_evidence_requires_intact_file_and_original_values(
+    equipment_event_factory, defect
+):
+    record = equipment_event_factory()
+    if defect == "bytes":
+        fields = {"evidence_data": PDF[:-1] + b"x"}
+        problem = f"laboratory.EquipmentEvent pk={record.pk}: SHA-256 mismatch"
+    elif defect == "length":
+        fields = {"evidence_size": record.evidence_size + 1}
+        problem = f"laboratory.EquipmentEvent pk={record.pk}: byte length mismatch"
+    elif defect == "replacement":
+        replacement = PDF + b" synthetic replacement"
+        fields = {
+            "evidence_data": replacement,
+            "evidence_size": len(replacement),
+            "evidence_sha256": sha256(replacement).hexdigest(),
+        }
+        problem = _equipment_history_problem(record)
+    else:
+        fields = {"evidence_name": "Synthetic private replacement filename.pdf"}
+        problem = _equipment_history_problem(record)
+    EquipmentEvent.objects.filter(pk=record.pk).update(**fields)
+
+    _assert_equipment_verification_failed(problem)
+
+
+@pytest.mark.parametrize(
+    "defect", ["actor", "action", "kind", "equipment", "object-id", "object-type", "corrects"]
+)
+def test_equipment_evidence_event_identifies_the_record(equipment_event_factory, defect):
+    original = equipment_event_factory(attached=False)
+    record = equipment_event_factory(
+        corrects_id=original.pk, correction_reason="Synthetic correction"
+    )
+    other_equipment = equipment.save_equipment(
+        actor=record.recorded_by,
+        asset_id="SYNTH-2",
+        name="Synthetic pH meter",
+        location="Synthetic wet laboratory",
+    )
+    other_original = equipment_event_factory(attached=False)
+    event = _equipment_event(record)
+    changes = {
+        "actor": {"actor": record.performed_by},
+        "action": {"action": "equipment.maintenance_recorded"},
+        "kind": {"after": event.after | {"kind": EquipmentEvent.Kind.CALIBRATION}},
+        "equipment": {"after": event.after | {"equipment": other_equipment.pk}},
+        "object-id": {"object_id": str(other_equipment.pk)},
+        "object-type": {"object_type": EquipmentEvent._meta.label_lower},
+        "corrects": {"after": event.after | {"corrects": other_original.pk}},
+    }
+    with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+        AuditEvent.objects.filter(pk=event.pk).update(**changes[defect])
+
+    _assert_equipment_verification_failed(_equipment_history_problem(record))
+
+
+@pytest.mark.parametrize(
+    "defect", ["absent", "duplicate", "different-recording-action", "different-asset"]
+)
+def test_equipment_attachment_requires_one_recording_event(equipment_event_factory, defect):
+    record = equipment_event_factory(kind=EquipmentEvent.Kind.CALIBRATION)
+    event = _equipment_event(record)
+    if defect == "absent":
+        with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+            AuditEvent.objects.filter(pk=event.pk).delete()
+    else:
+        object_id = event.object_id
+        if defect == "different-asset":
+            asset = equipment.save_equipment(
+                actor=record.recorded_by,
+                asset_id="SYNTH-2",
+                name="Synthetic pH meter",
+                location="Synthetic wet laboratory",
+            )
+            object_id = str(asset.pk)
+        AuditEvent.objects.create(
+            actor=event.actor,
+            action=(
+                event.action
+                if defect != "different-recording-action"
+                else "equipment.event_corrected"
+            ),
+            object_type=event.object_type,
+            object_id=object_id,
+            after=event.after,
+        )
+
+    _assert_equipment_verification_failed(_equipment_history_problem(record))
+
+
+@pytest.mark.parametrize(
+    "defect", ["missing-event", "string-event", "decimal-event", "large-event"]
+)
+def test_equipment_attachment_rejects_malformed_event_ids(equipment_event_factory, defect):
+    record = equipment_event_factory()
+    event = _equipment_event(record)
+    if defect == "missing-event":
+        del event.after["event"]
+    else:
+        event.after["event"] = {
+            "string-event": str(record.pk),
+            "decimal-event": float(record.pk),
+            "large-event": 10**40,
+        }[defect]
+    with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+        AuditEvent.objects.filter(pk=event.pk).update(after=event.after)
+
+    _assert_equipment_verification_failed(
+        _equipment_history_problem(record),
+        f"core.AuditEvent pk={event.pk}: missing or invalid EquipmentEvent target",
+    )
+
+
+def test_equipment_attachment_cannot_be_attributed_to_a_different_event(equipment_event_factory):
+    record = equipment_event_factory()
+    other = equipment_event_factory()
+    event = _equipment_event(record)
+    with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+        AuditEvent.objects.filter(pk=event.pk).update(after=event.after | {"event": other.pk})
+
+    _assert_equipment_verification_failed(
+        _equipment_history_problem(record), _equipment_history_problem(other)
+    )
+
+
+@pytest.mark.parametrize(
+    "defect", ["nonobject", "missing-corrects", "decimal-equipment", "invalid-name"]
+)
+def test_equipment_attachment_rejects_malformed_audit_payloads(equipment_event_factory, defect):
+    record = equipment_event_factory()
+    event = _equipment_event(record)
+    if defect == "missing-corrects":
+        del event.after["corrects"]
+    after = {
+        "nonobject": ["Synthetic private equipment audit payload"],
+        "missing-corrects": event.after,
+        "decimal-equipment": event.after | {"equipment": float(record.equipment_id)},
+        "invalid-name": event.after | {"evidence_name": [record.evidence_name]},
+    }[defect]
+    with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+        AuditEvent.objects.filter(pk=event.pk).update(after=after)
+
+    _assert_equipment_verification_failed(_equipment_history_problem(record))
+
+
+@pytest.mark.parametrize("loss", ["cleared", "deleted"])
+@pytest.mark.parametrize("marker", ["evidence_name", "evidence_sha256"])
+def test_equipment_event_exposes_lost_evidence_once(equipment_event_factory, loss, marker):
+    original = equipment_event_factory(kind=EquipmentEvent.Kind.CALIBRATION)
+    record = equipment_event_factory(
+        kind=original.kind, corrects_id=original.pk, correction_reason="Synthetic correction"
+    )
+    event = _equipment_event(record)
+    after = {"event": record.pk, marker: event.after[marker]}
+    with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+        AuditEvent.objects.filter(pk=event.pk).update(after=after)
+    duplicate = AuditEvent.objects.create(
+        actor=event.actor,
+        action=event.action,
+        object_type=event.object_type,
+        object_id=event.object_id,
+        after=after,
+    )
+    if loss == "cleared":
+        EquipmentEvent.objects.filter(pk=record.pk).update(
+            evidence_data=None,
+            evidence_name="",
+            evidence_content_type="",
+            evidence_size=None,
+            evidence_sha256="",
+        )
+        problem = f"laboratory.EquipmentEvent pk={record.pk}: missing recorded equipment evidence"
+    else:
+        record.delete()
+        event_pk = min(event.pk, duplicate.pk)
+        problem = f"core.AuditEvent pk={event_pk}: missing or invalid EquipmentEvent target"
+
+    _assert_equipment_verification_failed(problem, checked=2)
+    _assert_equipment_verification_failed(problem, output_format=MANIFEST_FORMAT)
 
 
 def _training_event(record):
@@ -1501,37 +1741,90 @@ def test_verified_bytes_must_match_the_recorded_import(import_source, change):
     ]
 
 
-def test_manifest_hashes_stable_pk_ordered_rows(evidence_records):
-    fields = evidence_records[EquipmentEvent] | EVIDENCE
-    EquipmentEvent.objects.create(pk=42, **fields)
-    EquipmentEvent.objects.create(pk=10, **fields)
+@pytest.mark.parametrize("kind", EquipmentEvent.Kind.values)
+def test_manifest_hashes_stable_pk_ordered_equipment_evidence(equipment_event_factory, kind):
+    original = equipment_event_factory(
+        kind=kind, performed_on=timezone.localdate() - timedelta(days=1)
+    )
+    corrected = equipment_event_factory(
+        kind=kind,
+        corrects_id=original.pk,
+        correction_reason="Synthetic correction",
+        evidence=SimpleUploadedFile(
+            "Synthetic private corrected equipment.pdf", PDF + b" corrected"
+        ),
+    )
+    optional = equipment_event_factory(kind=kind, attached=False)
+    equipment_event_factory(
+        kind=kind,
+        attached=False,
+        corrects_id=corrected.pk,
+        correction_reason="Synthetic follow-up without an attachment",
+    )
+    audit = _equipment_event(original)
+    AuditEvent.objects.create(
+        actor=audit.actor,
+        action="equipment.viewed",
+        object_type=audit.object_type,
+        object_id=audit.object_id,
+        after=audit.after | {"event": optional.pk},
+    )
+    optional.delete()
 
-    expected_rows = (
-        f'["laboratory.EquipmentEvent","10",{len(PDF)},"{sha256(PDF).hexdigest()}"]\n'
-        f'["laboratory.EquipmentEvent","42",{len(PDF)},"{sha256(PDF).hexdigest()}"]\n'
+    expected_rows = "".join(
+        f'["laboratory.EquipmentEvent","{event.pk}",{event.evidence_size},"{event.evidence_sha256}"]\n'
+        for event in (original, corrected)
     ).encode("ascii")
-    manifest = _verification_output(*MANIFEST_FORMAT)
+    with CaptureQueriesContext(connection) as captured:
+        manifest = _verification_output(*MANIFEST_FORMAT)
     assert manifest == _verification_output(*MANIFEST_FORMAT)
-    assert json.loads(manifest)["categories"]["Equipment event evidence"] == {
+    inventory = json.loads(manifest)
+    assert inventory["version"] == 1
+    assert inventory["categories"]["Equipment event evidence"] == {
         "count": 2,
         "sha256": sha256(expected_rows).hexdigest(),
     }
+    for record in (original, corrected):
+        assert record.evidence_name not in manifest
+        assert record.evidence_sha256 not in manifest
+        assert record.description not in manifest
+
+    (file_query,) = (
+        query["sql"] for query in captured if 'FROM "laboratory_equipmentevent"' in query["sql"]
+    )
+    (audit_query,) = (
+        query["sql"]
+        for query in captured
+        if 'FROM "core_auditevent"' in query["sql"]
+        and "equipment.calibration_recorded" in query["sql"]
+    )
+    evidence = '"laboratory_equipmentevent"."evidence_data"'
+    assert f"pg_catalog.octet_length({evidence})" in file_query
+    assert f"pg_catalog.sha256({evidence})" in file_query
+    assert f"{evidence}," not in file_query.partition(" FROM ")[0]
+    assert '"core_auditevent"."after",' not in audit_query.partition(" FROM ")[0]
 
 
 @pytest.mark.parametrize("change", ["content", "identity"])
-def test_manifest_detects_changes_with_the_same_file_count(evidence_records, change):
-    fields = evidence_records[EquipmentEvent] | EVIDENCE
-    original = EquipmentEvent.objects.create(**fields)
+def test_manifest_detects_changes_with_the_same_file_count(equipment_event_factory, change):
+    original = equipment_event_factory()
+    event = _equipment_event(original)
     before = json.loads(_verification_output(*MANIFEST_FORMAT))["categories"]
 
-    if change == "content":
-        different_pdf = PDF[:-1] + b"x"
-        EquipmentEvent.objects.filter(pk=original.pk).update(
-            evidence_data=different_pdf, evidence_sha256=sha256(different_pdf).hexdigest()
-        )
-    else:
-        original.delete()
-        EquipmentEvent.objects.create(**fields)
+    # Compare two internally consistent inventories to exercise the manifest independently.
+    with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+        events = AuditEvent.objects.filter(pk=event.pk)
+        if change == "content":
+            different_pdf = PDF[:-1] + b"x"
+            digest = sha256(different_pdf).hexdigest()
+            EquipmentEvent.objects.filter(pk=original.pk).update(
+                evidence_data=different_pdf, evidence_sha256=digest
+            )
+            events.update(after=event.after | {"evidence_sha256": digest})
+        else:
+            events.delete()
+            original.delete()
+            equipment_event_factory()
 
     after = json.loads(_verification_output(*MANIFEST_FORMAT))["categories"]
     recorded = before.pop("Equipment event evidence")
@@ -1632,7 +1925,12 @@ def test_snapshot_does_not_reuse_caller_transaction(caller_transaction):
 
 @pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
 def test_corrupt_and_missing_rows_report_ids_and_fail(
-    document_records, evidence_records, import_source, training_record_factory, output_format
+    document_records,
+    nonconformance_evidence_fields,
+    import_source,
+    equipment_event_factory,
+    training_record_factory,
+    output_format,
 ):
     import_source.data = import_source.data.replace(b"0.7500", b"0.7501")
     import_source.save()
@@ -1669,13 +1967,14 @@ def test_corrupt_and_missing_rows_report_ids_and_fail(
     for document in (report_file, invoice, export, logo):
         document.save()
 
-    equipment = EquipmentEvent.objects.create(
-        **evidence_records[EquipmentEvent], evidence_content_type="application/pdf"
+    equipment_record = equipment_event_factory()
+    EquipmentEvent.objects.filter(pk=equipment_record.pk).update(
+        evidence_data=None, evidence_name="", evidence_sha256="", evidence_size=None
     )
     training = training_record_factory()
     TrainingRecord.objects.filter(pk=training.pk).update(evidence_data=None)
     nonconformance = NonconformanceEvent.objects.create(
-        **evidence_records[NonconformanceEvent], **(EVIDENCE | {"evidence_name": ""})
+        **nonconformance_evidence_fields, **(EVIDENCE | {"evidence_name": ""})
     )
 
     stdout, stderr = StringIO(), StringIO()
@@ -1709,8 +2008,9 @@ def test_corrupt_and_missing_rows_report_ids_and_fail(
         f"reporting.EddExport pk={export.pk}: empty stored file, SHA-256 mismatch, "
         "byte length mismatch",
         f"core.LabLogo pk={logo.pk}: SHA-256 mismatch",
-        f"laboratory.EquipmentEvent pk={equipment.pk}: missing file, missing evidence filename or "
-        "content type, missing recorded SHA-256, missing recorded byte length",
+        f"laboratory.EquipmentEvent pk={equipment_record.pk}: missing file, missing evidence "
+        "filename or content type, missing recorded SHA-256, missing recorded byte length, "
+        "missing, ambiguous, or mismatched equipment evidence event",
         f"laboratory.TrainingRecord pk={training.pk}: missing file",
         f"laboratory.NonconformanceEvent pk={nonconformance.pk}: "
         "missing evidence filename or content type",

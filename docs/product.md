@@ -170,7 +170,11 @@ also fail verification. For staff training evidence, the attachment name and che
 agree with the original training or correction event. The event must identify the record,
 trainee, recording staff member and any record being corrected. An event recording an attachment
 must reveal a missing file even if the training record itself is gone. Training records may
-be created without evidence. Stored report, invoice and subcontract PDFs,
+be created without evidence. For equipment calibration and maintenance attachments, the
+recording or correction entry must identify the equipment, event, kind of work, recording
+staff member and any corrected event. The filename and checksum must match. An audit entry
+that records an attachment must reveal a missing file or equipment event. Staff may still
+record equipment work without a file. Stored report, invoice and subcontract PDFs,
 electronic deliverables, laboratory logos, original result import files and attached
 laboratory evidence must match their recorded hashes and any recorded byte counts. The check reports discrepancies by
 record ID and leaves the restored records intact. Deployers

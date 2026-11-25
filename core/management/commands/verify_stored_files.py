@@ -2,6 +2,8 @@ import json
 import re
 from contextlib import nullcontext
 from hashlib import sha256
+from itertools import groupby
+from operator import attrgetter
 
 from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
@@ -9,8 +11,10 @@ from django.db import Error as DjangoDatabaseError
 from django.db import connection, transaction
 from django.db.models import (
     BinaryField,
+    Case,
     CharField,
     Count,
+    DecimalField,
     Exists,
     F,
     Func,
@@ -20,8 +24,9 @@ from django.db.models import (
     Subquery,
     TextField,
     Value,
+    When,
 )
-from django.db.models.fields.json import KeyTransform
+from django.db.models.fields.json import KeyTextTransform, KeyTransform
 from django.db.models.functions import (
     Cast,
     Coalesce,
@@ -39,7 +44,7 @@ from psycopg.pq import TransactionStatus
 from analytical.models import Batch, ImportSourceFile
 from commercial.models import InvoiceDraft, IssuedInvoice
 from core.models import AuditEvent, LabLogo
-from laboratory.models import EvidenceMixin, TrainingRecord
+from laboratory.models import Equipment, EquipmentEvent, EvidenceMixin, TrainingRecord
 from receipt.models import Subcontract, SubcontractResult
 from reporting.content import fingerprint
 from reporting.models import EddExport, ReportVersion
@@ -51,6 +56,7 @@ _NO_EVIDENCE = Q(
     evidence_sha256="",
     evidence_size__isnull=True,
 )
+_EVIDENCE_METADATA_PRESENT = ~(Q(evidence_name="") | Q(evidence_content_type=""))
 
 
 def _report_content_problems(content_json, recorded_hash, snapshot_hash_json):
@@ -70,6 +76,43 @@ def _report_content_problems(content_json, recorded_hash, snapshot_hash_json):
     return problems
 
 
+def _measure_files(files, binary, checksum, size):
+    # Use PostgreSQL's bytea functions to avoid returning the file bytes.
+    return files.annotate(
+        actual_size=Func(binary, function="pg_catalog.octet_length", output_field=IntegerField()),
+        actual_hash=Func(
+            Func(binary, function="pg_catalog.sha256", output_field=BinaryField()),
+            Value("hex"),
+            function="pg_catalog.encode",
+            output_field=CharField(),
+        ),
+        recorded_size=F(size) if size else Value(None, output_field=IntegerField()),
+        recorded_hash=F(checksum),
+    )
+
+
+def _file_problems(row, *, missing="missing file", metadata_problem=None, check_size=True):
+    problems = []
+    if row.actual_size is None:
+        problems.append(missing)
+    elif row.actual_size == 0:
+        problems.append("empty stored file")
+    if not row.evidence_metadata_present:
+        problems.append("missing evidence filename or content type")
+    if metadata_problem:
+        problems.append(metadata_problem)
+    if not row.recorded_hash:
+        problems.append("missing recorded SHA-256")
+    elif row.actual_hash is not None and row.actual_hash != row.recorded_hash:
+        problems.append("SHA-256 mismatch")
+    if check_size:
+        if row.recorded_size is None:
+            problems.append("missing recorded byte length")
+        elif row.actual_size is not None and row.actual_size != row.recorded_size:
+            problems.append("byte length mismatch")
+    return problems
+
+
 def _check_files(
     model,
     binary,
@@ -85,19 +128,8 @@ def _check_files(
     if evidence:
         files = files.exclude(_NO_EVIDENCE)
 
-    # Use PostgreSQL's bytea functions to avoid returning the file bytes.
-    rows = files.annotate(
-        actual_size=Func(binary, function="pg_catalog.octet_length", output_field=IntegerField()),
-        actual_hash=Func(
-            Func(binary, function="pg_catalog.sha256", output_field=BinaryField()),
-            Value("hex"),
-            function="pg_catalog.encode",
-            output_field=CharField(),
-        ),
-        recorded_size=F(size) if size else Value(None, output_field=IntegerField()),
-        evidence_metadata_present=(
-            ~(Q(evidence_name="") | Q(evidence_content_type="")) if evidence else Value(True)
-        ),
+    rows = _measure_files(files, binary, checksum, size).annotate(
+        evidence_metadata_present=_EVIDENCE_METADATA_PRESENT if evidence else Value(True),
         metadata_present=metadata[0] if metadata else Value(True),
     )
     fields = (
@@ -105,7 +137,7 @@ def _check_files(
         "actual_size",
         "actual_hash",
         "recorded_size",
-        checksum,
+        "recorded_hash",
         "evidence_metadata_present",
         "metadata_present",
     )
@@ -120,38 +152,21 @@ def _check_files(
         )
         fields += ("content_json", "content_sha256", "snapshot_hash_json")
     # Report content can be large. Process one row at a time.
-    for row in rows.values_list(*fields).iterator(chunk_size=1 if check_report_content else None):
-        (
-            pk,
-            actual_size,
-            actual_hash,
-            recorded_size,
-            recorded_hash,
-            has_evidence_metadata,
-            has_metadata,
-            *content,
-        ) = row
-        problems = []
-        if actual_size is None:
-            problems.append(missing)
-        elif actual_size == 0:
-            problems.append("empty stored file")
-        if not has_evidence_metadata:
-            problems.append("missing evidence filename or content type")
-        if metadata and not has_metadata:
-            problems.append(metadata[1])
-        if not recorded_hash:
-            problems.append("missing recorded SHA-256")
-        elif actual_hash is not None and actual_hash != recorded_hash:
-            problems.append("SHA-256 mismatch")
-        if size:
-            if recorded_size is None:
-                problems.append("missing recorded byte length")
-            elif actual_size is not None and actual_size != recorded_size:
-                problems.append("byte length mismatch")
-        if check_report_content and actual_size is not None:
-            problems.extend(_report_content_problems(*content))
-        yield model._meta.label, pk, actual_size, actual_hash, problems
+    chunk_size = 1 if check_report_content else None
+    for row in rows.values_list(*fields, named=True).iterator(chunk_size=chunk_size):
+        problems = _file_problems(
+            row,
+            missing=missing,
+            metadata_problem=metadata[1] if metadata and not row.metadata_present else None,
+            check_size=bool(size),
+        )
+        if check_report_content and row.actual_size is not None:
+            problems.extend(
+                _report_content_problems(
+                    row.content_json, row.content_sha256, row.snapshot_hash_json
+                )
+            )
+        yield model._meta.label, row.pk, row.actual_size, row.actual_hash, problems
 
 
 def _check_reports():
@@ -479,6 +494,163 @@ def _check_training_evidence():
         yield AuditEvent._meta.label, pk, None, None, ["missing or invalid TrainingRecord target"]
 
 
+def _equipment_recordings():
+    events = AuditEvent.objects.filter(
+        action__in=(
+            "equipment.calibration_recorded",
+            "equipment.maintenance_recorded",
+            "equipment.event_corrected",
+        ),
+    ).alias(
+        event_json=Cast(KeyTransform("event", "after"), TextField()),
+        name_json=Cast(KeyTransform("evidence_name", "after"), TextField()),
+        hash_json=Cast(KeyTransform("evidence_sha256", "after"), TextField()),
+    )
+    rows = events.annotate(
+        # Accept only JSON integers with the width of a bigint. Numeric also holds a
+        # malformed 19-digit ID outside bigint range, which cannot match a stored event.
+        target_id=Case(
+            When(
+                event_json__regex=r"^(0|-?[1-9][0-9]{0,18})$",
+                then=Cast("event_json", DecimalField(max_digits=19, decimal_places=0)),
+            )
+        ),
+        attachment_recorded=Q(name_json__regex=r'^".+"$') | Q(hash_json__regex=r'^".+"$'),
+        # Project bounded values one character past the widest valid match so
+        # overlong values cannot be accepted by truncation.
+        asset_json=Substr(Cast(KeyTransform("equipment", "after"), TextField()), 1, 21),
+        corrects_json=Substr(Cast(KeyTransform("corrects", "after"), TextField()), 1, 21),
+        audit_kind=Substr(KeyTextTransform("kind", "after"), 1, 13),
+        filename=Case(
+            When(
+                name_json__regex=r'^".*"$',
+                then=Substr(KeyTextTransform("evidence_name", "after"), 1, 256),
+            )
+        ),
+        checksum=Case(
+            When(
+                hash_json__regex=r'^".*"$',
+                then=Substr(KeyTextTransform("evidence_sha256", "after"), 1, 65),
+            )
+        ),
+    ).order_by("target_id", "pk")
+    fields = (
+        "target_id",
+        "pk",
+        "action",
+        "actor_id",
+        "object_type",
+        "object_id",
+        "asset_json",
+        "audit_kind",
+        "corrects_json",
+        "filename",
+        "checksum",
+        "attachment_recorded",
+    )
+    for target, group in groupby(
+        rows.values_list(*fields, named=True).iterator(), key=attrgetter("target_id")
+    ):
+        if target is None:
+            for audit in group:
+                if audit.attachment_recorded:
+                    yield target, None, audit.pk
+            continue
+        # Count all recording actions claiming the same ID, even with a mismatched
+        # asset or absent attachment fields. Keep only the first surviving marker.
+        audit = marked_pk = None
+        for index, entry in enumerate(group):
+            audit = entry if index == 0 else None
+            if marked_pk is None and entry.attachment_recorded:
+                marked_pk = entry.pk
+        yield target, audit, marked_pk
+
+
+def _matches_equipment_recording(record, audit):
+    asset = str(record.equipment_id)
+    action = (
+        "equipment.event_corrected"
+        if record.corrects_id is not None
+        else f"equipment.{record.kind}_recorded"
+    )
+    return (
+        audit is not None
+        and record.kind in EquipmentEvent.Kind.values
+        and audit.action == action
+        and audit.actor_id == record.recorded_by_id
+        and audit.object_type == Equipment._meta.label_lower
+        and audit.object_id == asset
+        and audit.asset_json == asset
+        and audit.audit_kind == record.kind
+        and audit.corrects_json
+        == ("null" if record.corrects_id is None else str(record.corrects_id))
+        and audit.filename == record.evidence_name
+        and audit.checksum == record.recorded_hash
+    )
+
+
+def _check_equipment_evidence():
+    files = EquipmentEvent._base_manager.order_by("pk")
+    rows = _measure_files(files, "evidence_data", "evidence_sha256", "evidence_size").annotate(
+        optional=_NO_EVIDENCE,
+        evidence_metadata_present=_EVIDENCE_METADATA_PRESENT,
+    )
+    fields = (
+        "pk",
+        "equipment_id",
+        "kind",
+        "corrects_id",
+        "recorded_by_id",
+        "optional",
+        "actual_size",
+        "actual_hash",
+        "recorded_size",
+        "recorded_hash",
+        "evidence_name",
+        "evidence_metadata_present",
+    )
+    # Use one snapshot for both streams when the command owns the transaction.
+    # The ordered merge reads the audit table once and retains one group at a time.
+    needs_transaction = (
+        connection.get_autocommit()
+        and connection.connection.info.transaction_status == TransactionStatus.IDLE
+    )
+    with transaction.atomic(savepoint=False) if needs_transaction else nullcontext():
+        if needs_transaction:
+            with connection.cursor() as cursor:
+                cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+        audits = _equipment_recordings()
+        pending = next(audits, None)
+        missing_target = ["missing or invalid EquipmentEvent target"]
+        for row in rows.values_list(*fields, named=True).iterator():
+            while pending and pending[0] is not None and pending[0] < row.pk:
+                if pending[2] is not None:
+                    yield AuditEvent._meta.label, pending[2], None, None, missing_target
+                pending = next(audits, None)
+            audit = marked_pk = None
+            if pending and pending[0] == row.pk:
+                _, audit, marked_pk = pending
+                pending = next(audits, None)
+            if row.optional:
+                if marked_pk is not None:
+                    yield (
+                        EquipmentEvent._meta.label,
+                        row.pk,
+                        None,
+                        None,
+                        ["missing recorded equipment evidence"],
+                    )
+                continue
+            problems = _file_problems(row)
+            if not _matches_equipment_recording(row, audit):
+                problems.append("missing, ambiguous, or mismatched equipment evidence event")
+            yield EquipmentEvent._meta.label, row.pk, row.actual_size, row.actual_hash, problems
+        while pending:
+            if pending[2] is not None:
+                yield AuditEvent._meta.label, pending[2], None, None, missing_target
+            pending = next(audits, None)
+
+
 def _check_import_sources():
     # Match only the recorded source fields, leaving the rest of the audit payload in PostgreSQL.
     matches_event = Q(
@@ -591,11 +763,15 @@ class Command(BaseCommand):
             ("EDD export ZIPs", _check_edd_exports()),
             ("Laboratory logos", _check_files(LabLogo, "image", "sha256", "size")),
         ]
+        evidence_checks = {
+            EquipmentEvent: _check_equipment_evidence,
+            TrainingRecord: _check_training_evidence,
+        }
         categories.extend(
             (
                 f"{model._meta.verbose_name.capitalize()} evidence",
-                _check_training_evidence()
-                if model is TrainingRecord
+                evidence_checks[model]()
+                if model in evidence_checks
                 else _check_files(
                     model, "evidence_data", "evidence_sha256", "evidence_size", evidence=True
                 ),
