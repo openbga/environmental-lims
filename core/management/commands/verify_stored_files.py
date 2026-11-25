@@ -21,7 +21,16 @@ from django.db.models import (
     Value,
 )
 from django.db.models.fields.json import KeyTransform
-from django.db.models.functions import Cast, Concat, Greatest, JSONObject, Length, LPad, Substr
+from django.db.models.functions import (
+    Cast,
+    Coalesce,
+    Concat,
+    Greatest,
+    JSONObject,
+    Length,
+    LPad,
+    Substr,
+)
 from psycopg import Error as PsycopgError
 from psycopg import sql
 from psycopg.pq import TransactionStatus
@@ -125,6 +134,39 @@ def _check_files(
 
 
 def _check_reports():
+    release_events = AuditEvent.objects.filter(action__in=("report.released", "report.amended"))
+    matching_action = Q(action="report.released", audit_version="1") | (
+        Q(action="report.amended") & ~Q(audit_version="1")
+    )
+    matches_version = matching_action & Q(
+        actor_id=OuterRef("released_by_id"),
+        after__contains=JSONObject(
+            report=_report_number(OuterRef("report_id")),
+            pdf_sha256=OuterRef("pdf_sha256"),
+            content_sha256=OuterRef("content_sha256"),
+        ),
+        audit_version=Cast(OuterRef("number"), TextField()),
+        audit_predecessor=Coalesce(Cast(OuterRef("amends__number"), TextField()), Value("null")),
+        audit_pdf_size=Cast(OuterRef("pdf_size"), TextField()),
+    )
+    version_type = ReportVersion._meta.label_lower
+    events = (
+        release_events.filter(object_type=version_type, object_id=Cast(OuterRef("pk"), CharField()))
+        .order_by()
+        .values("object_id")
+        # JSONB equates 1.0 with 1. The JSON text also distinguishes null from a missing key.
+        .alias(
+            audit_version=Cast(KeyTransform("version", "after"), TextField()),
+            audit_predecessor=Cast(KeyTransform("amends_version", "after"), TextField()),
+            audit_pdf_size=Cast(KeyTransform("pdf_size", "after"), TextField()),
+        )
+        .annotate(event_count=Count("pk"), matching_count=Count("pk", filter=matches_version))
+        .filter(event_count=1, matching_count=1)
+    )
+    valid_lineage = Q(number=1, amends__isnull=True) | Q(
+        number__gt=1, amends__report_id=F("report_id"), amends__number=F("number") - 1
+    )
+
     # Keep the cursor inside a transaction until it closes, so PostgreSQL does not
     # materialize the entire result on commit. Reuse a caller's transaction if present.
     needs_transaction = (
@@ -138,8 +180,25 @@ def _check_reports():
             "pdf_sha256",
             "pdf_size",
             missing="missing ReportFile",
+            metadata=(
+                valid_lineage & Exists(events),
+                "missing, ambiguous, or mismatched report release history",
+            ),
             check_report_content=True,
         )
+        # Compare the stored ID as text so a malformed target cannot raise a cast error.
+        versions = ReportVersion._base_manager.alias(
+            target_id=Cast("pk", CharField()), target_type=Value(version_type)
+        ).filter(target_id=OuterRef("object_id"), target_type=OuterRef("object_type"))
+        missing = release_events.filter(~Exists(versions)).order_by("pk")
+        for pk in missing.values_list("pk", flat=True).iterator():
+            yield (
+                AuditEvent._meta.label,
+                pk,
+                None,
+                None,
+                ["missing or invalid ReportVersion target"],
+            )
 
 
 def _check_invoices():
@@ -178,14 +237,11 @@ def _check_invoices():
         yield InvoiceDraft._meta.label, pk, None, None, ["missing IssuedInvoice"]
 
 
-def _check_edd_exports():
-    export_events = AuditEvent.objects.filter(
-        action="report.edd_exported", object_type=EddExport._meta.label_lower
-    )
+def _report_number(report_id):
     # Match Report.number's minimum width without truncating any digits or padding before a sign.
-    report_id = Cast(OuterRef("version__report_id"), TextField())
+    report_id = Cast(report_id, TextField())
     padded_id = LPad(report_id, Greatest(Value(6), Length(report_id)), Value("0"))
-    report_number = Concat(
+    return Concat(
         Value("RPT-"),
         Func(
             padded_id,
@@ -196,9 +252,15 @@ def _check_edd_exports():
         ),
         output_field=TextField(),
     )
+
+
+def _check_edd_exports():
+    export_events = AuditEvent.objects.filter(
+        action="report.edd_exported", object_type=EddExport._meta.label_lower
+    )
     matches_export = Q(
         after__contains=JSONObject(
-            report=report_number,
+            report=_report_number(OuterRef("version__report_id")),
             sha256=OuterRef("sha256"),
             content_sha256=OuterRef("version__content_sha256"),
         ),
@@ -261,7 +323,7 @@ def _check_import_sources():
 
 
 class Command(BaseCommand):
-    help = "Verify database-stored files, issuance and export history, and frozen report content."
+    help = "Verify database-stored files, release, issuance and export history, and report content."
 
     def add_arguments(self, parser):
         parser.add_argument(
