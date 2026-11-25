@@ -232,7 +232,7 @@ def test_reports_laboratory_attachments_and_checks_file_coverage(tmp_path, store
             {
                 "equipment event attachments": 1,
                 "staff training attachments": 1,
-                "nonconformance event attachments": 1,
+                "nonconformance event attachments": 2,
             }
         ),
         encoding="utf-8",
@@ -257,13 +257,20 @@ def test_reports_laboratory_attachments_and_checks_file_coverage(tmp_path, store
     stored_file_counts["Equipment event evidence"]["checked"] = 1
     stored_file_counts["Nonconformance event evidence"]["checked"] = 1
     stored_file_counts["Total"]["checked"] += 2
+    missing = notes()
+    assert missing.returncode != 0 and not missing.stdout
+    assert "missed baseline files in Nonconformance event evidence" in missing.stderr
+    stored_file_counts["Nonconformance event evidence"]["checked"] += 1
+    stored_file_counts["Total"]["checked"] += 1
     result = notes()
     assert result.returncode == 0, result.stderr
     assert (
         "A staff reviewer downloaded the original equipment, training and nonconformance"
         in result.stdout
     )
-    assert "A signed-in client was denied all three downloads." in result.stdout
+    assert "A signed-in client was denied each download." in result.stdout
+    assert "| nonconformance event attachments | 2 |" in result.stdout
+    assert "| Nonconformance event evidence | 2 |" in result.stdout
 
 
 def test_reports_history_protections_only_with_complete_evidence_at_both_stages(tmp_path):

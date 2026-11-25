@@ -220,6 +220,14 @@ The same list is shown in the application under What's new.
 
   > Run python manage.py verify_stored_files on the restored database. Under Equipment event evidence, use the reported equipment event or audit event ID to investigate a discrepancy.
 
+- **Changed:** Verify nonconformance note attachments after a restore (2026-11-25, Backup and restore)
+
+  Deployers can trace a changed or missing file on a nonconformance note to the staff member and audit entry that recorded it. A surviving audit entry can also reveal that the entire note is missing.
+
+  Technical notes:
+
+  > Run python manage.py verify_stored_files on the restored database. Under Nonconformance event evidence, use the reported timeline or audit event ID to investigate a discrepancy.
+
 - **Changed:** Check restored deliverable ZIPs against their export history (2026-11-24, Backup and restore)
 
   Deployers can check that a restored electronic data deliverable is the ZIP originally generated for an issued report version. The check also flags an export whose ZIP record is missing.

@@ -195,7 +195,8 @@ laboratory’s original and corrected source PDFs and the transcription cited by
 report version. It also checks that the owning client can download the original electronic
 data deliverable (EDD) ZIP for an issued report after restore and again after migration.
 At both stages, staff must be able to download the original files attached to a synthetic
-equipment event, training record and nonconformance event. The rehearsal also checks that
+equipment event and training record, plus the files attached when a nonconformance was opened
+and when a staff member added a note. The rehearsal also checks that
 a client account is denied access to each attachment.
 Open the successful GitHub Actions `checks` run and read the application
 job summary for the two tested commits, verified record counts, database migrations,
@@ -216,7 +217,9 @@ the same ZIP and issued report version. For subcontracted tests, it checks each 
 and corrected source PDF against the history of the external result entered by staff.
 For equipment and staff training attachments, it compares the filename and checksum with the
 original recording or correction event. A surviving audit entry can identify a missing file
-even when the restored database has also lost the equipment event or training record.
+even when the restored database has also lost the equipment event or training record. For
+nonconformance notes, the check compares the attachment checksum, note ID, nonconformance
+and staff member with the audit entry made when the note was added.
 Add `--format json` to save a machine-readable summary. To detect a file and its record
 disappearing together, save a file inventory with `--format manifest` when you take the backup
 and compare it with one from the restored database. To keep accepting writes during a logical backup, give

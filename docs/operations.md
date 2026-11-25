@@ -187,6 +187,12 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
    If the file or the entire training record is missing, a surviving event that recorded an
    attachment still triggers a failure. Use the reported record or event ID to investigate.
    Training recorded without an attachment passes this check.
+   Under `Nonconformance event evidence`, a note attachment needs one matching audit entry
+   for the same note, nonconformance, staff member and file checksum. A surviving entry
+   can identify a missing note or a note whose attachment fields are all empty. Use the
+   reported timeline or audit event ID to investigate. The audit entries for opening a nonconformance
+   or changing its status do not record an attachment checksum. For those files, compare the restored inventory
+   with the one saved at backup to detect the loss of an entire attachment.
    An optional evidence attachment with only part of its file or metadata present also fails.
    To save just the counts as JSON, run `python manage.py verify_stored_files --format json > stored-file-counts.json`.
    Each category and the total give the number checked and the number of records with failures.
@@ -341,8 +347,8 @@ successful application job attempt. Extract `upgrade-notes.md` to keep with your
 records. The rehearsal restores a PostgreSQL backup into an empty database, then checks the restored
 records, four PDF downloads and an owning client's electronic deliverable ZIP download
 with the previous application. A staff reviewer also downloads an equipment event attachment,
-a training record attachment and a nonconformance event attachment. The files must match the
-originals, and a signed-in client must be denied each download. CI repeats those checks on
+a training record attachment and both files from a nonconformance (the opening and a later
+note). The files must match the originals, and a signed-in client must be denied each download. CI repeats those checks on
 the same copy after migration. The table counts the baseline rows verified at each stage.
 A separate table lists the files the candidate checked on the migrated copy with
 `verify_stored_files`. A zero identifies a file category absent from that rehearsal.

@@ -44,7 +44,14 @@ from psycopg.pq import TransactionStatus
 from analytical.models import Batch, ImportSourceFile
 from commercial.models import InvoiceDraft, IssuedInvoice
 from core.models import AuditEvent, LabLogo
-from laboratory.models import Equipment, EquipmentEvent, EvidenceMixin, TrainingRecord
+from laboratory.models import (
+    Equipment,
+    EquipmentEvent,
+    EvidenceMixin,
+    Nonconformance,
+    NonconformanceEvent,
+    TrainingRecord,
+)
 from receipt.models import Subcontract, SubcontractResult
 from reporting.content import fingerprint
 from reporting.models import EddExport, ReportVersion
@@ -494,49 +501,73 @@ def _check_training_evidence():
         yield AuditEvent._meta.label, pk, None, None, ["missing or invalid TrainingRecord target"]
 
 
-def _equipment_recordings():
-    events = AuditEvent.objects.filter(
-        action__in=(
-            "equipment.calibration_recorded",
-            "equipment.maintenance_recorded",
-            "equipment.event_corrected",
-        ),
-    ).alias(
-        event_json=Cast(KeyTransform("event", "after"), TextField()),
-        name_json=Cast(KeyTransform("evidence_name", "after"), TextField()),
-        hash_json=Cast(KeyTransform("evidence_sha256", "after"), TextField()),
+def _attachment_recordings(events, *fields):
+    rows = (
+        events.alias(event_json=Cast(KeyTransform("event", "after"), TextField()))
+        .annotate(
+            # Numeric also holds a malformed 19-digit ID outside bigint range,
+            # so the cast succeeds and the number cannot match a stored event.
+            target_id=Case(
+                When(
+                    event_json__regex=r"^(0|-?[1-9][0-9]{0,18})$",
+                    then=Cast("event_json", DecimalField(max_digits=19, decimal_places=0)),
+                )
+            ),
+        )
+        .order_by("target_id", "pk")
+        .values_list("target_id", "pk", "attachment_recorded", *fields, named=True)
     )
-    rows = events.annotate(
-        # Accept only JSON integers with the width of a bigint. Numeric also holds a
-        # malformed 19-digit ID outside bigint range, which cannot match a stored event.
-        target_id=Case(
-            When(
-                event_json__regex=r"^(0|-?[1-9][0-9]{0,18})$",
-                then=Cast("event_json", DecimalField(max_digits=19, decimal_places=0)),
-            )
-        ),
-        attachment_recorded=Q(name_json__regex=r'^".+"$') | Q(hash_json__regex=r'^".+"$'),
-        # Project bounded values one character past the widest valid match so
-        # overlong values cannot be accepted by truncation.
-        asset_json=Substr(Cast(KeyTransform("equipment", "after"), TextField()), 1, 21),
-        corrects_json=Substr(Cast(KeyTransform("corrects", "after"), TextField()), 1, 21),
-        audit_kind=Substr(KeyTextTransform("kind", "after"), 1, 13),
-        filename=Case(
-            When(
-                name_json__regex=r'^".*"$',
-                then=Substr(KeyTextTransform("evidence_name", "after"), 1, 256),
-            )
-        ),
-        checksum=Case(
-            When(
-                hash_json__regex=r'^".*"$',
-                then=Substr(KeyTextTransform("evidence_sha256", "after"), 1, 65),
-            )
-        ),
-    ).order_by("target_id", "pk")
-    fields = (
-        "target_id",
-        "pk",
+    for target, group in groupby(rows.iterator(), key=attrgetter("target_id")):
+        if target is None:
+            for audit in group:
+                if audit.attachment_recorded:
+                    yield target, None, audit.pk
+            continue
+        # Count all recordings claiming the same ID, even with a mismatched parent
+        # or absent attachment fields. Keep only the first surviving marker.
+        audit = marked_pk = None
+        for index, entry in enumerate(group):
+            audit = entry if index == 0 else None
+            if marked_pk is None and entry.attachment_recorded:
+                marked_pk = entry.pk
+        yield target, audit, marked_pk
+
+
+def _equipment_recordings():
+    events = (
+        AuditEvent.objects.filter(
+            action__in=(
+                "equipment.calibration_recorded",
+                "equipment.maintenance_recorded",
+                "equipment.event_corrected",
+            ),
+        )
+        .alias(
+            name_json=Cast(KeyTransform("evidence_name", "after"), TextField()),
+            hash_json=Cast(KeyTransform("evidence_sha256", "after"), TextField()),
+        )
+        .annotate(
+            attachment_recorded=Q(name_json__regex=r'^".+"$') | Q(hash_json__regex=r'^".+"$'),
+            # Project one character past the valid width so truncation cannot hide damage.
+            asset_json=Substr(Cast(KeyTransform("equipment", "after"), TextField()), 1, 21),
+            corrects_json=Substr(Cast(KeyTransform("corrects", "after"), TextField()), 1, 21),
+            audit_kind=Substr(KeyTextTransform("kind", "after"), 1, 13),
+            filename=Case(
+                When(
+                    name_json__regex=r'^".*"$',
+                    then=Substr(KeyTextTransform("evidence_name", "after"), 1, 256),
+                )
+            ),
+            checksum=Case(
+                When(
+                    hash_json__regex=r'^".*"$',
+                    then=Substr(KeyTextTransform("evidence_sha256", "after"), 1, 65),
+                )
+            ),
+        )
+    )
+    return _attachment_recordings(
+        events,
         "action",
         "actor_id",
         "object_type",
@@ -546,24 +577,36 @@ def _equipment_recordings():
         "corrects_json",
         "filename",
         "checksum",
-        "attachment_recorded",
     )
-    for target, group in groupby(
-        rows.values_list(*fields, named=True).iterator(), key=attrgetter("target_id")
-    ):
-        if target is None:
-            for audit in group:
-                if audit.attachment_recorded:
-                    yield target, None, audit.pk
-            continue
-        # Count all recording actions claiming the same ID, even with a mismatched
-        # asset or absent attachment fields. Keep only the first surviving marker.
-        audit = marked_pk = None
-        for index, entry in enumerate(group):
-            audit = entry if index == 0 else None
-            if marked_pk is None and entry.attachment_recorded:
-                marked_pk = entry.pk
-        yield target, audit, marked_pk
+
+
+def _pair_evidence_recordings(rows, audits):
+    # Use one snapshot for both streams when the command owns the transaction.
+    # The ordered merge reads the audit table once and retains one group at a time.
+    needs_transaction = (
+        connection.get_autocommit()
+        and connection.connection.info.transaction_status == TransactionStatus.IDLE
+    )
+    with transaction.atomic(savepoint=False) if needs_transaction else nullcontext():
+        if needs_transaction:
+            with connection.cursor() as cursor:
+                cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+        pending = next(audits, None)
+        for row in rows.iterator():
+            while pending and pending[0] is not None and pending[0] < row.pk:
+                if pending[2] is not None:
+                    yield None, None, pending[2]
+                pending = next(audits, None)
+            if pending and pending[0] == row.pk:
+                _, audit, marked_pk = pending
+                pending = next(audits, None)
+                yield row, audit, marked_pk
+            else:
+                yield row, None, None
+        while pending:
+            if pending[2] is not None:
+                yield None, None, pending[2]
+            pending = next(audits, None)
 
 
 def _matches_equipment_recording(record, audit):
@@ -609,46 +652,98 @@ def _check_equipment_evidence():
         "evidence_name",
         "evidence_metadata_present",
     )
-    # Use one snapshot for both streams when the command owns the transaction.
-    # The ordered merge reads the audit table once and retains one group at a time.
-    needs_transaction = (
-        connection.get_autocommit()
-        and connection.connection.info.transaction_status == TransactionStatus.IDLE
+    rows = rows.values_list(*fields, named=True)
+    for row, audit, marked_pk in _pair_evidence_recordings(rows, _equipment_recordings()):
+        if row is None:
+            yield (
+                AuditEvent._meta.label,
+                marked_pk,
+                None,
+                None,
+                ["missing or invalid EquipmentEvent target"],
+            )
+            continue
+        if row.optional:
+            if marked_pk is not None:
+                yield (
+                    EquipmentEvent._meta.label,
+                    row.pk,
+                    None,
+                    None,
+                    ["missing recorded equipment evidence"],
+                )
+            continue
+        problems = _file_problems(row)
+        if not _matches_equipment_recording(row, audit):
+            problems.append("missing, ambiguous, or mismatched equipment evidence event")
+        yield EquipmentEvent._meta.label, row.pk, row.actual_size, row.actual_hash, problems
+
+
+def _nonconformance_note_recordings():
+    # The note action targets the parent and records the timeline ID and checksum in JSON.
+    events = (
+        AuditEvent.objects.filter(action="nonconformance.note_added")
+        .alias(hash_json=Cast(KeyTransform("evidence", "after"), TextField()))
+        .annotate(
+            attachment_recorded=Q(hash_json__regex=r'^".+"$'),
+            checksum=Case(
+                When(
+                    hash_json__regex=r'^".*"$',
+                    then=Substr(KeyTextTransform("evidence", "after"), 1, 65),
+                )
+            ),
+        )
     )
-    with transaction.atomic(savepoint=False) if needs_transaction else nullcontext():
-        if needs_transaction:
-            with connection.cursor() as cursor:
-                cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
-        audits = _equipment_recordings()
-        pending = next(audits, None)
-        missing_target = ["missing or invalid EquipmentEvent target"]
-        for row in rows.values_list(*fields, named=True).iterator():
-            while pending and pending[0] is not None and pending[0] < row.pk:
-                if pending[2] is not None:
-                    yield AuditEvent._meta.label, pending[2], None, None, missing_target
-                pending = next(audits, None)
-            audit = marked_pk = None
-            if pending and pending[0] == row.pk:
-                _, audit, marked_pk = pending
-                pending = next(audits, None)
-            if row.optional:
-                if marked_pk is not None:
-                    yield (
-                        EquipmentEvent._meta.label,
-                        row.pk,
-                        None,
-                        None,
-                        ["missing recorded equipment evidence"],
-                    )
-                continue
-            problems = _file_problems(row)
-            if not _matches_equipment_recording(row, audit):
-                problems.append("missing, ambiguous, or mismatched equipment evidence event")
-            yield EquipmentEvent._meta.label, row.pk, row.actual_size, row.actual_hash, problems
-        while pending:
-            if pending[2] is not None:
-                yield AuditEvent._meta.label, pending[2], None, None, missing_target
-            pending = next(audits, None)
+    return _attachment_recordings(events, "actor_id", "object_type", "object_id", "checksum")
+
+
+def _check_nonconformance_evidence():
+    files = NonconformanceEvent._base_manager.order_by("pk")
+    rows = (
+        _measure_files(files, "evidence_data", "evidence_sha256", "evidence_size")
+        .annotate(optional=_NO_EVIDENCE, evidence_metadata_present=_EVIDENCE_METADATA_PRESENT)
+        .values_list(
+            "pk",
+            "nonconformance_id",
+            "actor_id",
+            "kind",
+            "optional",
+            "actual_size",
+            "actual_hash",
+            "recorded_size",
+            "recorded_hash",
+            "evidence_metadata_present",
+            named=True,
+        )
+    )
+    label = NonconformanceEvent._meta.label
+    parent_type = Nonconformance._meta.label_lower
+    for row, audit, marked_pk in _pair_evidence_recordings(rows, _nonconformance_note_recordings()):
+        is_note = row is not None and row.kind == NonconformanceEvent.Kind.NOTE
+        if marked_pk is not None and not is_note:
+            yield (
+                AuditEvent._meta.label,
+                marked_pk,
+                None,
+                None,
+                ["missing or invalid NonconformanceEvent target"],
+            )
+        if row is None:
+            continue
+        if row.optional:
+            if is_note and marked_pk is not None:
+                yield label, row.pk, None, None, ["missing recorded nonconformance note evidence"]
+            continue
+        problems = _file_problems(row)
+        if is_note and not (
+            audit is not None
+            and audit.object_type == parent_type
+            and audit.object_id == str(row.nonconformance_id)
+            and audit.actor_id == row.actor_id
+            and audit.checksum == row.recorded_hash
+        ):
+            problems.append("missing, ambiguous, or mismatched nonconformance note event")
+        yield label, row.pk, row.actual_size, row.actual_hash, problems
 
 
 def _check_import_sources():
@@ -765,6 +860,7 @@ class Command(BaseCommand):
         ]
         evidence_checks = {
             EquipmentEvent: _check_equipment_evidence,
+            NonconformanceEvent: _check_nonconformance_evidence,
             TrainingRecord: _check_training_evidence,
         }
         categories.extend(

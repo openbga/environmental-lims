@@ -139,8 +139,9 @@ cited by each issued report version. A client downloads an original and amended 
 and the check compares their bytes with the stored files. The baseline also generates an
 exploratory electronic data deliverable (EDD) for an issued version. At each verification
 stage the owning client downloads the original ZIP, and the rehearsal compares its bytes,
-frozen recipient mappings and report-version link with the baseline. CI also creates three
-synthetic attachments, one each for equipment, staff training and nonconformance. It compares
+frozen recipient mappings and report-version link with the baseline. CI also creates four
+synthetic attachments, one each for equipment, staff training, the opening of a
+nonconformance and a subsequent note on that nonconformance. It compares
 their records and verifies staff downloads and client access restrictions at both stages.
 A pull request into `main`
 uses its base commit, and a push to `main` uses the previous tip. The

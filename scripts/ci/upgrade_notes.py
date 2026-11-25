@@ -238,7 +238,7 @@ def render_notes(
         lines.append(
             "A staff reviewer downloaded the original equipment, training and nonconformance "
             "attachments. Their bytes and record links matched the baseline. A signed-in client "
-            "was denied all three downloads."
+            "was denied each download."
         )
     if history_checked:
         lines.extend(
