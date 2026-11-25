@@ -84,7 +84,7 @@ def report_sample(staff, receipt_data):
 
 @pytest.fixture
 def legacy_report_factory(report_sample):
-    def make(version_digest=None, *, report_pk=None):
+    def make(version_digest=None, *, report_pk=None, record_release=True):
         sample = report_sample
         actor = sample.received_by
         now = timezone.now()
@@ -137,6 +137,8 @@ def legacy_report_factory(report_sample):
             released_by=actor,
             released_at=now,
         )
+        if record_release:
+            _record_report_release(version)
         return ReportFile(version=version, snapshot=snapshot, pdf=PDF)
 
     return make
@@ -145,6 +147,25 @@ def legacy_report_factory(report_sample):
 @pytest.fixture
 def legacy_report_file(legacy_report_factory):
     return legacy_report_factory()
+
+
+def _record_report_release(version, *, after_overrides=None, **overrides):
+    fields = {
+        "actor": version.released_by,
+        "action": "report.amended" if version.amends_id else "report.released",
+        "object_type": "reporting.reportversion",
+        "object_id": str(version.pk),
+        "after": {
+            "report": version.report.number,
+            "version": version.number,
+            "amends_version": version.amends.number if version.amends_id else None,
+            "content_sha256": version.content_sha256,
+            "pdf_sha256": version.pdf_sha256,
+            "pdf_size": version.pdf_size,
+        }
+        | (after_overrides or {}),
+    }
+    return AuditEvent.objects.create(**(fields | overrides))
 
 
 @pytest.fixture
@@ -601,7 +622,7 @@ def test_orphan_edd_export_events_are_verification_failures(edd_record, output_f
 
 
 @pytest.mark.django_db(transaction=True)
-def test_original_and_amended_releases_share_one_streamed_report_query(monkeypatch):
+def test_original_and_amended_releases_preserve_the_manifest_and_stream_report_rows(monkeypatch):
     people = {
         "analyst": make_user("restore-analyst", "analyst"),
         "reviewer": make_user("restore-reviewer", "reviewer"),
@@ -643,15 +664,178 @@ def test_original_and_amended_releases_share_one_streamed_report_query(monkeypat
 
     assert connection.get_autocommit()
     with CaptureQueriesContext(connection) as captured, connection.execute_wrapper(check_cursor):
-        summary = json.loads(_verification_output("--format", "json"))
+        manifest = json.loads(_verification_output(*MANIFEST_FORMAT))
     assert connection.get_autocommit()
-    assert summary["Report PDFs"] == {"checked": 2, "failures": 0}
+    rows = "".join(
+        json.dumps(
+            ("reporting.ReportVersion", str(version.pk), version.pdf_size, version.pdf_sha256),
+            separators=(",", ":"),
+        )
+        + "\n"
+        for version in (original, amended)
+    )
+    assert manifest["categories"]["Report PDFs"] == {
+        "count": 2,
+        "sha256": sha256(rows.encode("ascii")).hexdigest(),
+    }
     report_queries = [q["sql"] for q in captured if 'FROM "reporting_reportversion"' in q["sql"]]
-    (query,) = report_queries
+    query, orphan_query = report_queries
     pdf_column = '"reporting_reportfile"."pdf"'
     assert query.count(pdf_column) == 2
     assert f"pg_catalog.octet_length({pdf_column})" in query
     assert f"pg_catalog.sha256({pdf_column})" in query
+    assert 'FROM "core_auditevent"' in query
+    assert '"core_auditevent"."after"' not in orphan_query
+    assert pdf_column not in orphan_query
+
+
+def _assert_report_audit_failure(version, *, checked=1):
+    stdout, stderr = StringIO(), StringIO()
+    with pytest.raises(CommandError, match="Stored file verification failed"):
+        call_command("verify_stored_files", "--format", "json", stdout=stdout, stderr=stderr)
+    assert json.loads(stdout.getvalue())["Report PDFs"] == {"checked": checked, "failures": 1}
+    assert stderr.getvalue().splitlines() == [
+        f"reporting.ReportVersion pk={version.pk}: "
+        "missing, ambiguous, or mismatched report release history"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("record_original", "other_event"),
+    [
+        pytest.param(False, None, id="missing"),
+        pytest.param(False, {"action": "report.amended"}, id="wrong-action"),
+        pytest.param(False, {"after": {}}, id="malformed-after"),
+        pytest.param(False, {"after": "synthetic string"}, id="string-after"),
+        pytest.param(False, {"after_overrides": {"report": "RPT-000000"}}, id="wrong-number"),
+        pytest.param(False, {"after_overrides": {"version": 2}}, id="wrong-version"),
+        pytest.param(False, {"after_overrides": {"version": 1.0}}, id="decimal-version"),
+        pytest.param(False, {"after_overrides": {"version": "1"}}, id="string-version"),
+        pytest.param(False, {"after_overrides": {"amends_version": "null"}}, id="string-null"),
+        pytest.param(False, {"after_overrides": {"pdf_size": len(PDF) + 1}}, id="wrong-pdf-size"),
+        pytest.param(False, {"after_overrides": {"pdf_size": float(len(PDF))}}, id="decimal-size"),
+        pytest.param(False, {"after_overrides": {"pdf_sha256": "a" * 64}}, id="wrong-pdf-digest"),
+        pytest.param(False, {"after_overrides": {"content_sha256": "b" * 64}}, id="wrong-content"),
+        pytest.param(True, {}, id="duplicate-matching"),
+        pytest.param(True, {"after": {}}, id="duplicate-mismatched"),
+        pytest.param(True, {"action": "report.amended"}, id="both-actions"),
+    ],
+)
+def test_report_requires_one_matching_release_event(
+    legacy_report_factory, record_original, other_event
+):
+    report_file = legacy_report_factory(record_release=record_original)
+    report_file.save()
+    if other_event is not None:
+        _record_report_release(report_file.version, **other_event)
+
+    _assert_report_audit_failure(report_file.version)
+
+
+def test_release_event_must_have_the_version_actor(legacy_report_factory, staff):
+    report_file = legacy_report_factory(record_release=False)
+    report_file.save()
+    _record_report_release(report_file.version, actor=staff("different-release-actor", "reviewer"))
+
+    _assert_report_audit_failure(report_file.version)
+
+
+@pytest.mark.parametrize("field", ["pdf_sha256", "content_sha256"])
+def test_release_event_checksum_fields_must_be_strings(legacy_report_factory, field):
+    report_file = legacy_report_factory(record_release=False)
+    report_file.save()
+    version = report_file.version
+    _record_report_release(version, after_overrides={field: [getattr(version, field)]})
+
+    _assert_report_audit_failure(version)
+
+
+@pytest.mark.parametrize("replacement", ["pdf", "content"])
+def test_report_replacement_with_matching_digests_fails_against_the_release_event(
+    legacy_report_file, replacement
+):
+    report_file = legacy_report_file
+    if replacement == "pdf":
+        report_file.pdf += b" replacement"
+        fields = {
+            "pdf_sha256": sha256(report_file.pdf).hexdigest(),
+            "pdf_size": len(report_file.pdf),
+        }
+    else:
+        report_file.snapshot["content"]["report"]["title"] = "Replaced report title"
+        content_hash = fingerprint(report_file.snapshot["content"])
+        report_file.snapshot["content_sha256"] = content_hash
+        fields = {"content_sha256": content_hash}
+    report_file.save()
+    # Simulate a restored copy with self-consistent file data and different release metadata.
+    with connection.cursor() as cursor:
+        cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
+        cursor.execute(
+            "ALTER TABLE reporting_reportversion DISABLE TRIGGER issued_record_immutable"
+        )
+        ReportVersion.objects.filter(pk=report_file.version_id).update(**fields)
+        cursor.execute("ALTER TABLE reporting_reportversion ENABLE TRIGGER issued_record_immutable")
+
+    _assert_report_audit_failure(report_file.version)
+
+
+@pytest.mark.parametrize(
+    "defect", ["cross-report", "skipped-version", "wrong-predecessor", "decimal-predecessor"]
+)
+def test_amendment_event_must_match_the_linked_predecessor(legacy_report_factory, defect):
+    original_file = legacy_report_factory()
+    original_file.save()
+    predecessor = original_file.version
+    checked = 2
+    if defect == "cross-report":
+        unrelated_file = legacy_report_factory()
+        unrelated_file.save()
+        predecessor = unrelated_file.version
+        checked += 1
+    version = ReportVersion.objects.create(
+        report=original_file.version.report,
+        number=3 if defect == "skipped-version" else 2,
+        amends=predecessor,
+        amendment_reason="Synthetic amendment",
+        content_sha256=original_file.version.content_sha256,
+        pdf_sha256=predecessor.pdf_sha256,
+        pdf_size=predecessor.pdf_size,
+        released_by=predecessor.released_by,
+        released_at=predecessor.released_at,
+    )
+    ReportFile.objects.create(version=version, snapshot=original_file.snapshot, pdf=PDF)
+    invalid_values = {"wrong-predecessor": 2, "decimal-predecessor": 1.0}
+    _record_report_release(
+        version, after_overrides={"amends_version": invalid_values.get(defect, predecessor.number)}
+    )
+
+    _assert_report_audit_failure(version, checked=checked)
+
+
+@pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
+def test_orphan_report_release_events_are_verification_failures(legacy_report_file, output_format):
+    legacy_report_file.save()
+    version = legacy_report_file.version
+    events = (
+        _record_report_release(version, object_id="0"),
+        _record_report_release(version, action="report.amended", object_id="invalid ID"),
+        _record_report_release(version, object_type="reporting.report"),
+    )
+    _record_report_release(version, action="report.updated", object_type="reporting.report")
+
+    stdout, stderr = StringIO(), StringIO()
+    with pytest.raises(CommandError, match="Stored file verification failed"):
+        call_command("verify_stored_files", *output_format, stdout=stdout, stderr=stderr)
+    if output_format == MANIFEST_FORMAT:
+        assert stdout.getvalue() == ""
+    elif output_format:
+        assert json.loads(stdout.getvalue())["Report PDFs"] == {"checked": 4, "failures": 3}
+    else:
+        assert "Report PDFs: checked=4 failures=3" in stdout.getvalue().splitlines()
+    assert stderr.getvalue().splitlines() == [
+        f"core.AuditEvent pk={pk}: missing or invalid ReportVersion target"
+        for pk in sorted(event.pk for event in events)
+    ]
 
 
 @pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
@@ -915,6 +1099,7 @@ def test_corrupt_and_missing_rows_report_ids_and_fail(
         released_by=version.released_by,
         released_at=version.released_at,
     )
+    _record_report_release(missing_report)
     order = Order.objects.create(project=version.report.project, created_by=invoice.issued_by)
     missing_issued = _invoice_draft(order, invoice.issued_by, "DRAFT-2", InvoiceDraft.Status.ISSUED)
     missing_voided = _invoice_draft(order, invoice.issued_by, "DRAFT-3", InvoiceDraft.Status.VOIDED)

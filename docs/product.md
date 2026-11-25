@@ -158,9 +158,12 @@ checksum, report number, version number and report content checksum must agree w
 the event. An export event left behind without its ZIP record must also fail verification.
 For each original and amended report, deployers can verify the frozen content used in
 client exports against both copies of its release checksum, on the issued version and
-in the stored snapshot. Stored report, invoice and subcontract PDFs, electronic deliverables,
-laboratory logos, original result import files and attached laboratory evidence must match
-their recorded hashes and any recorded byte counts. The check reports discrepancies by
+in the stored snapshot. The PDF and frozen results must also match the checksums on the
+single release or amendment event for that version. The recorded issuer, report number,
+version, predecessor and PDF byte count must agree. A surviving event whose issued
+version is missing must fail verification. Stored report, invoice and subcontract PDFs,
+electronic deliverables, laboratory logos, original result import files and attached
+laboratory evidence must match their recorded hashes and any recorded byte counts. The check reports discrepancies by
 record ID and leaves the restored records intact. Deployers
 can save the counts in JSON. The upgrade rehearsal report records how many stored files
 passed the candidate check in each category, including categories with zero files.

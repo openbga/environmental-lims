@@ -154,8 +154,11 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
    and each issued or voided invoice must have its file. For each original and amended
    report, the command also recalculates the checksum of the frozen report content used
    for result downloads. It compares that checksum with the one on the issued version
-   and the copy in its snapshot. A failure identifies the report version by record ID.
-   The `Report PDFs` count includes each version once across the PDF and content checks.
+   and the copy in its snapshot. Each version must also have exactly one release or
+   amendment event with the same issuer, report number, version, predecessor, PDF size,
+   PDF checksum and frozen content checksum. Use the report version ID to investigate a
+   mismatch. If an event survives without its version, the command reports the audit event
+   ID. The `Report PDFs` count includes each version once and each orphan event once.
    For an invoice, the command checks that its draft has exactly one issue event and that
    the recorded invoice number and PDF checksum match. A voided invoice must still match its
    original issue event. An absent, duplicate or inconsistent issue event fails the invoice
