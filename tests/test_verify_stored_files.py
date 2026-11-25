@@ -193,7 +193,12 @@ def _record_invoice_issue(invoice, **overrides):
         "object_type": "commercial.invoicedraft",
         "object_id": str(invoice.draft_id),
         "after": {
-            "issued_invoice": {"number": invoice.number, "sha256": invoice.sha256},
+            "issued_invoice": {
+                "number": invoice.number,
+                "issued_at": invoice.issued_at.isoformat(),
+                "issued_by": invoice.issued_by_id,
+                "sha256": invoice.sha256,
+            },
             "billing_contact_name": "Synthetic private contact",
         },
     }
@@ -675,7 +680,7 @@ def test_issued_and_voided_invoices_share_one_issuance_check(report_sample, staf
 
     original = issue()
     invoices.void_invoice(
-        actor=actor,
+        actor=staff("restore-voiding-manager", "project_manager"),
         draft_id=original.pk,
         expected_revision=original.revision,
         reason="Synthetic correction",
@@ -688,28 +693,49 @@ def test_issued_and_voided_invoices_share_one_issuance_check(report_sample, staf
         f'["commercial.IssuedInvoice","{draft.issued_invoice.pk}",{len(PDF)},"{sha256(PDF).hexdigest()}"]\n'
         for draft in (original, replacement)
     )
+    assert manifest["version"] == 1
     assert manifest["categories"]["Issued invoice PDFs"] == {
         "count": 2,
         "sha256": sha256(rows.encode("ascii")).hexdigest(),
     }
-    invoice_queries = [q["sql"] for q in captured if 'FROM "commercial_issuedinvoice"' in q["sql"]]
-    (query,) = invoice_queries
+    (query,) = [q["sql"] for q in captured if 'FROM "commercial_issuedinvoice"' in q["sql"]]
+    (orphan_query,) = [
+        q["sql"]
+        for q in captured
+        if 'FROM "core_auditevent"' in q["sql"] and 'FROM "commercial_invoicedraft"' in q["sql"]
+    ]
     assert 'FROM "core_auditevent"' in query
     pdf_column = '"commercial_issuedinvoice"."pdf"'
     assert query.count(pdf_column) == 2
     assert f"pg_catalog.octet_length({pdf_column})" in query
     assert f"pg_catalog.sha256({pdf_column})" in query
+    assert pdf_column not in orphan_query
+    assert '"core_auditevent"."after"' not in orphan_query
 
 
-def _assert_invoice_audit_failure(invoice):
+def _assert_invoice_verification_failed(*failures, output_format=("--format", "json")):
     stdout, stderr = StringIO(), StringIO()
     with pytest.raises(CommandError, match="Stored file verification failed"):
-        call_command("verify_stored_files", "--format", "json", stdout=stdout, stderr=stderr)
-    assert json.loads(stdout.getvalue())["Issued invoice PDFs"] == {"checked": 1, "failures": 1}
-    assert stderr.getvalue().splitlines() == [
+        call_command("verify_stored_files", *output_format, stdout=stdout, stderr=stderr)
+    if output_format == MANIFEST_FORMAT:
+        assert stdout.getvalue() == ""
+    else:
+        assert json.loads(stdout.getvalue())["Issued invoice PDFs"] == {
+            "checked": len(failures),
+            "failures": len(failures),
+        }
+    assert stderr.getvalue().splitlines() == list(failures)
+
+
+def _invoice_issuance_problem(invoice):
+    return (
         f"commercial.IssuedInvoice pk={invoice.pk}: "
         "missing, ambiguous, or mismatched invoice issuance event"
-    ]
+    )
+
+
+def _issue_target_problem(event):
+    return f"core.AuditEvent pk={event.pk}: missing or invalid issued invoice target"
 
 
 @pytest.mark.parametrize("change", ["pdf-and-digest", "number"])
@@ -723,7 +749,7 @@ def test_stored_invoice_must_match_the_original_issuance(invoice_record, change)
         invoice.number = "INV-REPLACEMENT"
     invoice.save()
 
-    _assert_invoice_audit_failure(invoice)
+    _assert_invoice_verification_failed(_invoice_issuance_problem(invoice))
 
 
 @pytest.mark.parametrize(
@@ -731,8 +757,6 @@ def test_stored_invoice_must_match_the_original_issuance(invoice_record, change)
     [
         pytest.param(False, None, id="missing"),
         pytest.param(False, {"action": "invoice_draft.voided"}, id="void-event"),
-        pytest.param(False, {"object_type": "receipt.order"}, id="wrong-object-type"),
-        pytest.param(False, {"object_id": "0"}, id="wrong-draft"),
         pytest.param(False, {"after": {"issued_invoice": []}}, id="malformed-document"),
         pytest.param(True, {}, id="duplicate-matching"),
         pytest.param(True, {"after": {}}, id="duplicate-mismatched"),
@@ -746,7 +770,82 @@ def test_invoice_requires_one_original_issuance(invoice_record, record_original,
     if other_event is not None:
         _record_invoice_issue(invoice, **other_event)
 
-    _assert_invoice_audit_failure(invoice)
+    _assert_invoice_verification_failed(_invoice_issuance_problem(invoice))
+
+
+def test_invoice_requires_the_original_issue_actor(invoice_record, staff):
+    invoice_record.save()
+    different_actor = staff("restore-other-invoice-actor", "project_manager")
+    _record_invoice_issue(invoice_record, actor=different_actor)
+
+    _assert_invoice_verification_failed(_invoice_issuance_problem(invoice_record))
+
+
+@pytest.mark.parametrize("corruption", ["missing", "different", "string", "decimal"])
+def test_invoice_requires_the_original_nested_issuer(invoice_record, corruption):
+    invoice_record.save()
+    issuer_id = invoice_record.issued_by_id
+    document = {"number": invoice_record.number, "sha256": invoice_record.sha256}
+    if corruption != "missing":
+        document["issued_by"] = {
+            "different": issuer_id + 1,
+            "string": str(issuer_id),
+            "decimal": float(issuer_id),
+        }[corruption]
+    _record_invoice_issue(invoice_record, after={"issued_invoice": document})
+
+    _assert_invoice_verification_failed(_invoice_issuance_problem(invoice_record))
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param({"object_type": "receipt.order"}, id="wrong-object-type"),
+        pytest.param({"object_id": "0"}, id="wrong-draft"),
+        pytest.param({"object_id": "synthetic private content"}, id="non-integer-id"),
+        pytest.param({"object_id": "9" * 64}, id="out-of-range-id"),
+    ],
+)
+def test_mistargeted_invoice_issue_event_fails_alongside_its_invoice(invoice_record, target):
+    invoice_record.save()
+    event = _record_invoice_issue(invoice_record, **target)
+
+    _assert_invoice_verification_failed(
+        _invoice_issuance_problem(invoice_record), _issue_target_problem(event)
+    )
+
+
+@pytest.mark.parametrize("discard_draft", [False, True], ids=["draft-with-no-invoice", "no-draft"])
+def test_invoice_issue_event_survives_missing_document(invoice_record, discard_draft):
+    invoice_record.save()
+    event = _record_invoice_issue(invoice_record)
+    with _restore_with_history_defect(IssuedInvoice, "issued_invoice_immutable"):
+        IssuedInvoice.objects.filter(pk=invoice_record.pk).delete()
+    draft = invoice_record.draft
+    if discard_draft:
+        draft.delete()
+    else:
+        InvoiceDraft.objects.filter(pk=draft.pk).update(
+            status=InvoiceDraft.Status.DRAFT, cancelled_at=None, cancelled_by=None, cancel_reason=""
+        )
+
+    _assert_invoice_verification_failed(_issue_target_problem(event))
+    _assert_invoice_verification_failed(_issue_target_problem(event), output_format=MANIFEST_FORMAT)
+
+
+@pytest.mark.parametrize("status", [InvoiceDraft.Status.ISSUED, InvoiceDraft.Status.VOIDED])
+def test_missing_issued_invoice_is_reported_once_for_its_draft(invoice_record, status):
+    draft = invoice_record.draft
+    if status == InvoiceDraft.Status.ISSUED:
+        InvoiceDraft.objects.filter(pk=draft.pk).update(
+            status=status, cancelled_at=None, cancelled_by=None, cancel_reason=""
+        )
+    _record_invoice_issue(invoice_record)
+    _record_invoice_issue(invoice_record)
+
+    _assert_invoice_verification_failed(
+        f"commercial.InvoiceDraft pk={draft.pk}: missing IssuedInvoice"
+    )
 
 
 def test_edd_export_provenance_preserves_the_manifest_and_query_bounds(edd_record):
