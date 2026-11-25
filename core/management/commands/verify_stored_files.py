@@ -39,7 +39,7 @@ from analytical.models import Batch, ImportSourceFile
 from commercial.models import InvoiceDraft, IssuedInvoice
 from core.models import AuditEvent, LabLogo
 from laboratory.models import EvidenceMixin
-from receipt.models import SubcontractResult
+from receipt.models import Subcontract, SubcontractResult
 from reporting.content import fingerprint
 from reporting.models import EddExport, ReportVersion
 
@@ -237,6 +237,77 @@ def _check_invoices():
         yield InvoiceDraft._meta.label, pk, None, None, ["missing IssuedInvoice"]
 
 
+def _check_subcontract_sources():
+    subcontract_type = Subcontract._meta.label_lower
+    entries = AuditEvent.objects.filter(action="subcontract.result_entered").alias(
+        entered_number=Cast(KeyTransform("latest_number", "after"), TextField()),
+    )
+    source = KeyTransform("source_result", "after")
+    # Entry events target the dispatch and record the new source number. Compare the
+    # nested result fields too, using JSON text to distinguish integer IDs from other types.
+    events = (
+        entries.filter(
+            object_type=subcontract_type,
+            object_id=Cast(OuterRef("subcontract_id"), CharField()),
+            entered_number=Cast(OuterRef("number"), TextField()),
+        )
+        .order_by()
+        .values("object_id")
+        .alias(
+            source_id=Cast(KeyTransform("id", source), TextField()),
+            source_dispatch=Cast(KeyTransform("subcontract", source), TextField()),
+            source_number=Cast(KeyTransform("number", source), TextField()),
+            source_actor=Cast(KeyTransform("entered_by", source), TextField()),
+            source_size=Cast(KeyTransform("source_size", source), TextField()),
+        )
+        .annotate(
+            event_count=Count("pk"),
+            matching_count=Count(
+                "pk",
+                filter=Q(
+                    actor_id=OuterRef("entered_by_id"),
+                    source_id=Cast(OuterRef("pk"), TextField()),
+                    source_dispatch=Cast(OuterRef("subcontract_id"), TextField()),
+                    source_number=Cast(OuterRef("number"), TextField()),
+                    source_actor=Cast(OuterRef("entered_by_id"), TextField()),
+                    source_size=Cast(OuterRef("source_size"), TextField()),
+                    after__source_result__contains=JSONObject(
+                        source_sha256=OuterRef("source_sha256")
+                    ),
+                ),
+            ),
+        )
+        .filter(event_count=1, matching_count=1)
+    )
+    yield from _check_files(
+        SubcontractResult,
+        "source_pdf",
+        "source_sha256",
+        "source_size",
+        metadata=(Exists(events), "missing, ambiguous, or mismatched subcontract source entry"),
+    )
+
+    # Check the reverse link without casting an untrusted event value to an integer.
+    sources = SubcontractResult._base_manager.alias(
+        dispatch_id=Cast("subcontract_id", CharField()),
+        source_number=Cast("number", TextField()),
+        dispatch_type=Value(subcontract_type),
+    ).filter(
+        dispatch_id=OuterRef("object_id"),
+        source_number=OuterRef("entered_number"),
+        dispatch_type=OuterRef("object_type"),
+    )
+    missing = entries.filter(~Exists(sources)).order_by("pk")
+    for pk in missing.values_list("pk", flat=True).iterator():
+        yield (
+            AuditEvent._meta.label,
+            pk,
+            None,
+            None,
+            ["missing or invalid SubcontractResult target"],
+        )
+
+
 def _report_number(report_id):
     # Match Report.number's minimum width without truncating any digits or padding before a sign.
     report_id = Cast(report_id, TextField())
@@ -323,7 +394,7 @@ def _check_import_sources():
 
 
 class Command(BaseCommand):
-    help = "Verify database-stored files, release, issuance and export history, and report content."
+    help = "Verify database-stored files, report content and associated audit history."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -400,10 +471,7 @@ class Command(BaseCommand):
         categories = [
             ("Report PDFs", _check_reports()),
             ("Issued invoice PDFs", _check_invoices()),
-            (
-                "Subcontract source PDFs",
-                _check_files(SubcontractResult, "source_pdf", "source_sha256", "source_size"),
-            ),
+            ("Subcontract source PDFs", _check_subcontract_sources()),
             ("EDD export ZIPs", _check_edd_exports()),
             ("Laboratory logos", _check_files(LabLogo, "image", "sha256", "size")),
         ]
