@@ -166,7 +166,11 @@ version, predecessor and PDF byte count must agree. A surviving event whose issu
 version is missing must fail verification. For each subcontract result, its entry event must identify the same
 dispatch, source revision and staff member and record the same PDF size and checksum.
 This applies to original and corrected sources. An entry whose source is missing must
-also fail verification. Stored report, invoice and subcontract PDFs,
+also fail verification. For staff training evidence, the attachment name and checksum must
+agree with the original training or correction event. The event must identify the record,
+trainee, recording staff member and any record being corrected. An event recording an attachment
+must reveal a missing file even if the training record itself is gone. Training records may
+be created without evidence. Stored report, invoice and subcontract PDFs,
 electronic deliverables, laboratory logos, original result import files and attached
 laboratory evidence must match their recorded hashes and any recorded byte counts. The check reports discrepancies by
 record ID and leaves the restored records intact. Deployers

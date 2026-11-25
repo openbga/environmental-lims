@@ -196,6 +196,14 @@ The same list is shown in the application under What's new.
 
   > Run python manage.py verify_stored_files on the restored database. Missing, duplicate or inconsistent entry history fails the check. Look under Subcontract source PDFs for the affected result or audit event ID.
 
+- **Changed:** Check restored training attachments against their original records (2026-11-25, Backup and restore)
+
+  Deployers can detect a missing training attachment even when the restored database has also lost the training record. The restore check compares each attached file with the event that recorded it, including corrections.
+
+  Technical notes:
+
+  > Run python manage.py verify_stored_files on the restored database and look under Training record evidence. Use the reported training record or audit event ID to investigate.
+
 - **Fixed:** Trace missing invoices and verify who issued them after a restore (2026-11-25, Backup and restore)
 
   Deployers can find a missing invoice from its issue history even when the restored database has also lost the draft. For issued and voided invoices, the restore check now verifies who issued the original document.
