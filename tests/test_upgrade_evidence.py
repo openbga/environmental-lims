@@ -12,7 +12,13 @@ from psycopg import sql
 
 from analytical.models import QCCorrectiveAction, QCMeasurement, QCSample
 from core.models import AuditEvent
-from laboratory.models import Equipment, EquipmentEvent, NonconformanceEvent, TrainingRecord
+from laboratory.models import (
+    Equipment,
+    EquipmentEvent,
+    Nonconformance,
+    NonconformanceEvent,
+    TrainingRecord,
+)
 from receipt.models import Client as LabClient
 from receipt.models import Container, CustodyEvent, Order, Sample
 from receipt.subcontract_models import Subcontract, SubcontractResult
@@ -63,12 +69,27 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
     export = EddExport.objects.select_related("version__report__project").get()
     assert export.version.number == 1 < export.version.report.latest_version
     attachment_reference = prepared["LABORATORY_ATTACHMENT_REFERENCE"]
-    calibration, training, nonconformance = (
+    calibration, training, opened = (
         model.objects.with_evidence().get(reference=attachment_reference)
         for model in (EquipmentEvent, TrainingRecord, NonconformanceEvent)
     )
+    note = NonconformanceEvent.objects.with_evidence().get(
+        reference=prepared["NONCONFORMANCE_NOTE_REFERENCE"]
+    )
     assert calibration.equipment.asset_id == "SYN-UPGRADE-BAL-01"
-    assert nonconformance.nonconformance.equipment_id == calibration.equipment_id
+    assert opened.nonconformance.equipment_id == calibration.equipment_id
+    assert opened.kind == NonconformanceEvent.Kind.OPENED
+    assert note.kind == NonconformanceEvent.Kind.NOTE
+    assert opened.nonconformance_id == note.nonconformance_id
+    assert (opened.actor.username, note.actor.username) == ("demo_analyst", "demo_custodian")
+    note_audit = AuditEvent.objects.get(
+        action="nonconformance.note_added",
+        object_type="laboratory.nonconformance",
+        object_id=str(note.nonconformance_id),
+    )
+    assert note_audit.actor_id == note.actor_id
+    assert note_audit.after == {"event": note.pk, "evidence": note.evidence_sha256}
+    assert note_audit.reason == note.note == prepared["NONCONFORMANCE_NOTE"]
     assert training.staff.username == "demo_analyst"
     assert training.reviewed_by.username == "demo_reviewer"
 
@@ -77,6 +98,15 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
         missing.setattr(EddExport.objects, "all", EddExport.objects.none)
         with pytest.raises(SystemExit, match=f"Baseline has no {edd_label}"):
             run("capture")
+    assert not evidence_path.exists()
+
+    with transaction.atomic():
+        NonconformanceEvent.objects.filter(pk=note.pk).update(evidence_data=None)
+        with pytest.raises(
+            SystemExit, match="baseline needs synthetic attachments for nonconformance-note"
+        ):
+            run("capture")
+        transaction.set_rollback(True)
     assert not evidence_path.exists()
 
     run("capture")
@@ -104,17 +134,18 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
     assert str(export.version_id) in manifest["issued report versions"]["rows"]
 
     laboratory_urls = {}
-    for kind, label, record, link in (
-        ("equipment", "equipment event attachments", calibration, "equipment_id"),
-        ("training", "staff training attachments", training, "staff_id"),
+    nc_label = "nonconformance event attachments"
+    for kind, label, records, link in (
+        ("equipment", "equipment event attachments", {"equipment": calibration}, "equipment_id"),
+        ("training", "staff training attachments", {"training": training}, "staff_id"),
         (
             "nonconformance",
-            "nonconformance event attachments",
-            nonconformance,
+            nc_label,
+            {"nonconformance": opened, "nonconformance-note": note},
             "nonconformance_id",
         ),
     ):
-        assert manifest[label]["rows"].keys() == {str(record.pk)}
+        assert manifest[label]["rows"].keys() == {str(record.pk) for record in records.values()}
         assert {
             link,
             "evidence_name",
@@ -123,9 +154,15 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
             "evidence_sha256",
             "evidence_data",
         } <= set(manifest[label]["fields"])
-        url = reverse("laboratory:evidence", args=[kind, record.pk])
-        laboratory_urls[url] = f"Synthetic upgrade evidence for {kind}.\r\n".encode()
-        assert laboratory_urls[url] == bytes(record.evidence_data)
+        for upload_kind, record in records.items():
+            url = reverse("laboratory:evidence", args=[kind, record.pk])
+            original_bytes = f"Synthetic upgrade evidence for {upload_kind}.\r\n".encode()
+            assert original_bytes == bytes(record.evidence_data)
+            laboratory_urls[url] = original_bytes
+    assert {"actor_id", "kind", "note", "reference", "occurred_at"} <= set(
+        manifest[nc_label]["fields"]
+    )
+    assert str(note_audit.pk) in manifest["audit events"]["rows"]
 
     edd_url = reverse("portal:edd-download", args=[export.version.report_id, export.pk])
     get = Client.get
@@ -276,7 +313,7 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
             transaction.set_rollback(True)
 
     source_url = reverse("receipt:subcontract-source-download", args=[corrected.pk])
-    training_url = reverse("laboratory:evidence", args=["training", training.pk])
+    note_url = reverse("laboratory:evidence", args=["nonconformance", note.pk])
 
     def corrupt_download_at(download_url):
         def corrupt_download(client, path, **kwargs):
@@ -290,26 +327,27 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
     for download_url, error in (
         (source_url, "Staff download differs from the stored external source"),
         (edd_url, "Client download differs from the stored EDD ZIP"),
-        (training_url, "Staff download differs from the stored laboratory training attachment"),
+        (note_url, "Staff download differs from the stored laboratory nonconformance attachment"),
     ):
         with monkeypatch.context() as download:
             download.setattr(Client, "get", corrupt_download_at(download_url))
             with pytest.raises(SystemExit, match=error):
                 run("verify")
 
-    def allow_client_training_download(client, path, **kwargs):
+    def allow_client_note_download(client, path, **kwargs):
         response = get(client, path, **kwargs)
-        if path == training_url and response.wsgi_request.user.username == "demo_client":
+        if path == note_url and response.wsgi_request.user.username == "demo_client":
             response.status_code = 200
         return response
 
     with monkeypatch.context() as download:
-        download.setattr(Client, "get", allow_client_training_download)
-        with pytest.raises(SystemExit, match=r"client requested laboratory training .* 200"):
+        download.setattr(Client, "get", allow_client_note_download)
+        with pytest.raises(SystemExit, match=r"client requested laboratory nonconformance .* 200"):
             run("verify")
     assert not failed_counts_path.exists()
 
     # Reject reattachment, substituted bytes and changed metadata in the candidate database.
+    other_nc = Nonconformance.objects.exclude(pk=opened.nonconformance_id).get()
     for label, records, changes in (
         (
             "equipment event attachments",
@@ -322,9 +360,19 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
             {"evidence_data": bytes(calibration.evidence_data)},
         ),
         (
-            "nonconformance event attachments",
-            NonconformanceEvent.objects.filter(pk=nonconformance.pk),
+            nc_label,
+            NonconformanceEvent.objects.filter(pk=opened.pk),
             {"evidence_name": "changed.txt"},
+        ),
+        (
+            nc_label,
+            NonconformanceEvent.objects.filter(pk=note.pk),
+            {"nonconformance": other_nc},
+        ),
+        (
+            nc_label,
+            NonconformanceEvent.objects.filter(pk=note.pk),
+            {"evidence_data": bytes(opened.evidence_data)},
         ),
     ):
         with transaction.atomic():

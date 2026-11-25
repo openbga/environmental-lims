@@ -18,7 +18,7 @@ from analytical.models import Batch, ImportSourceFile
 from commercial import invoices
 from commercial.models import InvoiceDraft, IssuedInvoice, PriceList, PriceListItem
 from core.models import AuditEvent, Lab, LabLogo
-from laboratory import equipment, training
+from laboratory import equipment, nonconformance, training
 from laboratory.models import (
     Equipment,
     EquipmentEvent,
@@ -38,13 +38,7 @@ PDF = b"%PDF-1.7\x00\xff synthetic private content"
 SOURCE_PDF = PDF + b"\n%%EOF\n"
 ZIP = b"PK\x03\x04\x00\xff synthetic zip"
 PNG = b"\x89PNG\r\n\x1a\n\x00\xff synthetic image"
-EVIDENCE = {
-    "evidence_name": "synthetic private content.pdf",
-    "evidence_content_type": "application/pdf",
-    "evidence_data": PDF,
-    "evidence_sha256": sha256(PDF).hexdigest(),
-    "evidence_size": len(PDF),
-}
+EVIDENCE_NAME = "synthetic private content.pdf"
 CATEGORIES = (
     "Report PDFs",
     "Issued invoice PDFs",
@@ -341,12 +335,36 @@ def import_source(staff, receipt_data):
 
 
 @pytest.fixture
-def nonconformance_evidence_fields(staff):
-    actor = staff("restore-recorder", "analyst")
-    nonconformance = Nonconformance.objects.create(
-        discovered_on=timezone.localdate(), opened_by=actor
-    )
-    return {"nonconformance": nonconformance, "kind": NonconformanceEvent.Kind.NOTE, "actor": actor}
+def nonconformance_factory(staff):
+    actor = staff("restore-nonconformance-recorder", "reviewer")
+
+    def open_record(**overrides):
+        fields = {
+            "actor": actor,
+            "title": "Synthetic nonconformance",
+            "description": "Synthetic private nonconformance details",
+            "severity": Nonconformance.Severity.MINOR,
+            "discovered_on": timezone.localdate(),
+        }
+        return nonconformance.open_nonconformance(**(fields | overrides))
+
+    return open_record
+
+
+@pytest.fixture
+def nonconformance_note_factory(nonconformance_factory):
+    record = nonconformance_factory()
+
+    def add(*, attached=True, **overrides):
+        fields = {
+            "actor": record.opened_by,
+            "nc_id": record.pk,
+            "note": "Synthetic private nonconformance note",
+            "evidence": SimpleUploadedFile(EVIDENCE_NAME, PDF) if attached else None,
+        }
+        return nonconformance.add_note(**(fields | overrides))
+
+    return add
 
 
 @pytest.fixture
@@ -370,7 +388,7 @@ def equipment_event_factory(staff):
             "performed_by": performer,
             "outcome": outcome,
             "description": "Synthetic private equipment notes",
-            "evidence": SimpleUploadedFile(EVIDENCE["evidence_name"], PDF) if attached else None,
+            "evidence": SimpleUploadedFile(EVIDENCE_NAME, PDF) if attached else None,
         }
         return equipment.record_equipment_event(kind=kind, **(fields | overrides))
 
@@ -393,7 +411,7 @@ def training_record_factory(staff):
             "effective_on": today,
             "reviewed_by": reviewer,
             "reviewed_on": today,
-            "evidence": SimpleUploadedFile(EVIDENCE["evidence_name"], PDF) if attached else None,
+            "evidence": SimpleUploadedFile(EVIDENCE_NAME, PDF) if attached else None,
         }
         return training.record_training(**(fields | overrides))
 
@@ -426,7 +444,7 @@ def test_empty_database(output_format):
 @pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
 def test_intact_documents_and_optional_evidence(
     document_records,
-    nonconformance_evidence_fields,
+    nonconformance_note_factory,
     import_source,
     equipment_event_factory,
     training_record_factory,
@@ -436,8 +454,8 @@ def test_intact_documents_and_optional_evidence(
     report_file, invoice, _, export, logo = document_records
     for document in (report_file, invoice, export, logo):
         document.save()
-    NonconformanceEvent.objects.create(**nonconformance_evidence_fields)
-    NonconformanceEvent.objects.create(**nonconformance_evidence_fields, **EVIDENCE)
+    nonconformance_note_factory(attached=False)
+    nonconformance_note_factory()
     equipment_event_factory()
     equipment_event_factory(
         attached=False, reference="Synthetic equipment reference without a file"
@@ -904,6 +922,185 @@ def test_training_evidence_rejects_invalid_event_targets(training_record_factory
         _training_history_problem(record),
         f"core.AuditEvent pk={event.pk}: missing or invalid TrainingRecord target",
     )
+
+
+def _nonconformance_note_event(note):
+    return AuditEvent.objects.get(
+        action="nonconformance.note_added",
+        object_type=Nonconformance._meta.label_lower,
+        object_id=str(note.nonconformance_id),
+        after__event=note.pk,
+    )
+
+
+def _assert_nonconformance_evidence_failure(
+    *problems, checked=None, output_format=("--format", "json")
+):
+    stdout, stderr = StringIO(), StringIO()
+    with pytest.raises(CommandError, match="Stored file verification failed"):
+        call_command("verify_stored_files", *output_format, stdout=stdout, stderr=stderr)
+    if output_format == MANIFEST_FORMAT:
+        assert stdout.getvalue() == ""
+    else:
+        assert json.loads(stdout.getvalue())["Nonconformance event evidence"] == {
+            "checked": len(problems) if checked is None else checked,
+            "failures": len(problems),
+        }
+    assert stderr.getvalue().splitlines() == list(problems)
+
+
+def _nonconformance_note_history_problem(note):
+    return (
+        f"laboratory.NonconformanceEvent pk={note.pk}: "
+        "missing, ambiguous, or mismatched nonconformance note event"
+    )
+
+
+def _nonconformance_note_target_problem(event):
+    return f"core.AuditEvent pk={event.pk}: missing or invalid NonconformanceEvent target"
+
+
+def test_nonconformance_evidence_preserves_legacy_manifest(
+    nonconformance_factory, nonconformance_note_factory
+):
+    parent = nonconformance_factory(evidence=SimpleUploadedFile("opening.pdf", PDF))
+    opened = parent.events.get(kind=NonconformanceEvent.Kind.OPENED)
+    nonconformance.transition(
+        actor=parent.opened_by,
+        nc_id=parent.pk,
+        expected_revision=parent.revision,
+        to_status=Nonconformance.Status.INVESTIGATING,
+        owner=parent.opened_by,
+        evidence=SimpleUploadedFile("investigation.pdf", PDF),
+    )
+    status = parent.events.get(kind=NonconformanceEvent.Kind.STATUS)
+    note = nonconformance_note_factory(nc_id=parent.pk)
+    nonconformance_note_factory(nc_id=parent.pk, attached=False)
+    nonconformance_note_factory(nc_id=parent.pk, attached=False).delete()
+
+    manifest = json.loads(_verification_output(*MANIFEST_FORMAT))
+    rows = "".join(
+        f'["laboratory.NonconformanceEvent","{event.pk}",{len(PDF)},"{sha256(PDF).hexdigest()}"]\n'
+        for event in (opened, status, note)
+    )
+    assert manifest["version"] == 1
+    assert manifest["categories"]["Nonconformance event evidence"] == {
+        "count": 3,
+        "sha256": sha256(rows.encode("ascii")).hexdigest(),
+    }
+
+
+def test_nonconformance_note_evidence_rejects_rehashed_replacement(nonconformance_note_factory):
+    note = nonconformance_note_factory()
+    replacement = PDF + b" synthetic replacement"
+    NonconformanceEvent.objects.filter(pk=note.pk).update(
+        evidence_data=replacement,
+        evidence_size=len(replacement),
+        evidence_sha256=sha256(replacement).hexdigest(),
+    )
+
+    _assert_nonconformance_evidence_failure(_nonconformance_note_history_problem(note))
+
+
+@pytest.mark.parametrize(
+    "defect", ["missing", "duplicate", "competing-parent", "action", "parent", "type", "actor"]
+)
+def test_nonconformance_note_attachment_requires_one_original_event(
+    nonconformance_factory, nonconformance_note_factory, staff, defect
+):
+    note = nonconformance_note_factory()
+    event = _nonconformance_note_event(note)
+    if defect in {"duplicate", "competing-parent"}:
+        AuditEvent.objects.create(
+            action=event.action,
+            object_type=event.object_type,
+            object_id=(
+                str(nonconformance_factory().pk)
+                if defect == "competing-parent"
+                else event.object_id
+            ),
+            actor=event.actor,
+            after=event.after,
+        )
+    else:
+        changes = {
+            "action": {"action": "nonconformance.opened"},
+            "type": {"object_type": NonconformanceEvent._meta.label_lower},
+        }
+        if defect == "parent":
+            changes[defect] = {"object_id": str(nonconformance_factory().pk)}
+        if defect == "actor":
+            changes[defect] = {"actor": staff("restore-other-note-recorder", "analyst")}
+        with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+            events = AuditEvent.objects.filter(pk=event.pk)
+            if defect == "missing":
+                events.delete()
+            else:
+                events.update(**changes[defect])
+
+    _assert_nonconformance_evidence_failure(_nonconformance_note_history_problem(note))
+
+
+@pytest.mark.parametrize("defect", ["missing-id", "string-id", "decimal-id", "oversized-id"])
+def test_nonconformance_note_evidence_rejects_invalid_event_ids(
+    nonconformance_note_factory, defect
+):
+    note = nonconformance_note_factory()
+    event = _nonconformance_note_event(note)
+    if defect == "missing-id":
+        del event.after["event"]
+    else:
+        event.after["event"] = {
+            "string-id": str(note.pk),
+            "decimal-id": float(note.pk),
+            "oversized-id": 10**40,
+        }[defect]
+    with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+        AuditEvent.objects.filter(pk=event.pk).update(after=event.after)
+
+    _assert_nonconformance_evidence_failure(
+        _nonconformance_note_history_problem(note), _nonconformance_note_target_problem(event)
+    )
+
+
+def test_nonconformance_note_evidence_rejects_nonstring_audit_checksum(nonconformance_note_factory):
+    note = nonconformance_note_factory()
+    event = _nonconformance_note_event(note)
+    with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+        AuditEvent.objects.filter(pk=event.pk).update(
+            after=event.after | {"evidence": [note.evidence_sha256]}
+        )
+
+    _assert_nonconformance_evidence_failure(_nonconformance_note_history_problem(note))
+
+
+@pytest.mark.parametrize("loss", ["cleared", "deleted", "changed-kind"])
+def test_nonconformance_note_event_exposes_lost_evidence(nonconformance_note_factory, loss):
+    note = nonconformance_note_factory()
+    event = _nonconformance_note_event(note)
+    if loss == "cleared":
+        NonconformanceEvent.objects.filter(pk=note.pk).update(
+            evidence_data=None,
+            evidence_name="",
+            evidence_content_type="",
+            evidence_sha256="",
+            evidence_size=None,
+        )
+        problem = (
+            f"laboratory.NonconformanceEvent pk={note.pk}: "
+            "missing recorded nonconformance note evidence"
+        )
+    else:
+        problem = _nonconformance_note_target_problem(event)
+        if loss == "deleted":
+            note.delete()
+        else:
+            NonconformanceEvent.objects.filter(pk=note.pk).update(
+                kind=NonconformanceEvent.Kind.STATUS
+            )
+
+    _assert_nonconformance_evidence_failure(problem, checked=2 if loss == "changed-kind" else 1)
+    _assert_nonconformance_evidence_failure(problem, output_format=MANIFEST_FORMAT)
 
 
 def _assert_subcontract_audit_failure(*failures, checked, output_format=("--format", "json")):
@@ -1926,7 +2123,7 @@ def test_snapshot_does_not_reuse_caller_transaction(caller_transaction):
 @pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
 def test_corrupt_and_missing_rows_report_ids_and_fail(
     document_records,
-    nonconformance_evidence_fields,
+    nonconformance_note_factory,
     import_source,
     equipment_event_factory,
     training_record_factory,
@@ -1973,9 +2170,8 @@ def test_corrupt_and_missing_rows_report_ids_and_fail(
     )
     training = training_record_factory()
     TrainingRecord.objects.filter(pk=training.pk).update(evidence_data=None)
-    nonconformance = NonconformanceEvent.objects.create(
-        **nonconformance_evidence_fields, **(EVIDENCE | {"evidence_name": ""})
-    )
+    note = nonconformance_note_factory()
+    NonconformanceEvent.objects.filter(pk=note.pk).update(evidence_name="")
 
     stdout, stderr = StringIO(), StringIO()
     with pytest.raises(CommandError, match="Stored file verification failed"):
@@ -2012,7 +2208,6 @@ def test_corrupt_and_missing_rows_report_ids_and_fail(
         "filename or content type, missing recorded SHA-256, missing recorded byte length, "
         "missing, ambiguous, or mismatched equipment evidence event",
         f"laboratory.TrainingRecord pk={training.pk}: missing file",
-        f"laboratory.NonconformanceEvent pk={nonconformance.pk}: "
-        "missing evidence filename or content type",
+        f"laboratory.NonconformanceEvent pk={note.pk}: missing evidence filename or content type",
         f"analytical.ImportSourceFile pk={import_source.pk}: SHA-256 mismatch",
     ]

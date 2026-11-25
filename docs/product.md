@@ -174,7 +174,12 @@ be created without evidence. For equipment calibration and maintenance attachmen
 recording or correction entry must identify the equipment, event, kind of work, recording
 staff member and any corrected event. The filename and checksum must match. An audit entry
 that records an attachment must reveal a missing file or equipment event. Staff may still
-record equipment work without a file. Stored report, invoice and subcontract PDFs,
+record equipment work without a file. For a file attached to a nonconformance note, the
+note ID, nonconformance, staff member and checksum must agree with the single audit entry
+made when the note was added. A surviving entry with a checksum must reveal the loss of
+the attachment or the note. The populated upgrade rehearsal must preserve both an opening
+attachment and a later note attachment on the same nonconformance.
+Stored report, invoice and subcontract PDFs,
 electronic deliverables, laboratory logos, original result import files and attached
 laboratory evidence must match their recorded hashes and any recorded byte counts. The check reports discrepancies by
 record ID and leaves the restored records intact. Deployers

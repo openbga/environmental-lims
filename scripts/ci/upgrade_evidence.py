@@ -69,6 +69,8 @@ UPDATED_EDD_LOCATION = "SYNTH-OUTFALL-NEW"
 EDD_EXPORTS = "electronic deliverable exports"
 HISTORY_MUTATION_ERROR = "Historical records cannot be updated or deleted"
 LABORATORY_ATTACHMENT_REFERENCE = "SYN-UPGRADE-LAB-EVIDENCE"
+NONCONFORMANCE_NOTE_REFERENCE = "SYN-UPGRADE-LAB-NOTE"
+NONCONFORMANCE_NOTE = "Synthetic follow-up evidence for the populated upgrade check."
 LABORATORY_ATTACHMENTS = {
     "equipment": ("equipment event attachments", EquipmentEvent),
     "training": ("staff training attachments", TrainingRecord),
@@ -284,6 +286,7 @@ def laboratory_upload(kind):
 def prepare_laboratory_attachments():
     analyst = User.objects.get(username="demo_analyst")
     reviewer = User.objects.get(username="demo_reviewer")
+    custodian = User.objects.get(username="demo_custodian")
     today = timezone.localdate()
     asset = equipment.save_equipment(
         actor=reviewer,
@@ -314,7 +317,7 @@ def prepare_laboratory_attachments():
         reference=LABORATORY_ATTACHMENT_REFERENCE,
         evidence=laboratory_upload("training"),
     )
-    nonconformance.open_nonconformance(
+    nc = nonconformance.open_nonconformance(
         actor=analyst,
         equipment=asset,
         title="Synthetic upgrade equipment nonconformance",
@@ -324,6 +327,13 @@ def prepare_laboratory_attachments():
         discovered_on=today,
         reference=LABORATORY_ATTACHMENT_REFERENCE,
         evidence=laboratory_upload("nonconformance"),
+    )
+    nonconformance.add_note(
+        actor=custodian,
+        nc_id=nc.pk,
+        note=NONCONFORMANCE_NOTE,
+        reference=NONCONFORMANCE_NOTE_REFERENCE,
+        evidence=laboratory_upload("nonconformance-note"),
     )
 
 
@@ -703,21 +713,49 @@ def laboratory_attachments(manifest):
 
 
 def require_baseline_laboratory_attachments(manifest):
-    synthetic_kinds = set()
+    uploads = {(kind, LABORATORY_ATTACHMENT_REFERENCE): kind for kind in LABORATORY_ATTACHMENTS}
+    uploads["nonconformance", NONCONFORMANCE_NOTE_REFERENCE] = "nonconformance-note"
+    synthetic_records = {}
     for kind, record in laboratory_attachments(manifest):
-        if record.reference == LABORATORY_ATTACHMENT_REFERENCE:
-            upload = laboratory_upload(kind)
-            require(
-                kind not in synthetic_kinds
-                and record.evidence_name == upload.name
-                and record.evidence_content_type == "text/plain; charset=utf-8"
-                and bytes(record.evidence_data) == upload.read(),
-                f"The baseline needs the original synthetic {kind} attachment.",
-            )
-            synthetic_kinds.add(kind)
-    missing = LABORATORY_ATTACHMENTS.keys() - synthetic_kinds
+        upload_kind = uploads.get((kind, record.reference))
+        if upload_kind is None:
+            continue
+        upload = laboratory_upload(upload_kind)
+        require(
+            upload_kind not in synthetic_records
+            and record.evidence_name == upload.name
+            and record.evidence_content_type == "text/plain; charset=utf-8"
+            and bytes(record.evidence_data) == upload.read(),
+            f"The baseline needs the original synthetic {upload_kind} attachment.",
+        )
+        synthetic_records[upload_kind] = record
+    missing = set(uploads.values()) - synthetic_records.keys()
     require(
         not missing, f"The baseline needs synthetic attachments for {', '.join(sorted(missing))}."
+    )
+    opened = synthetic_records["nonconformance"]
+    note = synthetic_records["nonconformance-note"]
+    require(
+        opened.kind == NonconformanceEvent.Kind.OPENED
+        and note.kind == NonconformanceEvent.Kind.NOTE
+        and opened.nonconformance_id == note.nonconformance_id
+        and opened.occurred_at <= note.occurred_at
+        and opened.actor.username == "demo_analyst"
+        and note.actor.username == "demo_custodian"
+        and note.note == NONCONFORMANCE_NOTE,
+        "The synthetic note attachment must follow the opening attachment on the same "
+        "nonconformance and have its original staff author.",
+    )
+    require(
+        AuditEvent.objects.filter(
+            action="nonconformance.note_added",
+            object_type="laboratory.nonconformance",
+            object_id=str(note.nonconformance_id),
+            actor_id=note.actor_id,
+            reason=note.note,
+            after={"event": note.pk, "evidence": note.evidence_sha256},
+        ).exists(),
+        "The synthetic nonconformance note attachment must have its original audit entry.",
     )
 
 
