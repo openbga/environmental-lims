@@ -214,8 +214,9 @@ issue event. A surviving issue event can also identify an invoice lost along wit
 For an electronic data deliverable, it checks that the original export event identifies
 the same ZIP and issued report version. For subcontracted tests, it checks each original
 and corrected source PDF against the history of the external result entered by staff.
-For staff training attachments, it compares the filename and checksum with the original
-training or correction event and flags attachments missing from the restored records.
+For equipment and staff training attachments, it compares the filename and checksum with the
+original recording or correction event. A surviving audit entry can identify a missing file
+even when the restored database has also lost the equipment event or training record.
 Add `--format json` to save a machine-readable summary. To detect a file and its record
 disappearing together, save a file inventory with `--format manifest` when you take the backup
 and compare it with one from the restored database. To keep accepting writes during a logical backup, give
