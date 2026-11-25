@@ -167,6 +167,11 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
    must have exactly one original export event with the same ZIP checksum, report number,
    version number and report content checksum. Use the export record ID to investigate
    a mismatch, or the audit event ID to trace a missing export record.
+   Under `Subcontract source PDFs`, each original and corrected source needs one matching
+   result entry for its dispatch and source version. The staff member, source record ID,
+   PDF byte count and SHA-256 must agree with that entry. Use the subcontract result ID
+   to trace a file with inconsistent history, or the audit event ID to find an entry whose
+   source is missing.
    An optional evidence attachment with only part of its file or metadata present also fails.
    To save just the counts as JSON, run `python manage.py verify_stored_files --format json > stored-file-counts.json`.
    Each category and the total give the number checked and the number of records with failures.

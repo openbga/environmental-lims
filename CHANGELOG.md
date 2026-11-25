@@ -188,6 +188,14 @@ The same list is shown in the application under What's new.
 
   > Run python manage.py verify_stored_files on the restored database. A missing, duplicate or inconsistent event fails the check. The command reports the affected version or audit event ID under Report PDFs.
 
+- **Changed:** Check restored subcontract PDFs against their entry history (2026-11-25, Backup and restore)
+
+  Deployers can check that the original and corrected PDFs for a subcontracted test match the sources that staff recorded. The check also identifies a result entry whose source is missing.
+
+  Technical notes:
+
+  > Run python manage.py verify_stored_files on the restored database. Missing, duplicate or inconsistent entry history fails the check. Look under Subcontract source PDFs for the affected result or audit event ID.
+
 - **Changed:** Check restored deliverable ZIPs against their export history (2026-11-24, Backup and restore)
 
   Deployers can check that a restored electronic data deliverable is the ZIP originally generated for an issued report version. The check also flags an export whose ZIP record is missing.

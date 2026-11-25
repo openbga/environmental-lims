@@ -10,6 +10,7 @@ from django.core.management.base import CommandError
 from django.db import connection, transaction
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
+from psycopg import sql
 
 from analytical.models import Batch, ImportSourceFile
 from commercial import invoices
@@ -22,14 +23,16 @@ from laboratory.models import (
     NonconformanceEvent,
     TrainingRecord,
 )
-from receipt.models import Order, Subcontract, SubcontractResult
+from receipt.models import Order, SubcontractResult
 from receipt.services import receive_sample
+from receipt.subcontracts import dispatch_subcontract, enter_external_result, review_external_result
 from reporting import services as reporting_services
 from reporting.content import assemble, fingerprint
 from reporting.models import EddExport, Report, ReportFile, ReportVersion
 from reporting.tests.conftest import build_world, fake_pdf, make_user
 
 PDF = b"%PDF-1.7\x00\xff synthetic private content"
+SOURCE_PDF = PDF + b"\n%%EOF\n"
 ZIP = b"PK\x03\x04\x00\xff synthetic zip"
 PNG = b"\x89PNG\r\n\x1a\n\x00\xff synthetic image"
 EVIDENCE = {
@@ -239,36 +242,57 @@ def _record_edd_export(export, *, after_overrides=None, **overrides):
 
 
 @pytest.fixture
-def document_records(report_sample, legacy_report_file, invoice_record):
+def subcontract_source_factory(report_sample, staff):
     sample = report_sample
-    actor = sample.received_by
-    version = legacy_report_file.version
-    now = version.released_at
-    edd_record = _edd_export_for(version, pk=10)
+    analyst = staff("restore-source-enterer", "analyst")
+    dispatch = dispatch_subcontract(
+        actor=sample.received_by,
+        requested_test_id=sample.requested_tests.get().pk,
+        expected_sample_revision=sample.revision,
+        container_ids=list(sample.containers.values_list("pk", flat=True)),
+        external_lab="Synthetic external laboratory",
+        external_reference="SYNTHETIC-DISPATCH",
+        external_sample_id="SYNTHETIC-EXTERNAL-SAMPLE",
+        dispatched_at=timezone.now(),
+        handed_to="Synthetic courier",
+        reason="Synthetic external testing",
+    )
+
+    def enter(**overrides):
+        dispatch.refresh_from_db()
+        return enter_external_result(
+            **(
+                {
+                    "actor": analyst,
+                    "subcontract_id": dispatch.pk,
+                    "expected_revision": dispatch.revision,
+                    "observed_text": "0.7500",
+                    "reporting_limit": "0.1000",
+                    "dilution": "1.0",
+                    "unit": "mg/L",
+                    "external_method": "SYNTHETIC EXTERNAL 1",
+                    "external_analyst": "Synthetic external analyst",
+                    "analyzed_at": timezone.now(),
+                    "qualifier_text": "",
+                    "external_report_reference": "SYNTHETIC-EXTERNAL-REPORT",
+                    "source_pdf": SOURCE_PDF,
+                }
+                | overrides
+            )
+        )
+
+    return enter
+
+
+@pytest.fixture
+def document_records(legacy_report_file, invoice_record, subcontract_source_factory):
+    edd_record = _edd_export_for(legacy_report_file.version, pk=10)
     _record_invoice_issue(invoice_record)
     _record_edd_export(edd_record)
-    dispatch = Subcontract.objects.create(
-        requested_test=sample.requested_tests.get(),
-        dispatched_at=now,
-        selected_containers=[],
-        created_by=actor,
-    )
     return (
         legacy_report_file,
         invoice_record,
-        SubcontractResult(
-            subcontract=dispatch,
-            number=1,
-            kind="non_detect",
-            reporting_limit="0.1",
-            dilution="1",
-            analyzed_at=now,
-            source_pdf=PDF,
-            source_sha256=sha256(PDF).hexdigest(),
-            source_size=len(PDF),
-            source_snapshot={},
-            entered_by=actor,
-        ),
+        subcontract_source_factory(),
         edd_record,
         LabLogo(
             sha256=sha256(PNG).hexdigest(),
@@ -277,7 +301,7 @@ def document_records(report_sample, legacy_report_file, invoice_record):
             width=8,
             height=8,
             size=len(PNG),
-            uploaded_by=actor,
+            uploaded_by=legacy_report_file.version.released_by,
         ),
     )
 
@@ -367,7 +391,8 @@ def test_intact_documents_and_optional_evidence(
     document_records, evidence_records, import_source, output_format
 ):
     import_source.save()
-    for document in document_records:
+    report_file, invoice, _, export, logo = document_records
+    for document in (report_file, invoice, export, logo):
         document.save()
     for model, fields in evidence_records.items():
         model.objects.create(**fields)
@@ -384,7 +409,7 @@ def test_intact_documents_and_optional_evidence(
             assert set(entry) == {"count", "sha256"}
             assert entry["count"] == 1
             assert len(bytes.fromhex(entry["sha256"])) == 32
-        version_pk = document_records[0].version_id
+        version_pk = report_file.version_id
         row = f'["reporting.ReportVersion","{version_pk}",{len(PDF)},"{sha256(PDF).hexdigest()}"]\n'
         assert manifest["categories"]["Report PDFs"]["sha256"] == sha256(row.encode()).hexdigest()
     elif output_format:
@@ -405,6 +430,224 @@ def _verification_output(*args):
     call_command("verify_stored_files", *args, stdout=stdout, stderr=stderr)
     assert stderr.getvalue() == ""
     return stdout.getvalue()
+
+
+def _source_entry(source):
+    return AuditEvent.objects.get(
+        action="subcontract.result_entered",
+        object_type="receipt.subcontract",
+        object_id=str(source.subcontract_id),
+        after__latest_number=source.number,
+    )
+
+
+@contextmanager
+def _restore_with_history_defect(model, trigger):
+    with connection.cursor() as cursor:
+        cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
+        table_and_trigger = (sql.Identifier(model._meta.db_table), sql.Identifier(trigger))
+        cursor.execute(sql.SQL("ALTER TABLE {} DISABLE TRIGGER {}").format(*table_and_trigger))
+        try:
+            yield
+        finally:
+            cursor.execute(sql.SQL("ALTER TABLE {} ENABLE TRIGGER {}").format(*table_and_trigger))
+
+
+def _assert_subcontract_audit_failure(*failures, checked, output_format=("--format", "json")):
+    stdout, stderr = StringIO(), StringIO()
+    with pytest.raises(CommandError, match="Stored file verification failed"):
+        call_command("verify_stored_files", *output_format, stdout=stdout, stderr=stderr)
+    if output_format == MANIFEST_FORMAT:
+        assert stdout.getvalue() == ""
+    elif output_format:
+        assert json.loads(stdout.getvalue())["Subcontract source PDFs"] == {
+            "checked": checked,
+            "failures": len(failures),
+        }
+    else:
+        assert (
+            f"Subcontract source PDFs: checked={checked} failures={len(failures)}"
+            in stdout.getvalue().splitlines()
+        )
+    assert stderr.getvalue().splitlines() == list(failures)
+
+
+def _source_entry_problem(source):
+    return (
+        f"receipt.SubcontractResult pk={source.pk}: "
+        "missing, ambiguous, or mismatched subcontract source entry"
+    )
+
+
+def test_subcontract_entry_provenance_preserves_manifest_and_query_bounds(
+    subcontract_source_factory, staff
+):
+    reviewer = staff("restore-source-reviewer", "reviewer")
+    original = subcontract_source_factory()
+    review_external_result(
+        actor=reviewer,
+        result_id=original.pk,
+        expected_revision=original.subcontract.revision,
+        decision="accepted",
+        note="Compared with the synthetic source",
+    )
+    corrected = subcontract_source_factory(
+        actor=staff("restore-source-corrector", "project_manager"),
+        source_pdf=SOURCE_PDF.replace(b"1.7", b"1.6"),
+        reason="Synthetic correction",
+    )
+    review_external_result(
+        actor=reviewer,
+        result_id=corrected.pk,
+        expected_revision=corrected.subcontract.revision,
+        decision="accepted",
+        note="Compared with the synthetic correction",
+    )
+
+    with CaptureQueriesContext(connection) as captured:
+        manifest = json.loads(_verification_output(*MANIFEST_FORMAT))
+    rows = "".join(
+        f'["receipt.SubcontractResult","{source.pk}",{source.source_size},"{source.source_sha256}"]\n'
+        for source in (original, corrected)
+    )
+    assert manifest["version"] == 1
+    assert manifest["categories"]["Subcontract source PDFs"] == {
+        "count": 2,
+        "sha256": sha256(rows.encode("ascii")).hexdigest(),
+    }
+    source_query, missing_query = [
+        query["sql"] for query in captured if 'FROM "receipt_subcontractresult"' in query["sql"]
+    ]
+    pdf_column = '"receipt_subcontractresult"."source_pdf"'
+    assert source_query.count(pdf_column) == 2
+    assert f"pg_catalog.octet_length({pdf_column})" in source_query
+    assert f"pg_catalog.sha256({pdf_column})" in source_query
+    assert 'FROM "core_auditevent"' in source_query
+    assert pdf_column not in missing_query
+    assert '"core_auditevent"."after"' not in missing_query.partition(" FROM ")[0]
+
+
+def test_only_the_result_entry_event_can_verify_the_original_source(subcontract_source_factory):
+    original = subcontract_source_factory()
+    subcontract_source_factory(reason="Synthetic correction")
+    entry = _source_entry(original)
+    with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+        AuditEvent.objects.filter(pk=entry.pk).update(action="subcontract.source_reviewed")
+
+    _assert_subcontract_audit_failure(_source_entry_problem(original), checked=2)
+
+
+@pytest.mark.parametrize("identical", [True, False], ids=["matching", "mismatched"])
+def test_duplicate_subcontract_entries_fail(subcontract_source_factory, identical):
+    original = subcontract_source_factory()
+    corrected = subcontract_source_factory(reason="Synthetic correction")
+    entry = _source_entry(corrected)
+    if not identical:
+        entry.after["source_result"]["source_sha256"] = original.source_sha256[::-1]
+    AuditEvent.objects.create(
+        actor=entry.actor,
+        action=entry.action,
+        object_type=entry.object_type,
+        object_id=entry.object_id,
+        after=entry.after,
+    )
+
+    _assert_subcontract_audit_failure(_source_entry_problem(corrected), checked=2)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("id", 0),
+        ("subcontract", 0),
+        ("number", 2),
+        ("entered_by", 0),
+        ("source_sha256", ["synthetic private content"]),
+        ("source_size", float(len(SOURCE_PDF))),
+        ("source_size", str(len(SOURCE_PDF))),
+        ("source_size", len(SOURCE_PDF) + 1),
+    ],
+)
+def test_subcontract_entry_requires_original_snapshot_fields(
+    subcontract_source_factory, field, value
+):
+    source = subcontract_source_factory()
+    entry = _source_entry(source)
+    entry.after["source_result"][field] = value
+    with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+        AuditEvent.objects.filter(pk=entry.pk).update(after=entry.after)
+
+    _assert_subcontract_audit_failure(_source_entry_problem(source), checked=1)
+
+
+def test_subcontract_entry_actor_must_match_the_source_enterer(subcontract_source_factory, staff):
+    source = subcontract_source_factory()
+    entry = _source_entry(source)
+    wrong_actor = staff("restore-source-other-user", "analyst")
+    with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+        AuditEvent.objects.filter(pk=entry.pk).update(actor=wrong_actor)
+
+    _assert_subcontract_audit_failure(_source_entry_problem(source), checked=1)
+
+
+def test_self_consistent_replacement_subcontract_pdf_fails(subcontract_source_factory):
+    source = subcontract_source_factory()
+    replacement = SOURCE_PDF.replace(b"1.7", b"1.6")
+    with _restore_with_history_defect(SubcontractResult, "external_result_immutable"):
+        SubcontractResult.objects.filter(pk=source.pk).update(
+            source_pdf=replacement, source_sha256=sha256(replacement).hexdigest()
+        )
+
+    _assert_subcontract_audit_failure(_source_entry_problem(source), checked=1)
+
+
+@pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
+def test_surviving_subcontract_entries_detect_lost_rows(subcontract_source_factory, output_format):
+    original = subcontract_source_factory()
+    subcontract_source_factory(reason="Synthetic correction")
+    event = _source_entry(original)
+    with _restore_with_history_defect(SubcontractResult, "external_result_immutable"):
+        SubcontractResult.objects.filter(pk=original.pk).delete()
+
+    _assert_subcontract_audit_failure(
+        f"core.AuditEvent pk={event.pk}: missing or invalid SubcontractResult target",
+        checked=2,
+        output_format=output_format,
+    )
+
+
+def test_malformed_subcontract_entry_targets_are_reported_by_event_id(subcontract_source_factory):
+    source = subcontract_source_factory()
+    entry = _source_entry(source)
+    events = [
+        AuditEvent.objects.create(
+            **(
+                {
+                    "actor": entry.actor,
+                    "action": entry.action,
+                    "object_type": entry.object_type,
+                    "object_id": entry.object_id,
+                    "after": entry.after,
+                }
+                | overrides
+            )
+        )
+        for overrides in (
+            {"object_id": "synthetic non-integer ID"},
+            {"after": entry.after | {"latest_number": "1"}},
+            {"after": entry.after | {"latest_number": 1.0}},
+            {"after": ["synthetic private content"]},
+            {"object_type": "receipt.subcontractresult"},
+        )
+    ]
+
+    _assert_subcontract_audit_failure(
+        *(
+            f"core.AuditEvent pk={pk}: missing or invalid SubcontractResult target"
+            for pk in sorted(event.pk for event in events)
+        ),
+        checked=6,
+    )
 
 
 def test_issued_and_voided_invoices_share_one_issuance_check(report_sample, staff, monkeypatch):
@@ -1110,10 +1353,13 @@ def test_corrupt_and_missing_rows_report_ids_and_fail(
     report_file.pdf = PDF[:-1] + b"x"
     report_file.snapshot["content"]["report"]["title"] = "Damaged synthetic snapshot"
     invoice.pdf = PDF[:-1] + b"x"
-    subcontract.source_size += 1
+    with _restore_with_history_defect(SubcontractResult, "external_result_immutable"):
+        SubcontractResult.objects.filter(pk=subcontract.pk).update(
+            source_size=subcontract.source_size + 1
+        )
     export.data = b""
     logo.sha256 = "1" * 64
-    for document in document_records:
+    for document in (report_file, invoice, export, logo):
         document.save()
 
     equipment = EquipmentEvent.objects.create(
@@ -1153,7 +1399,7 @@ def test_corrupt_and_missing_rows_report_ids_and_fail(
         f"commercial.IssuedInvoice pk={invoice.pk}: SHA-256 mismatch",
         f"commercial.InvoiceDraft pk={missing_issued.pk}: missing IssuedInvoice",
         f"commercial.InvoiceDraft pk={missing_voided.pk}: missing IssuedInvoice",
-        f"receipt.SubcontractResult pk={subcontract.pk}: byte length mismatch",
+        f"{_source_entry_problem(subcontract)}, byte length mismatch",
         f"reporting.EddExport pk={export.pk}: empty stored file, SHA-256 mismatch, "
         "byte length mismatch",
         f"core.LabLogo pk={logo.pk}: SHA-256 mismatch",
