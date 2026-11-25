@@ -176,6 +176,12 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
    PDF byte count and SHA-256 must agree with that entry. Use the subcontract result ID
    to trace a file with inconsistent history, or the audit event ID to find an entry whose
    source is missing.
+   Under `Training record evidence`, each attached file must match the filename and checksum
+   in the original training or correction event. The event must identify the same record,
+   trainee, staff member who entered it and, for a correction, the record it corrected.
+   If the file or the entire training record is missing, a surviving event that recorded an
+   attachment still triggers a failure. Use the reported record or event ID to investigate.
+   Training recorded without an attachment passes this check.
    An optional evidence attachment with only part of its file or metadata present also fails.
    To save just the counts as JSON, run `python manage.py verify_stored_files --format json > stored-file-counts.json`.
    Each category and the total give the number checked and the number of records with failures.

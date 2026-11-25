@@ -17,6 +17,7 @@ from django.db.models import (
     IntegerField,
     OuterRef,
     Q,
+    Subquery,
     TextField,
     Value,
 )
@@ -38,10 +39,18 @@ from psycopg.pq import TransactionStatus
 from analytical.models import Batch, ImportSourceFile
 from commercial.models import InvoiceDraft, IssuedInvoice
 from core.models import AuditEvent, LabLogo
-from laboratory.models import EvidenceMixin
+from laboratory.models import EvidenceMixin, TrainingRecord
 from receipt.models import Subcontract, SubcontractResult
 from reporting.content import fingerprint
 from reporting.models import EddExport, ReportVersion
+
+_NO_EVIDENCE = Q(
+    evidence_data__isnull=True,
+    evidence_name="",
+    evidence_content_type="",
+    evidence_sha256="",
+    evidence_size__isnull=True,
+)
 
 
 def _report_content_problems(content_json, recorded_hash, snapshot_hash_json):
@@ -74,17 +83,7 @@ def _check_files(
 ):
     files = model._base_manager.order_by("pk")
     if evidence:
-        files = files.exclude(
-            evidence_data__isnull=True,
-            evidence_name="",
-            evidence_content_type="",
-            evidence_sha256="",
-            evidence_size__isnull=True,
-        )
-        metadata = (
-            ~(Q(evidence_name="") | Q(evidence_content_type="")),
-            "missing evidence filename or content type",
-        )
+        files = files.exclude(_NO_EVIDENCE)
 
     # Use PostgreSQL's bytea functions to avoid returning the file bytes.
     rows = files.annotate(
@@ -96,9 +95,20 @@ def _check_files(
             output_field=CharField(),
         ),
         recorded_size=F(size) if size else Value(None, output_field=IntegerField()),
+        evidence_metadata_present=(
+            ~(Q(evidence_name="") | Q(evidence_content_type="")) if evidence else Value(True)
+        ),
         metadata_present=metadata[0] if metadata else Value(True),
     )
-    fields = ("pk", "actual_size", "actual_hash", "recorded_size", checksum, "metadata_present")
+    fields = (
+        "pk",
+        "actual_size",
+        "actual_hash",
+        "recorded_size",
+        checksum,
+        "evidence_metadata_present",
+        "metadata_present",
+    )
     if check_report_content:
         # Join the frozen content and PDF measurements in the same query. Do not transfer
         # the release metadata or more than 67 characters of the quoted, 64-digit hash.
@@ -111,12 +121,23 @@ def _check_files(
         fields += ("content_json", "content_sha256", "snapshot_hash_json")
     # Report content can be large. Process one row at a time.
     for row in rows.values_list(*fields).iterator(chunk_size=1 if check_report_content else None):
-        pk, actual_size, actual_hash, recorded_size, recorded_hash, has_metadata, *content = row
+        (
+            pk,
+            actual_size,
+            actual_hash,
+            recorded_size,
+            recorded_hash,
+            has_evidence_metadata,
+            has_metadata,
+            *content,
+        ) = row
         problems = []
         if actual_size is None:
             problems.append(missing)
         elif actual_size == 0:
             problems.append("empty stored file")
+        if not has_evidence_metadata:
+            problems.append("missing evidence filename or content type")
         if metadata and not has_metadata:
             problems.append(metadata[1])
         if not recorded_hash:
@@ -384,6 +405,80 @@ def _check_edd_exports():
         yield AuditEvent._meta.label, pk, None, None, ["missing EddExport"]
 
 
+def _check_training_evidence():
+    record_type = TrainingRecord._meta.label_lower
+    training_events = AuditEvent.objects.filter(
+        action__in=("training.recorded", "training.corrected")
+    ).alias(
+        audit_name=Cast(KeyTransform("evidence_name", "after"), TextField()),
+        audit_hash=Cast(KeyTransform("evidence_sha256", "after"), TextField()),
+    )
+    record_events = training_events.filter(
+        object_type=record_type, object_id=Cast(OuterRef("pk"), CharField())
+    ).order_by()
+    matches_action = Q(action="training.recorded", audit_corrects="null") | (
+        Q(action="training.corrected") & ~Q(audit_corrects="null")
+    )
+    matches_record = matches_action & Q(
+        actor_id=OuterRef("recorded_by_id"),
+        audit_staff=Cast(OuterRef("staff_id"), TextField()),
+        audit_corrects=Coalesce(Cast(OuterRef("corrects_id"), TextField()), Value("null")),
+        after__contains=JSONObject(
+            evidence_name=OuterRef("evidence_name"),
+            evidence_sha256=OuterRef("evidence_sha256"),
+        ),
+    )
+    matching_events = (
+        record_events.values("object_id")
+        # JSON text distinguishes integer IDs from numbers like 1.0, and null from a missing key.
+        .alias(
+            audit_staff=Cast(KeyTransform("staff", "after"), TextField()),
+            audit_corrects=Cast(KeyTransform("corrects", "after"), TextField()),
+        )
+        .annotate(event_count=Count("pk"), matching_count=Count("pk", filter=matches_record))
+        .filter(event_count=1, matching_count=1)
+    )
+    yield from _check_files(
+        TrainingRecord,
+        "evidence_data",
+        "evidence_sha256",
+        "evidence_size",
+        evidence=True,
+        metadata=(
+            Exists(matching_events),
+            "missing, ambiguous, or mismatched training evidence event",
+        ),
+    )
+
+    # The writer stores empty strings for optional evidence. Either nonempty string can
+    # still show an attachment was recorded if the other field was lost from the event.
+    attachment_recorded = Q(audit_name__regex=r'^".+"$') | Q(audit_hash__regex=r'^".+"$')
+    records = TrainingRecord._base_manager
+    # Use a scalar lookup so PostgreSQL can probe the audit target index for each
+    # cleared record rather than comparing every record against the history rows.
+    event_id = Subquery(record_events.filter(attachment_recorded).values("pk")[:1])
+    cleared = (
+        records.filter(_NO_EVIDENCE)
+        .alias(recorded_attachment=event_id)
+        .filter(recorded_attachment__isnull=False)
+        .order_by("pk")
+    )
+    for pk in cleared.values_list("pk", flat=True).iterator():
+        yield TrainingRecord._meta.label, pk, None, None, ["missing recorded training evidence"]
+
+    # Compare the target as text to tolerate malformed IDs, and count a missing target once.
+    targets = records.alias(
+        target_id=Cast("pk", CharField()), target_type=Value(record_type)
+    ).filter(target_id=OuterRef("object_id"), target_type=OuterRef("object_type"))
+    missing = (
+        training_events.filter(attachment_recorded, ~Exists(targets))
+        .order_by("object_type", "object_id", "pk")
+        .distinct("object_type", "object_id")
+    )
+    for pk in missing.values_list("pk", flat=True).iterator():
+        yield AuditEvent._meta.label, pk, None, None, ["missing or invalid TrainingRecord target"]
+
+
 def _check_import_sources():
     # Match only the recorded source fields, leaving the rest of the audit payload in PostgreSQL.
     matches_event = Q(
@@ -499,7 +594,9 @@ class Command(BaseCommand):
         categories.extend(
             (
                 f"{model._meta.verbose_name.capitalize()} evidence",
-                _check_files(
+                _check_training_evidence()
+                if model is TrainingRecord
+                else _check_files(
                     model, "evidence_data", "evidence_sha256", "evidence_size", evidence=True
                 ),
             )

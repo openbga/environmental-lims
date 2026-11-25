@@ -5,6 +5,7 @@ from hashlib import sha256
 from io import StringIO
 
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import connection, transaction
@@ -16,6 +17,7 @@ from analytical.models import Batch, ImportSourceFile
 from commercial import invoices
 from commercial.models import InvoiceDraft, IssuedInvoice, PriceList, PriceListItem
 from core.models import AuditEvent, Lab, LabLogo
+from laboratory import training
 from laboratory.models import (
     Equipment,
     EquipmentEvent,
@@ -340,7 +342,6 @@ def import_source(staff, receipt_data):
 @pytest.fixture
 def evidence_records(staff):
     actor = staff("restore-recorder", "analyst")
-    reviewer = staff("restore-reviewer", "reviewer")
     today = timezone.localdate()
     equipment = Equipment.objects.create(asset_id="SYNTH-1", name="Balance", created_by=actor)
     nonconformance = Nonconformance.objects.create(discovered_on=today, opened_by=actor)
@@ -353,19 +354,33 @@ def evidence_records(staff):
             outcome=EquipmentEvent.Outcome.COMPLETED,
             recorded_by=actor,
         ),
-        TrainingRecord: dict(
-            staff=actor,
-            record_type=TrainingRecord.Type.TRAINING,
-            completed_on=today,
-            effective_on=today,
-            reviewed_by=reviewer,
-            reviewed_on=today,
-            recorded_by=actor,
-        ),
         NonconformanceEvent: dict(
             nonconformance=nonconformance, kind=NonconformanceEvent.Kind.NOTE, actor=actor
         ),
     }
+
+
+@pytest.fixture
+def training_record_factory(staff):
+    trainee = staff("restore-trainee", "analyst")
+    reviewer = staff("restore-training-reviewer", "reviewer")
+    today = timezone.localdate()
+
+    def record(*, attached=True, **overrides):
+        fields = {
+            "actor": reviewer,
+            "staff": trainee,
+            "record_type": TrainingRecord.Type.TRAINING,
+            "title": "Synthetic training",
+            "completed_on": today,
+            "effective_on": today,
+            "reviewed_by": reviewer,
+            "reviewed_on": today,
+            "evidence": SimpleUploadedFile(EVIDENCE["evidence_name"], PDF) if attached else None,
+        }
+        return training.record_training(**(fields | overrides))
+
+    return record
 
 
 @pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
@@ -393,7 +408,7 @@ def test_empty_database(output_format):
 
 @pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
 def test_intact_documents_and_optional_evidence(
-    document_records, evidence_records, import_source, output_format
+    document_records, evidence_records, import_source, training_record_factory, output_format
 ):
     import_source.save()
     report_file, invoice, _, export, logo = document_records
@@ -402,6 +417,8 @@ def test_intact_documents_and_optional_evidence(
     for model, fields in evidence_records.items():
         model.objects.create(**fields)
         model.objects.create(**fields, **EVIDENCE)
+    training_record_factory()
+    training_record_factory(attached=False, reference="Synthetic reference without a file")
 
     stdout, stderr = StringIO(), StringIO()
     call_command("verify_stored_files", *output_format, stdout=stdout, stderr=stderr)
@@ -456,6 +473,197 @@ def _restore_with_history_defect(model, trigger):
             yield
         finally:
             cursor.execute(sql.SQL("ALTER TABLE {} ENABLE TRIGGER {}").format(*table_and_trigger))
+
+
+def _training_event(record):
+    return AuditEvent.objects.get(object_type=record._meta.label_lower, object_id=str(record.pk))
+
+
+def _duplicate_training_event(event, **overrides):
+    fields = {
+        "action": event.action,
+        "actor": event.actor,
+        "object_type": event.object_type,
+        "object_id": event.object_id,
+        "after": event.after,
+    }
+    return AuditEvent.objects.create(**(fields | overrides))
+
+
+def _assert_training_verification_failed(*problems, output_format=("--format", "json")):
+    stdout, stderr = StringIO(), StringIO()
+    with pytest.raises(CommandError, match="Stored file verification failed"):
+        call_command("verify_stored_files", *output_format, stdout=stdout, stderr=stderr)
+    if output_format == MANIFEST_FORMAT:
+        assert stdout.getvalue() == ""
+    else:
+        assert json.loads(stdout.getvalue())["Training record evidence"] == {
+            "checked": len(problems),
+            "failures": len(problems),
+        }
+    assert stderr.getvalue().splitlines() == list(problems)
+
+
+def _training_history_problem(record):
+    return (
+        f"laboratory.TrainingRecord pk={record.pk}: "
+        "missing, ambiguous, or mismatched training evidence event"
+    )
+
+
+def test_training_provenance_preserves_manifest_and_query_bounds(training_record_factory):
+    original = training_record_factory()
+    corrected_pdf = PDF + b" synthetic correction"
+    corrected = training_record_factory(
+        corrects_id=original.pk,
+        correction_reason="Synthetic correction",
+        evidence=SimpleUploadedFile("corrected training.pdf", corrected_pdf),
+    )
+    optional = training_record_factory(attached=False, reference="External training sheet")
+    _duplicate_training_event(
+        _training_event(optional), action="training.viewed", after=_training_event(original).after
+    )
+    optional.delete()
+
+    with CaptureQueriesContext(connection) as captured:
+        manifest = json.loads(_verification_output(*MANIFEST_FORMAT))
+    rows = "".join(
+        f'["laboratory.TrainingRecord","{record.pk}",{record.evidence_size},"{record.evidence_sha256}"]\n'
+        for record in (original, corrected)
+    )
+    assert manifest["version"] == 1
+    assert manifest["categories"]["Training record evidence"] == {
+        "count": 2,
+        "sha256": sha256(rows.encode("ascii")).hexdigest(),
+    }
+    file_query, cleared_query, missing_query = [
+        query["sql"] for query in captured if 'FROM "laboratory_trainingrecord"' in query["sql"]
+    ]
+    bytes_column = '"laboratory_trainingrecord"."evidence_data"'
+    assert file_query.count(bytes_column) == 3
+    assert f"pg_catalog.octet_length({bytes_column})" in file_query
+    assert f"pg_catalog.sha256({bytes_column})" in file_query
+    assert f"{bytes_column} IS NULL" in cleared_query
+    assert "evidence_data" not in missing_query
+    for query in (file_query, cleared_query, missing_query):
+        assert 'FROM "core_auditevent"' in query
+        assert '"after"' not in query.partition(" FROM ")[0]
+
+
+@pytest.mark.parametrize("change", ["content", "name", "actor", "staff", "predecessor"])
+def test_training_evidence_requires_original_values(training_record_factory, staff, change):
+    original = training_record_factory(attached=False)
+    record = training_record_factory(
+        corrects_id=original.pk, correction_reason="Synthetic correction"
+    )
+    if change == "content":
+        replacement = PDF + b" synthetic replacement"
+        fields = {
+            "evidence_data": replacement,
+            "evidence_size": len(replacement),
+            "evidence_sha256": sha256(replacement).hexdigest(),
+        }
+    elif change == "name":
+        fields = {"evidence_name": "replacement filename.pdf"}
+    elif change == "predecessor":
+        other = training_record_factory(attached=False)
+        fields = {"corrects_id": other.pk}
+    else:
+        other = staff(f"restore-other-training-{change}", "analyst")
+        field = "recorded_by" if change == "actor" else "staff"
+        fields = {field: other}
+    TrainingRecord.objects.filter(pk=record.pk).update(**fields)
+
+    _assert_training_verification_failed(_training_history_problem(record))
+
+
+@pytest.mark.parametrize(
+    "defect",
+    [
+        "absent",
+        "duplicate",
+        "both-actions",
+        "different-action",
+        "wrong-training-action",
+        "missing-link",
+        "decimal-staff",
+    ],
+)
+def test_training_evidence_requires_one_original_event(training_record_factory, defect):
+    record = training_record_factory()
+    event = _training_event(record)
+    if defect == "duplicate":
+        _duplicate_training_event(event)
+    elif defect == "both-actions":
+        _duplicate_training_event(event, action="training.corrected", after={})
+    else:
+        with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+            events = AuditEvent.objects.filter(pk=event.pk)
+            if defect == "absent":
+                events.delete()
+            elif defect == "different-action":
+                events.update(action="training.viewed")
+            elif defect == "wrong-training-action":
+                events.update(action="training.corrected")
+            elif defect == "missing-link":
+                event.after.pop("corrects")
+                events.update(after=event.after)
+            else:
+                events.update(after=event.after | {"staff": float(record.staff_id)})
+
+    _assert_training_verification_failed(_training_history_problem(record))
+
+
+@pytest.mark.parametrize("loss", ["cleared", "deleted"])
+@pytest.mark.parametrize("marker", [None, "evidence_name", "evidence_sha256"])
+def test_training_event_exposes_missing_evidence_once(training_record_factory, loss, marker):
+    original = training_record_factory(attached=False)
+    record = training_record_factory(
+        corrects_id=original.pk, correction_reason="Synthetic correction"
+    )
+    event = _training_event(record)
+    after = event.after
+    if marker:
+        after = {marker: after[marker]}
+        with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+            AuditEvent.objects.filter(pk=event.pk).update(after=after)
+    duplicate = _duplicate_training_event(event, after=after)
+    if loss == "cleared":
+        TrainingRecord.objects.filter(pk=record.pk).update(
+            evidence_data=None,
+            evidence_name="",
+            evidence_content_type="",
+            evidence_size=None,
+            evidence_sha256="",
+        )
+        problem = f"laboratory.TrainingRecord pk={record.pk}: missing recorded training evidence"
+    else:
+        record.delete()
+        event_pk = min(event.pk, duplicate.pk)
+        problem = f"core.AuditEvent pk={event_pk}: missing or invalid TrainingRecord target"
+
+    _assert_training_verification_failed(problem)
+    _assert_training_verification_failed(problem, output_format=MANIFEST_FORMAT)
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        {"object_type": "laboratory.equipmentevent"},
+        {"object_id": "synthetic private target"},
+        {"object_id": "9" * 64},
+    ],
+)
+def test_training_evidence_rejects_invalid_event_targets(training_record_factory, target):
+    record = training_record_factory()
+    event = _training_event(record)
+    with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+        AuditEvent.objects.filter(pk=event.pk).update(**target)
+
+    _assert_training_verification_failed(
+        _training_history_problem(record),
+        f"core.AuditEvent pk={event.pk}: missing or invalid TrainingRecord target",
+    )
 
 
 def _assert_subcontract_audit_failure(*failures, checked, output_format=("--format", "json")):
@@ -1424,7 +1632,7 @@ def test_snapshot_does_not_reuse_caller_transaction(caller_transaction):
 
 @pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
 def test_corrupt_and_missing_rows_report_ids_and_fail(
-    document_records, evidence_records, import_source, output_format
+    document_records, evidence_records, import_source, training_record_factory, output_format
 ):
     import_source.data = import_source.data.replace(b"0.7500", b"0.7501")
     import_source.save()
@@ -1464,9 +1672,8 @@ def test_corrupt_and_missing_rows_report_ids_and_fail(
     equipment = EquipmentEvent.objects.create(
         **evidence_records[EquipmentEvent], evidence_content_type="application/pdf"
     )
-    training = TrainingRecord.objects.create(
-        **evidence_records[TrainingRecord], **(EVIDENCE | {"evidence_data": None})
-    )
+    training = training_record_factory()
+    TrainingRecord.objects.filter(pk=training.pk).update(evidence_data=None)
     nonconformance = NonconformanceEvent.objects.create(
         **evidence_records[NonconformanceEvent], **(EVIDENCE | {"evidence_name": ""})
     )
