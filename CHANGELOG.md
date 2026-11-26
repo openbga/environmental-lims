@@ -196,6 +196,14 @@ The same list is shown in the application under What's new.
 
   > Run python manage.py verify_stored_files against the restored database. The Issued invoice PDFs category identifies the invoice, draft or audit event to investigate. Valid inventories keep the same version 1 digest.
 
+- **Fixed:** Check restored files at one point in time (2026-11-26, Installation and upgrades)
+
+  When staff add files during a restore check, the counts and inventory now reflect the files present at the first database read. Run the check again to include later files.
+
+  Technical notes:
+
+  > A standalone verify_stored_files run uses one read-only PostgreSQL transaction across all categories. To capture an inventory at the same point as a backup, pass the same exported snapshot to the command and pg_dump.
+
 - **Changed:** Check worksheet history after restoring a backup (2026-11-26, Installation and upgrades)
 
   The upgrade report now confirms that a restored result worksheet and one of its original readings each rejected an edit and a deletion. The rehearsal repeats both checks after applying the candidate migrations.
