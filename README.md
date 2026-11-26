@@ -186,7 +186,8 @@ CI backs up a populated synthetic installation from the distribution branch and 
 into an empty PostgreSQL database. It checks laboratory history and downloads on the
 restored copy before and after applying the candidate migrations. At both stages, PostgreSQL must
 reject updates and deletions on a baseline audit event, custody event, issued report version
-and stored report PDF. Receipt checks cover
+and stored report PDF. It must also reject changes and deletions on a result worksheet and
+one of the original readings used in its calculation. Receipt checks cover
 orders, samples and containers, including the history of a corrected sample ID and a custody
 transfer. For quality control (QC),
 the rehearsal checks that a failed observation, its corrective action and the corrected

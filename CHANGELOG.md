@@ -196,6 +196,14 @@ The same list is shown in the application under What's new.
 
   > Run python manage.py verify_stored_files against the restored database. The Issued invoice PDFs category identifies the invoice, draft or audit event to investigate. Valid inventories keep the same version 1 digest.
 
+- **Changed:** Check worksheet history after restoring a backup (2026-11-26, Installation and upgrades)
+
+  The upgrade report now confirms that a restored result worksheet and one of its original readings each rejected an edit and a deletion. The rehearsal repeats both checks after applying the candidate migrations.
+
+  Technical notes:
+
+  > Read the application job’s upgrade notes for the tested revisions. Both stages run on a disposable copy of the synthetic database.
+
 - **Added:** Compare restored files with the backup inventory (2026-11-26, Backup and restore)
 
   Deployers can check a restored database directly against the file inventory saved with its backup. The check names each category whose count changed or whose files differ at the same count.

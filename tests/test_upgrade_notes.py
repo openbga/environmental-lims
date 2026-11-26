@@ -286,7 +286,14 @@ def test_reports_history_protections_only_with_complete_evidence_at_both_stages(
     checkout(project, "example-project")
     plan = tmp_path / "plan.json"
     plan.write_text("[]", encoding="utf-8")
-    categories = ["Custody events", "Audit events", "Stored report PDFs", "Issued report versions"]
+    categories = [
+        "Custody events",
+        "Audit events",
+        "Stored report PDFs",
+        "Issued report versions",
+        "Result worksheets",
+        "Worksheet readings",
+    ]
     restored = tmp_path / "restored.json"
     upgraded = tmp_path / "upgraded.json"
     restored.write_text(json.dumps(categories), encoding="utf-8")
@@ -303,12 +310,14 @@ def test_reports_history_protections_only_with_complete_evidence_at_both_stages(
     result = notes()
     assert result.returncode == 0, result.stderr
     assert "After restore and again after migration, PostgreSQL rejected an update" in result.stdout
+    assert "a result worksheet and one of its original readings" in result.stdout
     for path in (restored, upgraded):
-        path.write_text(json.dumps([*categories[:-1], categories[0]]), encoding="utf-8")
-        result = notes()
-        assert result.returncode != 0
-        assert path.name in result.stderr
-        assert not result.stdout
+        for incomplete in (categories[:-2], [*categories[:-1], categories[0]]):
+            path.write_text(json.dumps(incomplete), encoding="utf-8")
+            result = notes()
+            assert result.returncode != 0
+            assert path.name in result.stderr
+            assert not result.stdout
         path.write_text(json.dumps(categories), encoding="utf-8")
 
 

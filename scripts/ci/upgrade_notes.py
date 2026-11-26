@@ -125,7 +125,14 @@ def read_verified_counts(path):
 
 
 def check_history_receipt(path):
-    categories = ("Audit events", "Custody events", "Issued report versions", "Stored report PDFs")
+    categories = (
+        "Audit events",
+        "Custody events",
+        "Issued report versions",
+        "Stored report PDFs",
+        "Result worksheets",
+        "Worksheet readings",
+    )
     checked = json.loads(path.read_text(encoding="utf-8"))
     if (
         not isinstance(checked, list)
@@ -250,8 +257,9 @@ def render_notes(
         lines.extend(
             [
                 "After restore and again after migration, PostgreSQL rejected an update and a",
-                "deletion on each of the four records tested. These were an audit event, a custody",
-                "event, an issued report version and a stored report PDF.",
+                "deletion on each of six baseline records. The checks covered an audit event,",
+                "a custody event, an issued report version, a stored report PDF,",
+                "a result worksheet and one of its original readings.",
             ]
         )
     if verified_counts and "electronic deliverable exports" in verified_counts:
