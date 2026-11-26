@@ -188,6 +188,14 @@ The same list is shown in the application under What's new.
 
   > Run python manage.py verify_stored_files on the restored database. Under Report PDFs, the command identifies the version whose saved logo checksum, image type or dimensions do not match a stored logo. The Laboratory logos count still counts each stored image once.
 
+- **Fixed:** Check invoice void history after a restore (2026-11-26, Backup and restore)
+
+  Deployers can find a restored invoice whose status disagrees with its void history, including one still marked issued after a recorded void. The check also verifies who voided the invoice and the reason they gave.
+
+  Technical notes:
+
+  > Run python manage.py verify_stored_files against the restored database. The Issued invoice PDFs category identifies the invoice, draft or audit event to investigate. Valid inventories keep the same version 1 digest.
+
 - **Changed:** Check restored reports against their release history (2026-11-25, Backup and restore)
 
   After restoring a backup, deployers can check that each issued report PDF and its frozen results match the original release or amendment event. The check also identifies an event whose issued version is missing.
