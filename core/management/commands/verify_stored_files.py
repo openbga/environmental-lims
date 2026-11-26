@@ -1,6 +1,5 @@
 import json
 import re
-from contextlib import nullcontext
 from hashlib import sha256
 from itertools import groupby
 from operator import attrgetter
@@ -240,40 +239,33 @@ def _check_reports():
         number__gt=1, amends__report_id=F("report_id"), amends__number=F("number") - 1
     )
 
-    # Keep the cursor inside a transaction until it closes, so PostgreSQL does not
-    # materialize the entire result on commit. Reuse a caller's transaction if present.
-    needs_transaction = (
-        connection.get_autocommit()
-        and connection.connection.info.transaction_status == TransactionStatus.IDLE
-    )
-    with transaction.atomic(savepoint=False) if needs_transaction else nullcontext():
-        yield from _check_files(
-            ReportVersion,
-            "file__pdf",
-            "pdf_sha256",
-            "pdf_size",
-            missing="missing ReportFile",
-            metadata=(
-                (
-                    valid_lineage & Exists(events),
-                    "missing, ambiguous, or mismatched report release history",
-                ),
+    yield from _check_files(
+        ReportVersion,
+        "file__pdf",
+        "pdf_sha256",
+        "pdf_size",
+        missing="missing ReportFile",
+        metadata=(
+            (
+                valid_lineage & Exists(events),
+                "missing, ambiguous, or mismatched report release history",
             ),
-            check_report_content=True,
+        ),
+        check_report_content=True,
+    )
+    # Compare the stored ID as text so a malformed target cannot raise a cast error.
+    versions = ReportVersion._base_manager.alias(
+        target_id=Cast("pk", CharField()), target_type=Value(version_type)
+    ).filter(target_id=OuterRef("object_id"), target_type=OuterRef("object_type"))
+    missing = release_events.filter(~Exists(versions)).order_by("pk")
+    for pk in missing.values_list("pk", flat=True).iterator():
+        yield (
+            AuditEvent._meta.label,
+            pk,
+            None,
+            None,
+            ["missing or invalid ReportVersion target"],
         )
-        # Compare the stored ID as text so a malformed target cannot raise a cast error.
-        versions = ReportVersion._base_manager.alias(
-            target_id=Cast("pk", CharField()), target_type=Value(version_type)
-        ).filter(target_id=OuterRef("object_id"), target_type=OuterRef("object_type"))
-        missing = release_events.filter(~Exists(versions)).order_by("pk")
-        for pk in missing.values_list("pk", flat=True).iterator():
-            yield (
-                AuditEvent._meta.label,
-                pk,
-                None,
-                None,
-                ["missing or invalid ReportVersion target"],
-            )
 
 
 def _invoice_cancellation_timestamp():
@@ -675,32 +667,23 @@ def _equipment_recordings():
 
 
 def _pair_evidence_recordings(rows, audits):
-    # Use one snapshot for both streams when the command owns the transaction.
     # The ordered merge reads the audit table once and retains one group at a time.
-    needs_transaction = (
-        connection.get_autocommit()
-        and connection.connection.info.transaction_status == TransactionStatus.IDLE
-    )
-    with transaction.atomic(savepoint=False) if needs_transaction else nullcontext():
-        if needs_transaction:
-            with connection.cursor() as cursor:
-                cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
-        pending = next(audits, None)
-        for row in rows.iterator():
-            while pending and pending[0] is not None and pending[0] < row.pk:
-                if pending[2].attachment_recorded:
-                    yield None, None, pending[2]
-                pending = next(audits, None)
-            if pending and pending[0] == row.pk:
-                _, audit, claim = pending
-                pending = next(audits, None)
-                yield row, audit, claim
-            else:
-                yield row, None, None
-        while pending:
+    pending = next(audits, None)
+    for row in rows.iterator():
+        while pending and pending[0] is not None and pending[0] < row.pk:
             if pending[2].attachment_recorded:
                 yield None, None, pending[2]
             pending = next(audits, None)
+        if pending and pending[0] == row.pk:
+            _, audit, claim = pending
+            pending = next(audits, None)
+            yield row, audit, claim
+        else:
+            yield row, None, None
+    while pending:
+        if pending[2].attachment_recorded:
+            yield None, None, pending[2]
+        pending = next(audits, None)
 
 
 def _matches_equipment_recording(record, audit):
@@ -990,10 +973,7 @@ class Command(BaseCommand):
                 raise CommandError("--compare-manifest requires --format text.")
             saved = load_manifest_categories(reference_path)
         scan_format = "manifest" if saved is not None else output_format
-        if snapshot is None:
-            summary, total_checked, total_failures = self._scan(scan_format)
-        else:
-            summary, total_checked, total_failures = self._scan_snapshot(snapshot, scan_format)
+        summary, total_checked, total_failures = self._scan_snapshot(snapshot, scan_format)
 
         if saved is not None:
             if total_failures:
@@ -1017,8 +997,9 @@ class Command(BaseCommand):
 
     def _scan_snapshot(self, snapshot, output_format):
         # pg_export_snapshot() returns two eight-digit hex fields and a decimal counter.
-        if not isinstance(snapshot, str) or not re.fullmatch(
-            r"[0-9A-F]{8}-[0-9A-F]{8}-[1-9][0-9]{0,9}", snapshot
+        if snapshot is not None and (
+            not isinstance(snapshot, str)
+            or not re.fullmatch(r"[0-9A-F]{8}-[0-9A-F]{8}-[1-9][0-9]{0,9}", snapshot)
         ):
             raise CommandError("--snapshot requires a PostgreSQL snapshot ID.")
 
@@ -1032,22 +1013,26 @@ class Command(BaseCommand):
             not autocommit
             or connection.connection.info.transaction_status != TransactionStatus.IDLE
         ):
-            raise CommandError("Snapshot verification requires a fresh PostgreSQL transaction.")
+            if snapshot is not None:
+                raise CommandError("Snapshot verification requires a fresh PostgreSQL transaction.")
+            # Programmatic callers own their isolation level and any uncommitted records.
+            return self._scan(output_format)
 
         try:
             with transaction.atomic(durable=True):
-                # SET needs a SQL literal. Keep the snapshot ID out of Django's query logs.
                 with connection.connection.cursor() as cursor:
                     cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
-                    try:
-                        cursor.execute(
-                            sql.SQL("SET TRANSACTION SNAPSHOT {}").format(sql.Literal(snapshot))
-                        )
-                    except PsycopgError:
-                        raise CommandError(
-                            "Could not import the PostgreSQL snapshot. Use the same database "
-                            "and keep the exporting transaction open during import."
-                        ) from None
+                    if snapshot is not None:
+                        # SET needs a SQL literal. Keep the ID out of Django's query logs.
+                        try:
+                            cursor.execute(
+                                sql.SQL("SET TRANSACTION SNAPSHOT {}").format(sql.Literal(snapshot))
+                            )
+                        except PsycopgError:
+                            raise CommandError(
+                                "Could not import the PostgreSQL snapshot. Use the same database "
+                                "and keep the exporting transaction open during import."
+                            ) from None
                 return self._scan(output_format)
         except DjangoDatabaseError, PsycopgError:
             raise CommandError("A PostgreSQL error interrupted stored file verification.") from None

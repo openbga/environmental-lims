@@ -199,8 +199,9 @@ attachment and a later note attachment on the same nonconformance.
 Stored report, invoice and subcontract PDFs,
 electronic deliverables, laboratory logos, original result import files and attached
 laboratory evidence must match their recorded hashes and any recorded byte counts. The check reports discrepancies by
-record ID and leaves the restored records intact. Deployers
-can save the counts in JSON. The upgrade rehearsal report records how many stored files
+record ID and leaves the restored records intact. A standalone check must read every file
+category and its audit history at one point in time, including when staff commit files
+while it runs. Deployers can save the counts in JSON. The upgrade rehearsal report records how many stored files
 passed the candidate check in each category, including categories with zero files.
 Deployers can save a file inventory alongside a backup and compare it with the restored
 copy. Each category has a count and a digest that identifies the set of file records

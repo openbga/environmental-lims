@@ -210,7 +210,9 @@ copy. A zero identifies a category the synthetic database did not exercise. The 
 report links to the candidate’s changelog entries, recovery instructions and acceptance checks.
 
 After restoring a backup, run `python manage.py verify_stored_files` against the restored
-database to check stored documents, attachments and original result import files. For each
+database to check stored documents, attachments and original result import files. The command
+checks all categories as of its first database read. Files committed during the scan appear on
+the next run. For each
 issued report version, the command checks the PDF and frozen results against the original
 release or amendment event. If the version names a laboratory logo, the original image must
 still be present with the image type and dimensions recorded at issue, even after the

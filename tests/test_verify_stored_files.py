@@ -1,4 +1,5 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import timedelta
 from decimal import Decimal
@@ -2712,6 +2713,41 @@ def _exported_snapshot():
         yield snapshot
     finally:
         exporter.close()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("output_format", OUTPUT_FORMATS, ids=OUTPUT_FORMAT_IDS)
+def test_standalone_scan_excludes_files_committed_between_categories(staff, output_format):
+    uploader = staff("scan-uploader", "admin")
+    before = _verification_output(*output_format)
+    scan_settings = []
+
+    def upload_logo():
+        try:
+            _lab_logo(uploader).save()
+        finally:
+            connection.close()
+
+    def commit_after_report_read(execute, query, params, many, context):
+        result = execute(query, params, many, context)
+        if not scan_settings and 'FROM "reporting_reportversion"' in query:
+            # The report query has taken its snapshot, but the logo category is still ahead.
+            with connection.connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT current_setting('transaction_isolation'), "
+                    "current_setting('transaction_read_only')"
+                )
+                scan_settings.append(cursor.fetchone())
+            with ThreadPoolExecutor(max_workers=1) as writer:
+                writer.submit(upload_logo).result()
+        return result
+
+    with connection.execute_wrapper(commit_after_report_read):
+        assert _verification_output(*output_format) == before
+
+    assert scan_settings == [("repeatable read", "on")]
+    assert connection.get_autocommit()
+    assert _verification_output(*output_format) != before
 
 
 @pytest.mark.django_db(transaction=True)
