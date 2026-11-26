@@ -166,11 +166,15 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
    For an invoice, the command checks that its draft has exactly one issue event and that
    the recorded invoice number and PDF checksum match. The issuer on the invoice must match
    both the staff member who performed the issue action and the issuer recorded in its details.
-   A voided invoice must still match its original issue event. Under `Issued invoice PDFs`,
-   use the invoice ID to investigate an absent, duplicate or inconsistent issue event. If the
-   document is missing from an issued or voided draft, the check reports that draft once.
-   For an issue event whose draft is also missing or whose target is invalid, the check
-   reports the audit event ID.
+   A voided invoice must still match its original issue event. Its void event must show
+   the transition from issued to voided. The invoice number and PDF checksum must match
+   before and after the void. The staff member, reason and time of the void must agree
+   with the restored draft at the precision recorded in the audit event. An invoice still
+   marked issued must have no void event.
+   Under `Issued invoice PDFs`, use the invoice ID to investigate a status or history
+   discrepancy. If the document is missing from an issued or voided draft, the check
+   reports the draft once. An issue or void event whose target is missing or invalid
+   is reported by audit event ID.
    For an electronic data deliverable, check the `EDD export ZIPs` category. Each ZIP
    must have exactly one original export event with the same ZIP checksum, report number,
    version number and report content checksum. Use the export record ID to investigate

@@ -14,6 +14,7 @@ from django.db.models import (
     Case,
     CharField,
     Count,
+    DateTimeField,
     DecimalField,
     Exists,
     F,
@@ -112,7 +113,7 @@ def _measure_files(files, binary, checksum, size):
     )
 
 
-def _file_problems(row, *, missing="missing file", metadata_problem=None, check_size=True):
+def _file_problems(row, *, missing="missing file", metadata_problems=(), check_size=True):
     problems = []
     if row.actual_size is None:
         problems.append(missing)
@@ -120,8 +121,7 @@ def _file_problems(row, *, missing="missing file", metadata_problem=None, check_
         problems.append("empty stored file")
     if not row.evidence_metadata_present:
         problems.append("missing evidence filename or content type")
-    if metadata_problem:
-        problems.append(metadata_problem)
+    problems.extend(metadata_problems)
     if not row.recorded_hash:
         problems.append("missing recorded SHA-256")
     elif row.actual_hash is not None and row.actual_hash != row.recorded_hash:
@@ -142,16 +142,17 @@ def _check_files(
     *,
     evidence=False,
     missing="missing file",
-    metadata=None,
+    metadata=(),
     check_report_content=False,
 ):
     files = model._base_manager.order_by("pk")
     if evidence:
         files = files.exclude(_NO_EVIDENCE)
 
+    metadata_fields = tuple(f"metadata_{index}" for index in range(len(metadata)))
     rows = _measure_files(files, binary, checksum, size).annotate(
         evidence_metadata_present=_EVIDENCE_METADATA_PRESENT if evidence else Value(True),
-        metadata_present=metadata[0] if metadata else Value(True),
+        **{field: check for field, (check, _) in zip(metadata_fields, metadata, strict=True)},
     )
     fields = (
         "pk",
@@ -160,7 +161,7 @@ def _check_files(
         "recorded_size",
         "recorded_hash",
         "evidence_metadata_present",
-        "metadata_present",
+        *metadata_fields,
     )
     if check_report_content:
         # Join the frozen content and PDF measurements in the same query. Do not transfer
@@ -188,7 +189,11 @@ def _check_files(
         problems = _file_problems(
             row,
             missing=missing,
-            metadata_problem=metadata[1] if metadata and not row.metadata_present else None,
+            metadata_problems=(
+                message
+                for field, (_, message) in zip(metadata_fields, metadata, strict=True)
+                if not getattr(row, field)
+            ),
             check_size=bool(size),
         )
         if check_report_content and row.actual_size is not None:
@@ -244,8 +249,10 @@ def _check_reports():
             "pdf_size",
             missing="missing ReportFile",
             metadata=(
-                valid_lineage & Exists(events),
-                "missing, ambiguous, or mismatched report release history",
+                (
+                    valid_lineage & Exists(events),
+                    "missing, ambiguous, or mismatched report release history",
+                ),
             ),
             check_report_content=True,
         )
@@ -264,24 +271,45 @@ def _check_reports():
             )
 
 
+def _invoice_cancellation_timestamp():
+    # The draft snapshot uses DjangoJSONEncoder: UTC ends in Z, with a fraction
+    # truncated to milliseconds when the stored timestamp has any microseconds.
+    timestamp = Func(
+        Value("UTC"),
+        OuterRef("draft__cancelled_at"),
+        function="pg_catalog.timezone",
+        output_field=DateTimeField(),
+    )
+    return Func(
+        Func(
+            timestamp,
+            Value('YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+            function="pg_catalog.to_char",
+            output_field=TextField(),
+        ),
+        Value(r"\.000000Z$|(\.[0-9]{3})[0-9]{3}Z$"),
+        Value(r"\1Z"),
+        function="pg_catalog.regexp_replace",
+        output_field=TextField(),
+    )
+
+
 def _check_invoices():
     draft_type = InvoiceDraft._meta.label_lower
     issued_statuses = (InvoiceDraft.Status.ISSUED, InvoiceDraft.Status.VOIDED)
     issue_events = AuditEvent.objects.filter(action="invoice_draft.issued")
+    void_events = AuditEvent.objects.filter(action="invoice_draft.voided")
+    draft_target = Q(object_type=draft_type, object_id=Cast(OuterRef("draft_id"), CharField()))
+    document = JSONObject(number=OuterRef("number"), sha256=OuterRef("sha256"))
     # The original issuance is unique for each draft, including drafts later voided.
     # Count all issuance events and compare just the relevant fields within PostgreSQL.
     matches_invoice = Q(
         actor_id=OuterRef("issued_by_id"),
         audit_issuer=Cast(OuterRef("issued_by_id"), TextField()),
-        after__contains=JSONObject(
-            issued_invoice=JSONObject(number=OuterRef("number"), sha256=OuterRef("sha256"))
-        ),
+        after__contains=JSONObject(issued_invoice=document),
     )
     events = (
-        issue_events.filter(
-            object_type=draft_type,
-            object_id=Cast(OuterRef("draft_id"), CharField()),
-        )
+        issue_events.filter(draft_target)
         .order_by()
         .values("object_id")
         # Compare JSON text so only the original integer representation matches.
@@ -296,11 +324,50 @@ def _check_invoices():
         )
         .filter(event_count=1, matching_count=1)
     )
+    draft_voids = void_events.filter(draft_target).order_by()
+    matching_voids = (
+        draft_voids.values("object_id")
+        .alias(audit_voider=Cast(KeyTransform("cancelled_by", "after"), TextField()))
+        .annotate(
+            event_count=Count("pk"),
+            matching_count=Count(
+                "pk",
+                filter=Q(
+                    actor_id=OuterRef("draft__cancelled_by_id"),
+                    reason=OuterRef("draft__cancel_reason"),
+                    audit_voider=Cast(OuterRef("draft__cancelled_by_id"), TextField()),
+                    before__contains=JSONObject(
+                        status=Value(InvoiceDraft.Status.ISSUED), issued_invoice=document
+                    ),
+                    after__contains=JSONObject(
+                        status=Value(InvoiceDraft.Status.VOIDED),
+                        issued_invoice=document,
+                        cancel_reason=OuterRef("draft__cancel_reason"),
+                        cancelled_at=_invoice_cancellation_timestamp(),
+                    ),
+                ),
+            ),
+        )
+        .filter(event_count=1, matching_count=1)
+    )
+    valid_status = Q(draft__status__in=issued_statuses)
+    valid_void_history = (
+        ~valid_status
+        | (Q(draft__status=InvoiceDraft.Status.ISSUED) & ~Exists(draft_voids))
+        | (Q(draft__status=InvoiceDraft.Status.VOIDED) & Exists(matching_voids))
+    )
     yield from _check_files(
         IssuedInvoice,
         "pdf",
         "sha256",
-        metadata=(Exists(events), "missing, ambiguous, or mismatched invoice issuance event"),
+        metadata=(
+            (Exists(events), "missing, ambiguous, or mismatched invoice issuance event"),
+            (valid_status, "invalid draft status for issued invoice"),
+            (
+                valid_void_history,
+                "missing, unexpected, ambiguous, or mismatched invoice void event",
+            ),
+        ),
     )
     missing = InvoiceDraft.objects.filter(
         status__in=issued_statuses,
@@ -316,9 +383,14 @@ def _check_invoices():
         .filter(target_id=OuterRef("object_id"), target_type=OuterRef("object_type"))
         .filter(Q(issued_invoice__isnull=False) | Q(status__in=issued_statuses))
     )
-    missing = issue_events.filter(~Exists(drafts)).order_by("pk")
-    for pk in missing.values_list("pk", flat=True).iterator():
-        yield AuditEvent._meta.label, pk, None, None, ["missing or invalid issued invoice target"]
+    missing = (issue_events | void_events).filter(~Exists(drafts)).order_by("pk")
+    for pk, action in missing.values_list("pk", "action").iterator():
+        problem = (
+            "missing or invalid void invoice target"
+            if action == "invoice_draft.voided"
+            else "missing or invalid issued invoice target"
+        )
+        yield AuditEvent._meta.label, pk, None, None, [problem]
 
 
 def _check_subcontract_sources():
@@ -368,7 +440,7 @@ def _check_subcontract_sources():
         "source_pdf",
         "source_sha256",
         "source_size",
-        metadata=(Exists(events), "missing, ambiguous, or mismatched subcontract source entry"),
+        metadata=((Exists(events), "missing, ambiguous, or mismatched subcontract source entry"),),
     )
 
     # Check the reverse link without casting an untrusted event value to an integer.
@@ -435,7 +507,7 @@ def _check_edd_exports():
         "data",
         "sha256",
         "size",
-        metadata=(Exists(events), "missing, ambiguous, or mismatched EDD export event"),
+        metadata=((Exists(events), "missing, ambiguous, or mismatched EDD export event"),),
     )
 
     # Join on the recorded ID text so malformed IDs count as missing and cannot raise a cast error.
@@ -487,8 +559,7 @@ def _check_training_evidence():
         "evidence_size",
         evidence=True,
         metadata=(
-            Exists(matching_events),
-            "missing, ambiguous, or mismatched training evidence event",
+            (Exists(matching_events), "missing, ambiguous, or mismatched training evidence event"),
         ),
     )
 
@@ -784,7 +855,7 @@ def _check_import_sources():
         "data",
         "sha256",
         "size",
-        metadata=(matches_event, "import event does not match the stored source"),
+        metadata=((matches_event, "import event does not match the stored source"),),
     )
     missing = AuditEvent.objects.filter(
         action="batch.results_imported",
