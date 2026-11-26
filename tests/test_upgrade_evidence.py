@@ -11,7 +11,7 @@ from django.urls import reverse
 from psycopg import sql
 
 from analytical.models import QCCorrectiveAction, QCMeasurement, QCSample
-from core.models import AuditEvent
+from core.models import AuditEvent, LabLogo
 from laboratory.models import (
     Equipment,
     EquipmentEvent,
@@ -100,6 +100,12 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
             run("capture")
     assert not evidence_path.exists()
 
+    with monkeypatch.context() as missing:
+        missing.setattr(LabLogo.objects, "with_image", LabLogo.objects.none)
+        with pytest.raises(SystemExit, match="The stored logo must match the image recorded"):
+            run("capture")
+    assert not evidence_path.exists()
+
     with transaction.atomic():
         NonconformanceEvent.objects.filter(pk=note.pk).update(evidence_data=None)
         with pytest.raises(
@@ -122,6 +128,7 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
         ("QC corrective actions", QCCorrectiveAction),
         ("subcontract dispatches", Subcontract),
         ("external source results", SubcontractResult),
+        ("laboratory logos", LabLogo),
         (edd_label, EddExport),
     ):
         assert manifest[name]["rows"].keys() == {

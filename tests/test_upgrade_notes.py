@@ -210,6 +210,7 @@ def test_reports_counts_after_restore_and_upgrade(tmp_path):
     assert result.returncode == 0, result.stderr
     assert "PostgreSQL rejected an update" not in result.stdout
     assert "CI restored a backup of the synthetic baseline" in result.stdout
+    assert "The original subcontract report still named its stored logo" not in result.stdout
     assert "A staff reviewer downloaded" not in result.stdout
     assert "The owning client downloaded the stored exploratory" in result.stdout
     assert (
@@ -233,6 +234,7 @@ def test_reports_laboratory_attachments_and_checks_file_coverage(tmp_path, store
                 "equipment event attachments": 1,
                 "staff training attachments": 1,
                 "nonconformance event attachments": 2,
+                "laboratory logos": 1,
             }
         ),
         encoding="utf-8",
@@ -262,8 +264,14 @@ def test_reports_laboratory_attachments_and_checks_file_coverage(tmp_path, store
     assert "missed baseline files in Nonconformance event evidence" in missing.stderr
     stored_file_counts["Nonconformance event evidence"]["checked"] += 1
     stored_file_counts["Total"]["checked"] += 1
+    missing = notes()
+    assert missing.returncode != 0 and not missing.stdout
+    assert "missed baseline files in Laboratory logos" in missing.stderr
+    stored_file_counts["Laboratory logos"]["checked"] += 1
+    stored_file_counts["Total"]["checked"] += 1
     result = notes()
     assert result.returncode == 0, result.stderr
+    assert "The original subcontract report still named its stored logo" in result.stdout
     assert (
         "A staff reviewer downloaded the original equipment, training and nonconformance"
         in result.stdout

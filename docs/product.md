@@ -163,7 +163,10 @@ client exports against both copies of its release checksum, on the issued versio
 in the stored snapshot. The PDF and frozen results must also match the checksums on the
 single release or amendment event for that version. The recorded issuer, report number,
 version, predecessor and PDF byte count must agree. A surviving event whose issued
-version is missing must fail verification. For each subcontract result, its entry event must identify the same
+version is missing must fail verification. If the frozen report names a laboratory logo,
+its checksum, image type and dimensions must identify the stored image used at issue.
+Reports issued without a logo and reports that predate laboratory profiles remain valid.
+For each subcontract result, its entry event must identify the same
 dispatch, source revision and staff member and record the same PDF size and checksum.
 This applies to original and corrected sources. An entry whose source is missing must
 also fail verification. For staff training evidence, the attachment name and checksum must

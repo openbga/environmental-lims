@@ -209,7 +209,9 @@ report links to the candidate’s changelog entries, recovery instructions and a
 After restoring a backup, run `python manage.py verify_stored_files` against the restored
 database to check stored documents, attachments and original result import files. For each
 issued report version, the command checks the PDF and frozen results against the original
-release or amendment event. It flags an event whose issued version is missing. For issued
+release or amendment event. If the version names a laboratory logo, the original image must
+still be present with the image type and dimensions recorded at issue, even after the
+laboratory changes its logo. The command also flags an event whose issued version is missing. For issued
 and voided invoices, it checks the PDF, invoice number and issuer against the original
 issue event. A surviving issue event can also identify an invoice lost along with its draft.
 For an electronic data deliverable, it checks that the original export event identifies
