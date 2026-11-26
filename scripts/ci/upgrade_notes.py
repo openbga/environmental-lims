@@ -240,6 +240,12 @@ def render_notes(
             "attachments. Their bytes and record links matched the baseline. A signed-in client "
             "was denied each download."
         )
+    if verified_counts and "laboratory logos" in verified_counts:
+        lines.append(
+            "The original subcontract report still named its stored logo. The image checksum, "
+            "content type and dimensions matched the original snapshot. The amendment issued "
+            "after removal of the logo had no logo reference."
+        )
     if history_checked:
         lines.extend(
             [
@@ -408,7 +414,8 @@ def main():
             read_stored_file_counts(args.stored_file_counts) if args.stored_file_counts else None
         )
         if verified_counts and stored_file_counts:
-            for label, category in ATTACHMENT_CATEGORIES.items():
+            baseline_files = {**ATTACHMENT_CATEGORIES, "laboratory logos": "Laboratory logos"}
+            for label, category in baseline_files.items():
                 if stored_file_counts[category]["checked"] < verified_counts.get(label, 0):
                     raise ValueError(
                         f"Stored-file verification missed baseline files in {category}."

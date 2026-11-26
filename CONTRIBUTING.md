@@ -135,7 +135,9 @@ measurement revisions and recorded corrective actions. Its synthetic correction 
 to the original failed observation, which remains the target of the corrective action. For a
 subcontracted test, staff retrieve the external laboratory’s original and corrected source
 PDFs. The rehearsal checks the dispatch, both reviewed transcriptions, and the source revision
-cited by each issued report version. A client downloads an original and amended PDF,
+cited by each issued report version. The original version must still identify the stored
+laboratory logo after the profile logo is removed and the amendment is issued without it.
+A client downloads an original and amended PDF,
 and the check compares their bytes with the stored files. The baseline also generates an
 exploratory electronic data deliverable (EDD) for an issued version. At each verification
 stage the owning client downloads the original ZIP, and the rehearsal compares its bytes,

@@ -84,7 +84,7 @@ def report_sample(staff, receipt_data):
 
 @pytest.fixture
 def legacy_report_factory(report_sample):
-    def make(version_digest=None, *, report_pk=None, record_release=True):
+    def make(version_digest=None, *, report_pk=None, record_release=True, frozen_content=None):
         sample = report_sample
         actor = sample.received_by
         now = timezone.now()
@@ -115,6 +115,8 @@ def legacy_report_factory(report_sample):
             "methods": [],
             "qualifiers": [],
         }
+        if frozen_content is not None:
+            content = frozen_content
         digest = fingerprint(content)
         snapshot = {
             "content": content,
@@ -286,6 +288,18 @@ def subcontract_source_factory(report_sample, staff):
     return enter
 
 
+def _lab_logo(uploader, data=PNG):
+    return LabLogo(
+        sha256=sha256(data).hexdigest(),
+        image=data,
+        content_type="image/png",
+        width=96,
+        height=32,
+        size=len(data),
+        uploaded_by=uploader,
+    )
+
+
 @pytest.fixture
 def document_records(legacy_report_file, invoice_record, subcontract_source_factory):
     edd_record = _edd_export_for(legacy_report_file.version, pk=10)
@@ -296,15 +310,7 @@ def document_records(legacy_report_file, invoice_record, subcontract_source_fact
         invoice_record,
         subcontract_source_factory(),
         edd_record,
-        LabLogo(
-            sha256=sha256(PNG).hexdigest(),
-            image=PNG,
-            content_type="image/png",
-            width=8,
-            height=8,
-            size=len(PNG),
-            uploaded_by=legacy_report_file.version.released_by,
-        ),
+        _lab_logo(legacy_report_file.version.released_by),
     )
 
 
@@ -1630,7 +1636,13 @@ def test_original_and_amended_releases_preserve_the_manifest_and_stream_report_r
             reason=reason,
         )
 
+    original_logo = _lab_logo(people["pm"])
+    replacement_logo = _lab_logo(people["pm"], PNG + b" replacement")
+    original_logo.save()
+    replacement_logo.save()
+    Lab.objects.update(logo=original_logo)
     original = release()
+    Lab.objects.update(logo=replacement_logo)
     report = reporting_services.update_report(
         actor=people["pm"],
         report_id=report.pk,
@@ -1640,6 +1652,9 @@ def test_original_and_amended_releases_preserve_the_manifest_and_stream_report_r
     )
     amended = release("Correct report title")
     assert amended.amends_id == original.pk
+    assert original.file.snapshot["content"]["lab"]["logo"]["sha256"] == original_logo.sha256
+    assert amended.file.snapshot["content"]["lab"]["logo"]["sha256"] == replacement_logo.sha256
+    Lab.objects.update(logo=None)
     assert amended.content_sha256 != original.content_sha256
     Report.objects.filter(pk=report.pk).update(narrative="Unissued draft notes")
 
@@ -1674,6 +1689,83 @@ def test_original_and_amended_releases_preserve_the_manifest_and_stream_report_r
     assert 'FROM "core_auditevent"' in query
     assert '"core_auditevent"."after"' not in orphan_query
     assert pdf_column not in orphan_query
+    logo_queries = [q["sql"] for q in captured if 'FROM "core_lablogo"' in q["sql"]]
+    assert len(logo_queries) == 2  # The report scan and the independent file check.
+    assert query in logo_queries and '"image"' not in query
+
+    # Simulate loss of a logo that is no longer selected by the laboratory.
+    with transaction.atomic(), _restore_with_history_defect(LabLogo, "lab_logo_immutable"):
+        original_logo.delete()
+    stdout, stderr = StringIO(), StringIO()
+    with pytest.raises(CommandError, match="Stored file verification failed"):
+        call_command("verify_stored_files", "--format", "json", stdout=stdout, stderr=stderr)
+    summary = json.loads(stdout.getvalue())
+    assert summary["Report PDFs"] == {"checked": 2, "failures": 1}
+    assert summary["Laboratory logos"] == {"checked": 1, "failures": 0}
+    assert stderr.getvalue().splitlines() == [
+        f"reporting.ReportVersion pk={original.pk}: "
+        "missing or mismatched laboratory logo referenced by report snapshot"
+    ]
+
+
+@pytest.mark.parametrize(
+    "logo",
+    [
+        pytest.param("private invalid logo", id="malformed-logo"),
+        pytest.param({}, id="empty-object"),
+        pytest.param({"sha256": "incorrect"}, id="missing-logo"),
+        pytest.param({"sha256": [sha256(PNG).hexdigest()]}, id="malformed-sha256"),
+        pytest.param({"content_type": "image/jpeg"}, id="changed-content-type"),
+        pytest.param({"width": 128}, id="changed-width"),
+        pytest.param({"height": 96}, id="changed-height"),
+        pytest.param({"width": 96.0}, id="decimal-width"),
+        pytest.param({"height": "32"}, id="string-height"),
+    ],
+)
+def test_report_snapshot_logo_must_identify_the_recorded_image(
+    report_sample, legacy_report_factory, logo
+):
+    stored = _lab_logo(report_sample.received_by)
+    stored.save()
+    if isinstance(logo, dict) and logo:
+        logo = {
+            "sha256": stored.sha256,
+            "content_type": "image/png",
+            "width": 96,
+            "height": 32,
+        } | logo
+    report_file = legacy_report_factory(frozen_content={"lab": {"logo": logo}})
+    report_file.save()
+
+    stdout, stderr = StringIO(), StringIO()
+    with pytest.raises(CommandError, match="Stored file verification failed"):
+        call_command("verify_stored_files", *MANIFEST_FORMAT, stdout=stdout, stderr=stderr)
+    assert stdout.getvalue() == ""
+    assert stderr.getvalue().splitlines() == [
+        f"reporting.ReportVersion pk={report_file.version_id}: "
+        "missing or mismatched laboratory logo referenced by report snapshot"
+    ]
+
+
+@pytest.mark.parametrize("content", [{"schema": 1}, {"lab": {"logo": None}}])
+def test_report_snapshot_without_logo_reference(legacy_report_factory, content):
+    legacy_report_factory(frozen_content=content).save()
+    summary = json.loads(_verification_output("--format", "json"))
+    assert summary["Report PDFs"] == {"checked": 1, "failures": 0}
+    assert summary["Laboratory logos"] == {"checked": 0, "failures": 0}
+
+
+def test_malformed_lab_identity_cannot_hide_a_report_logo(legacy_report_factory):
+    report_file = legacy_report_factory(frozen_content={"lab": [{"logo": "synthetic private"}]})
+    report_file.save()
+    stdout, stderr = StringIO(), StringIO()
+    with pytest.raises(CommandError, match="Stored file verification failed"):
+        call_command("verify_stored_files", *MANIFEST_FORMAT, stdout=stdout, stderr=stderr)
+    assert stdout.getvalue() == ""
+    assert stderr.getvalue().splitlines() == [
+        f"reporting.ReportVersion pk={report_file.version_id}: "
+        "invalid laboratory identity in report snapshot"
+    ]
 
 
 def _assert_report_audit_failure(version, *, checked=1):

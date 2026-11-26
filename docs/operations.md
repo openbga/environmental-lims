@@ -154,7 +154,11 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
    and each issued or voided invoice must have its file. For each original and amended
    report, the command also recalculates the checksum of the frozen report content used
    for result downloads. It compares that checksum with the one on the issued version
-   and the copy in its snapshot. Each version must also have exactly one release or
+   and the copy in its snapshot. If the snapshot names a laboratory logo, its SHA-256,
+   image type, width and height must match the stored logo identified by that checksum.
+   Use the reported version ID to find the original image in the backup, even if the
+   laboratory has since replaced or removed its logo. The separate `Laboratory logos`
+   check verifies the stored image bytes. Each version must also have exactly one release or
    amendment event with the same issuer, report number, version, predecessor, PDF size,
    PDF checksum and frozen content checksum. Use the report version ID to investigate a
    mismatch. If an event survives without its version, the command reports the audit event

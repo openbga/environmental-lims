@@ -66,9 +66,9 @@ _NO_EVIDENCE = Q(
 _EVIDENCE_METADATA_PRESENT = ~(Q(evidence_name="") | Q(evidence_content_type=""))
 
 
-def _report_content_problems(content_json, recorded_hash, snapshot_hash_json):
+def _report_content_problems(row):
     try:
-        content = json.loads(content_json) if content_json is not None else None
+        content = json.loads(row.content_json) if row.content_json is not None else None
         if not isinstance(content, dict) or not content:
             return ["missing or invalid report snapshot content"]
         actual_hash = fingerprint(content)
@@ -76,10 +76,24 @@ def _report_content_problems(content_json, recorded_hash, snapshot_hash_json):
         return ["missing or invalid report snapshot content"]
 
     problems = []
-    if actual_hash != recorded_hash:
+    if actual_hash != row.content_sha256:
         problems.append("report content SHA-256 does not match the version's digest")
-    if f'"{actual_hash}"' != snapshot_hash_json:
+    if f'"{actual_hash}"' != row.snapshot_hash_json:
         problems.append("report content SHA-256 does not match the snapshot's digest")
+    lab = content.get("lab", {})
+    if not isinstance(lab, dict):
+        problems.append("invalid laboratory identity in report snapshot")
+    elif (logo := lab.get("logo")) is not None:
+        # JSON booleans and decimals can compare equal to Python integer dimensions.
+        if not (
+            isinstance(logo, dict)
+            and row.stored_logo is not None
+            and all(
+                type(logo.get(key)) is type(value) and logo[key] == value
+                for key, value in row.stored_logo.items()
+            )
+        ):
+            problems.append("missing or mismatched laboratory logo referenced by report snapshot")
     return problems
 
 
@@ -151,13 +165,23 @@ def _check_files(
     if check_report_content:
         # Join the frozen content and PDF measurements in the same query. Do not transfer
         # the release metadata or more than 67 characters of the quoted, 64-digit hash.
-        rows = rows.annotate(
+        # The logo can have changed since release. Use the indexed digest frozen in
+        # each version to retrieve its historical image metadata without loading the bytes.
+        stored_logo = LabLogo.objects.filter(sha256=OuterRef("snapshot_logo_sha256")).values(
+            facts=JSONObject(
+                sha256="sha256", content_type="content_type", width="width", height="height"
+            )
+        )
+        rows = rows.alias(
+            snapshot_logo_sha256=KeyTextTransform("sha256", "file__snapshot__content__lab__logo")
+        ).annotate(
+            stored_logo=Subquery(stored_logo),
             content_json=Cast(KeyTransform("content", "file__snapshot"), TextField()),
             snapshot_hash_json=Substr(
                 Cast(KeyTransform("content_sha256", "file__snapshot"), TextField()), 1, 67
             ),
         )
-        fields += ("content_json", "content_sha256", "snapshot_hash_json")
+        fields += ("content_json", "content_sha256", "snapshot_hash_json", "stored_logo")
     # Report content can be large. Process one row at a time.
     chunk_size = 1 if check_report_content else None
     for row in rows.values_list(*fields, named=True).iterator(chunk_size=chunk_size):
@@ -168,11 +192,7 @@ def _check_files(
             check_size=bool(size),
         )
         if check_report_content and row.actual_size is not None:
-            problems.extend(
-                _report_content_problems(
-                    row.content_json, row.content_sha256, row.snapshot_hash_json
-                )
-            )
+            problems.extend(_report_content_problems(row))
         yield model._meta.label, row.pk, row.actual_size, row.actual_hash, problems
 
 

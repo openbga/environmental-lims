@@ -39,9 +39,10 @@ from catalog.models import TestDefinition
 from commercial import invoices
 from commercial.management.commands.seed_commercial_demo import PRICE_LIST
 from commercial.models import InvoiceDraft, InvoiceDraftLine, PriceList
+from core import lab_profile
 from core.audit import snapshot
 from core.management.commands.seed_demo import DEMO_LAB_NAME
-from core.models import AuditEvent, Lab
+from core.models import AuditEvent, Lab, LabLogo
 from laboratory import equipment, nonconformance, training
 from laboratory.models import EquipmentEvent, Nonconformance, NonconformanceEvent, TrainingRecord
 from receipt.corrections import correct_sample
@@ -243,6 +244,9 @@ def prepare_subcontract_history(project, manager):
             expected_fingerprint=assemble(report, actor=approver).fingerprint,
             reason=reason,
         )
+        if number == 1:
+            # The amendment is issued after the lab stops printing its original logo.
+            lab_profile.remove_logo(actor=User.objects.get(username="demo_admin"))
 
 
 def prepare_edd_export(project, manager):
@@ -514,6 +518,7 @@ def collections(draft):
         "issued reports": Report.objects.filter(latest_version__gt=0),
         "issued report versions": ReportVersion.objects.all(),
         "issued report files": ReportFile.objects.all(),
+        "laboratory logos": LabLogo.objects.with_image(),
         EDD_EXPORTS: EddExport.objects.all(),
         **{
             label: model.objects.filter(evidence_data__isnull=False)
@@ -597,6 +602,26 @@ def amendment_for_client(version_ids):
     return owner, amendment
 
 
+def require_historical_logo(original, amendment):
+    facts = original.file.snapshot["content"]["lab"].get("logo")
+    require(isinstance(facts, dict), "The original subcontract report must name its logo.")
+    logo = LabLogo.objects.with_image().filter(sha256=facts.get("sha256")).first()
+    require(
+        logo is not None
+        and facts["sha256"] == sha256(logo.image)
+        and facts.get("content_type") == logo.content_type
+        and facts.get("width") == logo.width
+        and facts.get("height") == logo.height
+        and len(logo.image) == logo.size,
+        f"The stored logo must match the image recorded on report version {original.pk}.",
+    )
+    require(
+        "logo" not in amendment.file.snapshot["content"]["lab"]
+        and Lab.objects.filter(pk=1, logo__isnull=True).exists(),
+        "The amended subcontract report and current laboratory profile must have no logo.",
+    )
+
+
 def subcontract_sources():
     sources = list(
         SubcontractResult.objects.filter(subcontract__external_reference=SUBCONTRACT_REFERENCE)
@@ -635,6 +660,8 @@ def subcontract_sources():
             and rows[0]["supplied_text"] == source.observed_text,
             f"Issued report version {version.pk} must retain its matching external source.",
         )
+        if previous is not None:
+            require_historical_logo(previous, version)
         previous = version
     return sources
 
