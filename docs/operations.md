@@ -217,15 +217,23 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
    ```
 
    On the restored copy, before accepting writes or applying migrations, use the same
-   application version. Connect it to the restored database and compare the two inventories.
+   application version. Connect it to the restored database and supply the inventory saved
+   with that backup:
 
    ```sh
-   python manage.py verify_stored_files --format manifest > restored-files.json &&
-     diff -u source-files.json restored-files.json
+   python manage.py verify_stored_files --compare-manifest source-files.json
    ```
 
-   Check that both inventory commands succeed. A failed file check reports the affected
-   records on standard error. A successful comparison exits zero with no differences.
+   A match prints the number of files checked and exits zero. A missing or malformed
+   inventory, different category set, changed count or different digest exits nonzero.
+   For a count difference, the message gives both counts. For a digest difference at the
+   same count, investigate missing or replaced records in the named category. If the
+   saved inventory includes categories the application does not recognize, check that
+   the two application versions match. If stored
+   file verification itself fails, use the affected record IDs printed on standard error.
+   On an older application version that only supports inventory generation, generate
+   `restored-files.json` with `--format manifest` and compare it to `source-files.json`
+   with `diff -u` after verifying that generation succeeded.
    The inventory contains a count and a SHA-256 digest per category, including empty
    categories. The digest covers the file records' identities, byte lengths and content
    checksums. A difference identifies the affected category even if the file count is

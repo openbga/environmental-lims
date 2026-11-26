@@ -195,7 +195,11 @@ passed the candidate check in each category, including categories with zero file
 Deployers can save a file inventory alongside a backup and compare it with the restored
 copy. Each category has a count and a digest that identifies the set of file records
 and their contents. This comparison detects a missing record even when every remaining
-file passes its own integrity check. For a logical backup taken while staff are working,
+file passes its own integrity check. A deployer can supply a saved version 1 inventory
+to the restore check and use its exit status in a recovery script. A comparison must
+identify differences in the restored application’s file categories, including a substitution
+that preserves its file count. A different category set must fail comparison.
+For a logical backup taken while staff are working,
 the source inventory can read the same exported PostgreSQL snapshot as the dump. Files
 committed after that snapshot are excluded from both. An unavailable snapshot must cause
 the check to fail before it produces an inventory.
