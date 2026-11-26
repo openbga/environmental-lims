@@ -184,7 +184,12 @@ that records an attachment must reveal a missing file or equipment event. Staff 
 record equipment work without a file. For a file attached to a nonconformance note, the
 note ID, nonconformance, staff member and checksum must agree with the single audit entry
 made when the note was added. A surviving entry with a checksum must reveal the loss of
-the attachment or the note. The populated upgrade rehearsal must preserve both an opening
+the attachment or the note. New audit entries for opening a nonconformance or changing
+its status, including returning or reopening it, record the timeline entry ID and any
+attachment checksum alongside the status. A surviving entry recording a file must
+identify the same nonconformance, timeline step, staff member and attachment after restore.
+For older opening and status entries, deployers can compare the file inventory saved with
+the backup. The populated upgrade rehearsal must preserve both an opening
 attachment and a later note attachment on the same nonconformance.
 Stored report, invoice and subcontract PDFs,
 electronic deliverables, laboratory logos, original result import files and attached

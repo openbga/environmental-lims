@@ -149,7 +149,7 @@ def open_nonconformance(
     )
     nc.full_clean(exclude=["opened_by"])
     nc.save()
-    _event(
+    event = _event(
         nc,
         actor,
         NonconformanceEvent.Kind.OPENED,
@@ -163,7 +163,7 @@ def open_nonconformance(
         action="nonconformance.opened",
         obj=nc,
         before={},
-        after=state(nc, FIELDS),
+        after={**state(nc, FIELDS), "event": event.pk, "evidence": event.evidence_sha256},
     )
     return nc
 
@@ -306,7 +306,7 @@ def transition(
     nc.full_clean(exclude=["opened_by"])
     nc.save()
     kind = NonconformanceEvent.Kind.REOPENED if reopening else NonconformanceEvent.Kind.STATUS
-    _event(
+    event = _event(
         nc,
         actor,
         kind,
@@ -322,7 +322,7 @@ def transition(
         action="nonconformance.reopened" if reopening else f"nonconformance.{to_status}",
         obj=nc,
         before=before,
-        after=state(nc, FIELDS),
+        after={**state(nc, FIELDS), "event": event.pk, "evidence": event.evidence_sha256},
         reason=note,
     )
     return nc

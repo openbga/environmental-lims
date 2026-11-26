@@ -21,6 +21,13 @@
       ]
     },
     {
+      "title": "Find an attachment",
+      "steps": [
+        "In [[Timeline]], find the opening, status change or note where the file was attached.",
+        "Select the filename to download it. The size and a short checksum appear beside the link."
+      ]
+    },
+    {
       "title": "Send it back or reopen it",
       "steps": [
         "In Verification, select [[Return to corrective action]]. When closed, select [[Reopen]]. Both need a reason."
@@ -162,7 +169,8 @@
     {
       "title": "History",
       "paragraphs": [
-        "History shows up to the latest 50 audit events, oldest of those first and the newest last. Each shows action, recorded time, actor and reason when supplied. If the record has more than 50 audit events, older events beyond this cap are not shown in this panel. They remain stored. This panel is separate from the operational ledger or timeline."
+        "History shows up to the latest 50 audit events, oldest of those first and the newest last. Each shows action, recorded time, actor and reason when supplied. If the record has more than 50 audit events, older events beyond this cap are not shown in this panel. They remain stored.",
+        "New audit records for openings, status changes and reopenings identify the matching timeline entry and record the full checksum when a file is attached. Find the file and its short checksum in Timeline."
       ]
     },
     {

@@ -204,6 +204,14 @@ The same list is shown in the application under What's new.
 
   > Run python manage.py verify_stored_files --compare-manifest source-files.json on the isolated restore before upgrading it. The command exits with an error if file verification fails, the inventory is unreadable or incompatible, or the inventories differ. Use a version 1 inventory with the same file categories as the restored application.
 
+- **Changed:** Trace attachments from each nonconformance step after a restore (2026-11-26, Backup and restore)
+
+  Each new audit entry for opening a nonconformance, changing its status or reopening it identifies the timeline step and any file attached to it. After restoring a backup, deployers can use that entry to identify a missing or replaced attachment.
+
+  Technical notes:
+
+  > Run python manage.py verify_stored_files on the restored database. For opening and status entries recorded before this change, compare against the file inventory saved with the backup to detect a missing attachment.
+
 - **Changed:** Check restored reports against their release history (2026-11-25, Backup and restore)
 
   After restoring a backup, deployers can check that each issued report PDF and its frozen results match the original release or amendment event. The check also identifies an event whose issued version is missing.

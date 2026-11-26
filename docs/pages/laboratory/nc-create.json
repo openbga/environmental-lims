@@ -115,7 +115,7 @@
         },
         {
           "label": "Evidence file",
-          "description": "Optional supporting file stored on the opening timeline event."
+          "description": "Optional supporting file. After saving, find the first entry in Timeline and select the filename. The opening audit record identifies that entry and its file checksum, if attached."
         }
       ]
     },

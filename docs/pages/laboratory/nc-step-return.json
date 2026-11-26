@@ -59,7 +59,7 @@
     {
       "title": "Concurrent changes and history",
       "paragraphs": [
-        "Saving locks and rechecks the revision you opened. If another user changed the record, reload it, review the latest values and enter your change again. Failed validation writes no partial change. Successful changes and attributed audit events commit together."
+        "Saving locks and rechecks the revision you opened. If another user changed the record, reload it, review the latest values and enter your change again. Failed validation writes no partial change. The status change, timeline entry and attributed audit record save together. The audit record identifies the timeline entry that contains your reason. To add a supporting file, use Add note or evidence on the record."
       ]
     },
     {
