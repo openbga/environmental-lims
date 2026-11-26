@@ -44,6 +44,10 @@ from psycopg.pq import TransactionStatus
 
 from analytical.models import Batch, ImportSourceFile
 from commercial.models import InvoiceDraft, IssuedInvoice
+from core.management.commands._stored_file_manifest import (
+    inventory_differences,
+    load_manifest_categories,
+)
 from core.models import AuditEvent, LabLogo
 from laboratory.models import (
     Equipment,
@@ -878,6 +882,11 @@ class Command(BaseCommand):
             help="Summary format. Use manifest to compare verified files before and after restore.",
         )
         parser.add_argument(
+            "--compare-manifest",
+            metavar="PATH",
+            help="Check the restored files against a saved version 1 inventory (text output).",
+        )
+        parser.add_argument(
             "--snapshot",
             metavar="ID",
             help="Use a PostgreSQL snapshot whose exporting transaction is still open.",
@@ -886,12 +895,26 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         output_format = options["format"]
         snapshot = options["snapshot"]
+        reference_path = options["compare_manifest"]
+        saved = None
+        if reference_path is not None:
+            if output_format != "text":
+                raise CommandError("--compare-manifest requires --format text.")
+            saved = load_manifest_categories(reference_path)
+        scan_format = "manifest" if saved is not None else output_format
         if snapshot is None:
-            summary, total_checked, total_failures = self._scan(output_format)
+            summary, total_checked, total_failures = self._scan(scan_format)
         else:
-            summary, total_checked, total_failures = self._scan_snapshot(snapshot, output_format)
+            summary, total_checked, total_failures = self._scan_snapshot(snapshot, scan_format)
 
-        if output_format == "manifest":
+        if saved is not None:
+            if total_failures:
+                raise CommandError("Stored file verification failed before inventory comparison.")
+            differences = list(inventory_differences(saved, summary))
+            if differences:
+                raise CommandError("\n".join(["Stored file inventory differs.", *differences]))
+            self.stdout.write(f"Stored file inventory matches. Files checked: {total_checked}.")
+        elif output_format == "manifest":
             if not total_failures:
                 self.stdout.write(
                     json.dumps({"version": 1, "categories": summary}, indent=2, sort_keys=True)

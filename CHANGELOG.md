@@ -196,6 +196,14 @@ The same list is shown in the application under What's new.
 
   > Run python manage.py verify_stored_files against the restored database. The Issued invoice PDFs category identifies the invoice, draft or audit event to investigate. Valid inventories keep the same version 1 digest.
 
+- **Added:** Compare restored files with the backup inventory (2026-11-26, Backup and restore)
+
+  Deployers can check a restored database directly against the file inventory saved with its backup. The check names each category whose count changed or whose files differ at the same count.
+
+  Technical notes:
+
+  > Run python manage.py verify_stored_files --compare-manifest source-files.json on the isolated restore before upgrading it. The command exits with an error if file verification fails, the inventory is unreadable or incompatible, or the inventories differ. Use a version 1 inventory with the same file categories as the restored application.
+
 - **Changed:** Check restored reports against their release history (2026-11-25, Backup and restore)
 
   After restoring a backup, deployers can check that each issued report PDF and its frozen results match the original release or amendment event. The check also identifies an event whose issued version is missing.

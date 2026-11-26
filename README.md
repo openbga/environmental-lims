@@ -225,7 +225,8 @@ nonconformance notes, the check compares the attachment checksum, note ID, nonco
 and staff member with the audit entry made when the note was added.
 Add `--format json` to save a machine-readable summary. To detect a file and its record
 disappearing together, save a file inventory with `--format manifest` when you take the backup
-and compare it with one from the restored database. To keep accepting writes during a logical backup, give
+and pass it to `--compare-manifest source-files.json` on the restored database before upgrading.
+Use the application version that produced the inventory. A difference exits with an error. To keep accepting writes during a logical backup, give
 `pg_dump` and the source inventory command the same exported PostgreSQL snapshot.
 See [Taking a backup with a matching file inventory](docs/operations.md#take-a-backup-with-a-matching-file-inventory).
 
