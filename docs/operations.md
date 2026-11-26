@@ -198,9 +198,12 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
    Under `Nonconformance event evidence`, a note attachment needs one matching audit entry
    for the same note, nonconformance, staff member and file checksum. A surviving entry
    can identify a missing note or a note whose attachment fields are all empty. Use the
-   reported timeline or audit event ID to investigate. The audit entries for opening a nonconformance
-   or changing its status do not record an attachment checksum. For those files, compare the restored inventory
-   with the one saved at backup to detect the loss of an entire attachment.
+   reported timeline or audit event ID to investigate. For a file attached when staff open,
+   advance, return or reopen a nonconformance, new audit entries record the timeline ID and
+   file checksum alongside the status. The check uses that entry to identify a missing or
+   replaced attachment, including a file lost with its timeline entry. Earlier opening and
+   status entries lack these file references. Compare the restored inventory with the one
+   saved at backup to detect a missing file when no audit reference survives.
    An optional evidence attachment with only part of its file or metadata present also fails.
    To save just the counts as JSON, run `python manage.py verify_stored_files --format json > stored-file-counts.json`.
    Each category and the total give the number checked and the number of records with failures.

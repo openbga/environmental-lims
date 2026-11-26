@@ -222,7 +222,9 @@ For equipment and staff training attachments, it compares the filename and check
 original recording or correction event. A surviving audit entry can identify a missing file
 even when the restored database has also lost the equipment event or training record. For
 nonconformance notes, the check compares the attachment checksum, note ID, nonconformance
-and staff member with the audit entry made when the note was added.
+and staff member with the audit entry made when the note was added. New opening and status entries also
+identify any file attached to that step. For earlier attachments on those steps, use the
+file inventory saved with the backup.
 Add `--format json` to save a machine-readable summary. To detect a file and its record
 disappearing together, save a file inventory with `--format manifest` when you take the backup
 and pass it to `--compare-manifest source-files.json` on the restored database before upgrading.

@@ -57,6 +57,7 @@ from laboratory.models import (
     NonconformanceEvent,
     TrainingRecord,
 )
+from laboratory.nonconformance import STEP_FIELDS
 from receipt.models import Subcontract, SubcontractResult
 from reporting.content import fingerprint
 from reporting.models import EddExport, ReportVersion
@@ -596,7 +597,7 @@ def _check_training_evidence():
         yield AuditEvent._meta.label, pk, None, None, ["missing or invalid TrainingRecord target"]
 
 
-def _attachment_recordings(events, *fields):
+def _attachment_recordings(events, *fields, tie_break=()):
     rows = (
         events.alias(event_json=Cast(KeyTransform("event", "after"), TextField()))
         .annotate(
@@ -609,23 +610,21 @@ def _attachment_recordings(events, *fields):
                 )
             ),
         )
-        .order_by("target_id", "pk")
+        .order_by("target_id", F("attachment_recorded").desc(nulls_last=True), *tie_break, "pk")
         .values_list("target_id", "pk", "attachment_recorded", *fields, named=True)
     )
     for target, group in groupby(rows.iterator(), key=attrgetter("target_id")):
         if target is None:
             for audit in group:
                 if audit.attachment_recorded:
-                    yield target, None, audit.pk
+                    yield target, None, audit
             continue
-        # Count all recordings claiming the same ID, even with a mismatched parent
-        # or absent attachment fields. Keep only the first surviving marker.
-        audit = marked_pk = None
-        for index, entry in enumerate(group):
-            audit = entry if index == 0 else None
-            if marked_pk is None and entry.attachment_recorded:
-                marked_pk = entry.pk
-        yield target, audit, marked_pk
+        # A duplicate invalidates the match even if only one audit records a file.
+        first = audit = None
+        for entry in group:
+            audit = entry if first is None else None
+            first = first or entry
+        yield target, audit, first
 
 
 def _equipment_recordings():
@@ -689,17 +688,17 @@ def _pair_evidence_recordings(rows, audits):
         pending = next(audits, None)
         for row in rows.iterator():
             while pending and pending[0] is not None and pending[0] < row.pk:
-                if pending[2] is not None:
+                if pending[2].attachment_recorded:
                     yield None, None, pending[2]
                 pending = next(audits, None)
             if pending and pending[0] == row.pk:
-                _, audit, marked_pk = pending
+                _, audit, claim = pending
                 pending = next(audits, None)
-                yield row, audit, marked_pk
+                yield row, audit, claim
             else:
                 yield row, None, None
         while pending:
-            if pending[2] is not None:
+            if pending[2].attachment_recorded:
                 yield None, None, pending[2]
             pending = next(audits, None)
 
@@ -748,18 +747,18 @@ def _check_equipment_evidence():
         "evidence_metadata_present",
     )
     rows = rows.values_list(*fields, named=True)
-    for row, audit, marked_pk in _pair_evidence_recordings(rows, _equipment_recordings()):
+    for row, audit, claim in _pair_evidence_recordings(rows, _equipment_recordings()):
         if row is None:
             yield (
                 AuditEvent._meta.label,
-                marked_pk,
+                claim.pk,
                 None,
                 None,
                 ["missing or invalid EquipmentEvent target"],
             )
             continue
         if row.optional:
-            if marked_pk is not None:
+            if claim is not None and claim.attachment_recorded:
                 yield (
                     EquipmentEvent._meta.label,
                     row.pk,
@@ -774,22 +773,95 @@ def _check_equipment_evidence():
         yield EquipmentEvent._meta.label, row.pk, row.actual_size, row.actual_hash, problems
 
 
-def _nonconformance_note_recordings():
-    # The note action targets the parent and records the timeline ID and checksum in JSON.
+_NOTE_ACTION = "nonconformance.note_added"
+_REOPEN_STEP = (Nonconformance.Status.CLOSED, Nonconformance.Status.INVESTIGATING)
+_NONCONFORMANCE_RECORDING_KINDS = {
+    f"nonconformance.{target}": NonconformanceEvent.Kind.STATUS
+    for current, target in STEP_FIELDS
+    if (current, target) != _REOPEN_STEP
+} | {
+    "nonconformance.opened": NonconformanceEvent.Kind.OPENED,
+    "nonconformance.reopened": NonconformanceEvent.Kind.REOPENED,
+    _NOTE_ACTION: NonconformanceEvent.Kind.NOTE,
+}
+
+
+def _nonconformance_recordings():
+    # Older lifecycle audits had neither key. A surviving key is enough to check
+    # the recording, even if its companion field was lost or changed.
     events = (
-        AuditEvent.objects.filter(action="nonconformance.note_added")
+        AuditEvent.objects.filter(
+            Q(action=_NOTE_ACTION)
+            | (
+                (
+                    Q(action__startswith="nonconformance.")
+                    | Q(object_type=Nonconformance._meta.label_lower)
+                )
+                & (Q(after__has_key="event") | Q(after__has_key="evidence"))
+            )
+        )
         .alias(hash_json=Cast(KeyTransform("evidence", "after"), TextField()))
         .annotate(
-            attachment_recorded=Q(hash_json__regex=r'^".+"$'),
+            lifecycle=~Q(action=_NOTE_ACTION),
+            attachment_recorded=Case(
+                When(action=_NOTE_ACTION, then=Q(hash_json__regex=r'^".+"$')),
+                When(hash_json='""', then=Value(False)),
+                default=Value(True),
+            ),
             checksum=Case(
                 When(
                     hash_json__regex=r'^".*"$',
                     then=Substr(KeyTextTransform("evidence", "after"), 1, 65),
                 )
             ),
+            opening_before=Q(before={}),
+            before_status=Substr(Cast(KeyTransform("status", "before"), TextField()), 1, 17),
+            after_status=Substr(Cast(KeyTransform("status", "after"), TextField()), 1, 17),
         )
     )
-    return _attachment_recordings(events, "actor_id", "object_type", "object_id", "checksum")
+    return _attachment_recordings(
+        events,
+        "action",
+        "actor_id",
+        "object_type",
+        "object_id",
+        "checksum",
+        "lifecycle",
+        "opening_before",
+        "before_status",
+        "after_status",
+        tie_break=("-lifecycle",),
+    )
+
+
+def _matches_nonconformance_recording(row, audit):
+    if not (
+        audit is not None
+        and audit.object_type == Nonconformance._meta.label_lower
+        and audit.object_id == str(row.nonconformance_id)
+        and audit.actor_id == row.actor_id
+        and audit.checksum == row.recorded_hash
+    ):
+        return False
+    if not audit.lifecycle:
+        return True
+    if audit.after_status != f'"{row.to_status}"':
+        return False
+    if row.kind == NonconformanceEvent.Kind.OPENED:
+        return (
+            audit.opening_before
+            and not row.from_status
+            and row.to_status == Nonconformance.Status.OPEN
+        )
+    step = (row.from_status, row.to_status)
+    action = (
+        "nonconformance.reopened" if step == _REOPEN_STEP else f"nonconformance.{row.to_status}"
+    )
+    return (
+        step in STEP_FIELDS
+        and audit.action == action
+        and audit.before_status == f'"{row.from_status}"'
+    )
 
 
 def _check_nonconformance_evidence():
@@ -802,6 +874,8 @@ def _check_nonconformance_evidence():
             "nonconformance_id",
             "actor_id",
             "kind",
+            "from_status",
+            "to_status",
             "optional",
             "actual_size",
             "actual_hash",
@@ -812,32 +886,46 @@ def _check_nonconformance_evidence():
         )
     )
     label = NonconformanceEvent._meta.label
-    parent_type = Nonconformance._meta.label_lower
-    for row, audit, marked_pk in _pair_evidence_recordings(rows, _nonconformance_note_recordings()):
+    for row, audit, claim in _pair_evidence_recordings(rows, _nonconformance_recordings()):
         is_note = row is not None and row.kind == NonconformanceEvent.Kind.NOTE
-        if marked_pk is not None and not is_note:
+        has_file = row is not None and not row.optional
+        kind_matches = (
+            row is not None
+            and claim is not None
+            and (_NONCONFORMANCE_RECORDING_KINDS.get(claim.action) == row.kind)
+        )
+        # Keep an attached note's provenance failures on the note row, as before.
+        if (
+            claim is not None
+            and (claim.attachment_recorded or (claim.lifecycle and has_file))
+            and not kind_matches
+            and not (is_note and has_file)
+        ):
             yield (
                 AuditEvent._meta.label,
-                marked_pk,
+                claim.pk,
                 None,
                 None,
                 ["missing or invalid NonconformanceEvent target"],
             )
         if row is None:
             continue
+        subject = "note" if is_note else "lifecycle"
         if row.optional:
-            if is_note and marked_pk is not None:
-                yield label, row.pk, None, None, ["missing recorded nonconformance note evidence"]
+            if kind_matches and claim.attachment_recorded:
+                yield (
+                    label,
+                    row.pk,
+                    None,
+                    None,
+                    [f"missing recorded nonconformance {subject} evidence"],
+                )
             continue
         problems = _file_problems(row)
-        if is_note and not (
-            audit is not None
-            and audit.object_type == parent_type
-            and audit.object_id == str(row.nonconformance_id)
-            and audit.actor_id == row.actor_id
-            and audit.checksum == row.recorded_hash
+        if (is_note or kind_matches) and not (
+            kind_matches and _matches_nonconformance_recording(row, audit)
         ):
-            problems.append("missing, ambiguous, or mismatched nonconformance note event")
+            problems.append(f"missing, ambiguous, or mismatched nonconformance {subject} event")
         yield label, row.pk, row.actual_size, row.actual_hash, problems
 
 

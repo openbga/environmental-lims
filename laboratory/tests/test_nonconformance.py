@@ -1,4 +1,5 @@
 from datetime import timedelta
+from hashlib import sha256
 
 import pytest
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -39,7 +40,13 @@ def to_verification(people, nc):
 
 
 def test_full_flow_open_to_closed(people, lab_records):
-    nc = open_nc(people, lab_records, sample=lab_records["sample"])
+    pdf = b"%PDF-1.4 synthetic opening evidence"
+    nc = open_nc(
+        people,
+        lab_records,
+        sample=lab_records["sample"],
+        evidence=SimpleUploadedFile("opening.pdf", pdf),
+    )
     assert nc.status == "open" and nc.number.startswith("NC-")
     assert nc.events.get().kind == "opened"
     step(people, nc, "investigating", owner=people["analyst"], due_on=today() + timedelta(days=7))
@@ -50,9 +57,27 @@ def test_full_flow_open_to_closed(people, lab_records):
     )
     assert closed.status == "closed" and closed.closed_by == people["reviewer"]
     assert closed.closed_at is not None
-    kinds = list(nc.events.values_list("to_status", flat=True))
-    assert kinds == ["open", "investigating", "action", "verification", "closed"]
-    assert AuditEvent.objects.filter(object_type="laboratory.nonconformance").count() == 5
+    timeline = list(nc.events.all())
+    assert [event.to_status for event in timeline] == [
+        "open",
+        "investigating",
+        "action",
+        "verification",
+        "closed",
+    ]
+    audits = AuditEvent.objects.filter(
+        object_type="laboratory.nonconformance", object_id=str(nc.pk)
+    )
+    assert audits.count() == 5
+    for event in timeline:
+        opened = event.kind == NonconformanceEvent.Kind.OPENED
+        action = "nonconformance.opened" if opened else f"nonconformance.{event.to_status}"
+        audit = audits.get(action=action)
+        assert audit.after["evidence"] == (sha256(pdf).hexdigest() if opened else "")
+        assert audit.actor_id == event.actor_id
+        assert audit.after["event"] == event.pk
+        assert audit.before.get("status", "") == event.from_status
+        assert audit.after["status"] == event.to_status
 
 
 @pytest.mark.parametrize(
@@ -101,6 +126,9 @@ def test_closure_with_evidence_file(people, lab_records):
     step(people, nc, "closed", verification="Rerun passed", evidence=pdf)
     event = NonconformanceEvent.objects.with_evidence().filter(nonconformance=nc).last()
     assert event.evidence_name == "rerun.pdf" and event.kind == "status"
+    audit = AuditEvent.objects.get(action="nonconformance.closed", object_id=str(nc.pk))
+    assert audit.after["event"] == event.pk
+    assert audit.after["evidence"] == sha256(b"%PDF-1.4 synthetic").hexdigest()
 
 
 def test_return_to_action_and_reopen_need_reasons_and_keep_history(people, lab_records):
@@ -114,12 +142,24 @@ def test_return_to_action_and_reopen_need_reasons_and_keep_history(people, lab_r
     nc.refresh_from_db()
     with pytest.raises(ValidationError, match="reason"):
         step(people, nc, "investigating")
-    reopened = step(people, nc, "investigating", note="Blank high again in next batch")
+    pdf = b"%PDF-1.4 synthetic reopen evidence"
+    reopened = step(
+        people,
+        nc,
+        "investigating",
+        note="Blank high again in next batch",
+        evidence=SimpleUploadedFile("reopening.pdf", pdf),
+    )
     assert reopened.status == "investigating" and reopened.closed_at is None
     assert reopened.verification == "" and reopened.closure_note == ""
     assert nc.events.count() == count + 1
     last = nc.events.last()
     assert last.kind == "reopened" and last.changes["verification"][0] == "Rerun passed"
+    audit = AuditEvent.objects.get(action="nonconformance.reopened", object_id=str(nc.pk))
+    assert audit.after["event"] == last.pk
+    assert audit.after["evidence"] == sha256(pdf).hexdigest()
+    assert audit.before["status"] == "closed"
+    assert audit.after["status"] == "investigating"
     # Nothing was deleted: every earlier timeline entry is still there, in order.
     assert [e.to_status for e in nc.events.all()][-3:] == [
         "verification",

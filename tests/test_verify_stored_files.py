@@ -390,6 +390,47 @@ def nonconformance_note_factory(nonconformance_factory):
 
 
 @pytest.fixture
+def nonconformance_lifecycle_factory(nonconformance_factory):
+    def record(*attached_at):
+        def attachment(name):
+            return SimpleUploadedFile(EVIDENCE_NAME, PDF) if name in attached_at else None
+
+        parent = nonconformance_factory(evidence=attachment("opened"))
+        status = Nonconformance.Status
+        steps = (
+            ("investigating", status.INVESTIGATING, {"owner": parent.opened_by}),
+            (
+                "action",
+                status.ACTION,
+                {"root_cause": "Synthetic cause", "disposition": Nonconformance.Disposition.REPEAT},
+            ),
+            ("verification", status.VERIFICATION, {"corrective_action": "Synthetic action"}),
+            ("return_to_action", status.ACTION, {"note": "Synthetic reason for returning"}),
+            ("second_verification", status.VERIFICATION, {}),
+            (
+                "closed",
+                status.CLOSED,
+                {"verification": "Synthetic verification", "reference": "SYNTHETIC-RERUN"},
+            ),
+            ("reopened", status.INVESTIGATING, {"note": "Synthetic reason for reopening"}),
+        )
+        names = ["opened"]
+        for name, to_status, fields in steps:
+            parent = nonconformance.transition(
+                actor=parent.opened_by,
+                nc_id=parent.pk,
+                expected_revision=parent.revision,
+                to_status=to_status,
+                evidence=attachment(name),
+                **fields,
+            )
+            names.append(name)
+        return dict(zip(names, parent.events.all(), strict=True))
+
+    return record
+
+
+@pytest.fixture
 def equipment_event_factory(staff):
     recorder = staff("restore-equipment-recorder", "reviewer")
     performer = staff("restore-equipment-performer", "analyst")
@@ -737,6 +778,13 @@ def test_equipment_event_exposes_lost_evidence_once(equipment_event_factory, los
         object_id=event.object_id,
         after=after,
     )
+    AuditEvent.objects.create(
+        actor=event.actor,
+        action=event.action,
+        object_type=event.object_type,
+        object_id=event.object_id,
+        after={"event": record.pk},
+    )
     if loss == "cleared":
         EquipmentEvent.objects.filter(pk=record.pk).update(
             evidence_data=None,
@@ -978,8 +1026,33 @@ def _nonconformance_note_history_problem(note):
     )
 
 
-def _nonconformance_note_target_problem(event):
+def _nonconformance_audit_target_problem(event):
     return f"core.AuditEvent pk={event.pk}: missing or invalid NonconformanceEvent target"
+
+
+def _nonconformance_lifecycle_audit(row):
+    return AuditEvent.objects.get(
+        object_type=Nonconformance._meta.label_lower,
+        object_id=str(row.nonconformance_id),
+        after__event=row.pk,
+    )
+
+
+def _nonconformance_lifecycle_problem(row):
+    return (
+        f"laboratory.NonconformanceEvent pk={row.pk}: "
+        "missing, ambiguous, or mismatched nonconformance lifecycle event"
+    )
+
+
+def _simulate_legacy_nonconformance_audits(*rows):
+    with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+        for row in rows:
+            audit = _nonconformance_lifecycle_audit(row)
+            after = {
+                key: value for key, value in audit.after.items() if key not in {"event", "evidence"}
+            }
+            AuditEvent.objects.filter(pk=audit.pk).update(after=after)
 
 
 def test_nonconformance_evidence_preserves_legacy_manifest(
@@ -1010,6 +1083,179 @@ def test_nonconformance_evidence_preserves_legacy_manifest(
         "count": 3,
         "sha256": sha256(rows.encode("ascii")).hexdigest(),
     }
+    _simulate_legacy_nonconformance_audits(opened, status)
+    assert json.loads(_verification_output(*MANIFEST_FORMAT)) == manifest
+
+
+def test_nonconformance_lifecycle_evidence_matches_historical_states(
+    nonconformance_lifecycle_factory,
+):
+    attached_at = ("opened", "action", "verification", "return_to_action", "closed", "reopened")
+    timeline = nonconformance_lifecycle_factory(*attached_at)
+
+    digest = sha256(PDF).hexdigest()
+    rows = "".join(
+        f'["laboratory.NonconformanceEvent","{timeline[name].pk}",{len(PDF)},"{digest}"]\n'
+        for name in attached_at
+    )
+    manifest = json.loads(_verification_output(*MANIFEST_FORMAT))
+    assert manifest["categories"]["Nonconformance event evidence"] == {
+        "count": len(attached_at),
+        "sha256": sha256(rows.encode("ascii")).hexdigest(),
+    }
+
+
+def test_nonconformance_legacy_reopening_attachment_still_checks_bytes(
+    nonconformance_lifecycle_factory,
+):
+    reopened = nonconformance_lifecycle_factory("reopened")["reopened"]
+    _simulate_legacy_nonconformance_audits(reopened)
+    counts = json.loads(_verification_output("--format", "json"))
+    assert counts["Nonconformance event evidence"] == {"checked": 1, "failures": 0}
+
+    NonconformanceEvent.objects.filter(pk=reopened.pk).update(evidence_data=PDF[:-1] + b"x")
+    _assert_nonconformance_evidence_failure(
+        f"laboratory.NonconformanceEvent pk={reopened.pk}: SHA-256 mismatch"
+    )
+
+
+def test_nonconformance_lifecycle_without_attachment_adds_no_inventory_rows(
+    nonconformance_lifecycle_factory,
+):
+    timeline = nonconformance_lifecycle_factory()
+    timeline["opened"].delete()
+    counts = json.loads(_verification_output("--format", "json"))
+    assert counts["Nonconformance event evidence"] == {"checked": 0, "failures": 0}
+
+    row = timeline["closed"]
+    NonconformanceEvent.objects.filter(pk=row.pk).update(
+        evidence_data=PDF,
+        evidence_name=EVIDENCE_NAME,
+        evidence_content_type="application/pdf",
+        evidence_size=len(PDF),
+        evidence_sha256=sha256(PDF).hexdigest(),
+    )
+    _assert_nonconformance_evidence_failure(_nonconformance_lifecycle_problem(row))
+
+
+@pytest.mark.parametrize("name", ["opened", "action", "reopened"])
+@pytest.mark.parametrize("loss", ["cleared", "deleted", "replaced"])
+def test_nonconformance_lifecycle_audit_exposes_lost_evidence(
+    nonconformance_lifecycle_factory, name, loss
+):
+    row = nonconformance_lifecycle_factory(name)[name]
+    audit = _nonconformance_lifecycle_audit(row)
+    rows = NonconformanceEvent.objects.filter(pk=row.pk)
+    if loss == "cleared":
+        rows.update(
+            evidence_data=None,
+            evidence_name="",
+            evidence_content_type="",
+            evidence_sha256="",
+            evidence_size=None,
+        )
+        problem = (
+            f"laboratory.NonconformanceEvent pk={row.pk}: "
+            "missing recorded nonconformance lifecycle evidence"
+        )
+    elif loss == "deleted":
+        rows.delete()
+        problem = _nonconformance_audit_target_problem(audit)
+    else:
+        replacement = PDF + b" synthetic replacement"
+        rows.update(
+            evidence_data=replacement,
+            evidence_size=len(replacement),
+            evidence_sha256=sha256(replacement).hexdigest(),
+        )
+        problem = _nonconformance_lifecycle_problem(row)
+
+    _assert_nonconformance_evidence_failure(problem)
+    _assert_nonconformance_evidence_failure(problem, output_format=MANIFEST_FORMAT)
+
+
+@pytest.mark.parametrize(
+    "defect",
+    [
+        "parent",
+        "type",
+        "actor",
+        "action",
+        "from-status",
+        "to-status",
+        "checksum",
+        "missing-checksum",
+    ],
+)
+def test_nonconformance_lifecycle_evidence_requires_matching_audit(
+    nonconformance_factory, nonconformance_lifecycle_factory, staff, defect
+):
+    row = nonconformance_lifecycle_factory("action")["action"]
+    audit = _nonconformance_lifecycle_audit(row)
+    changes = {
+        "type": {"object_type": NonconformanceEvent._meta.label_lower},
+        "action": {"action": "nonconformance.verification"},
+        "from-status": {"before": audit.before | {"status": Nonconformance.Status.OPEN}},
+        "to-status": {"after": audit.after | {"status": Nonconformance.Status.VERIFICATION}},
+        "checksum": {"after": audit.after | {"evidence": [row.evidence_sha256]}},
+        "missing-checksum": {
+            "after": {key: value for key, value in audit.after.items() if key != "evidence"}
+        },
+    }
+    if defect == "parent":
+        changes["parent"] = {"object_id": str(nonconformance_factory().pk)}
+    if defect == "actor":
+        changes["actor"] = {"actor": staff("restore-other-lifecycle-recorder", "analyst")}
+    with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+        AuditEvent.objects.filter(pk=audit.pk).update(**changes[defect])
+
+    _assert_nonconformance_evidence_failure(_nonconformance_lifecycle_problem(row))
+
+
+def test_nonconformance_lifecycle_evidence_requires_one_audit(nonconformance_lifecycle_factory):
+    row = nonconformance_lifecycle_factory("action")["action"]
+    audit = _nonconformance_lifecycle_audit(row)
+    AuditEvent.objects.create(
+        action=audit.action,
+        actor=audit.actor,
+        object_type=audit.object_type,
+        object_id=audit.object_id,
+        before=audit.before,
+        after=audit.after | {"evidence": ""},
+    )
+
+    _assert_nonconformance_evidence_failure(_nonconformance_lifecycle_problem(row))
+
+
+@pytest.mark.parametrize("defect", ["missing-id", "string-id", "wrong-kind"])
+def test_nonconformance_lifecycle_evidence_rejects_invalid_target(
+    nonconformance_lifecycle_factory, defect
+):
+    reopened = nonconformance_lifecycle_factory("reopened")["reopened"]
+    audit = _nonconformance_lifecycle_audit(reopened)
+    if defect == "wrong-kind":
+        NonconformanceEvent.objects.filter(pk=reopened.pk).update(
+            kind=NonconformanceEvent.Kind.STATUS
+        )
+    else:
+        after = audit.after.copy()
+        if defect == "missing-id":
+            del after["event"]
+        else:
+            after["event"] = str(reopened.pk)
+        with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+            AuditEvent.objects.filter(pk=audit.pk).update(after=after)
+
+    _assert_nonconformance_evidence_failure(_nonconformance_audit_target_problem(audit), checked=2)
+
+
+def test_nonconformance_lifecycle_evidence_rejects_unknown_action(nonconformance_lifecycle_factory):
+    row = nonconformance_lifecycle_factory("action")["action"]
+    audit = _nonconformance_lifecycle_audit(row)
+    with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+        AuditEvent.objects.filter(pk=audit.pk).update(action="synthetic.unrecognized")
+
+    _assert_nonconformance_evidence_failure(_nonconformance_audit_target_problem(audit), checked=2)
 
 
 def test_nonconformance_note_evidence_rejects_rehashed_replacement(nonconformance_note_factory):
@@ -1081,7 +1327,7 @@ def test_nonconformance_note_evidence_rejects_invalid_event_ids(
         AuditEvent.objects.filter(pk=event.pk).update(after=event.after)
 
     _assert_nonconformance_evidence_failure(
-        _nonconformance_note_history_problem(note), _nonconformance_note_target_problem(event)
+        _nonconformance_note_history_problem(note), _nonconformance_audit_target_problem(event)
     )
 
 
@@ -1113,7 +1359,7 @@ def test_nonconformance_note_event_exposes_lost_evidence(nonconformance_note_fac
             "missing recorded nonconformance note evidence"
         )
     else:
-        problem = _nonconformance_note_target_problem(event)
+        problem = _nonconformance_audit_target_problem(event)
         if loss == "deleted":
             note.delete()
         else:
