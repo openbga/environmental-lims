@@ -132,6 +132,8 @@ def check_history_receipt(path):
         "Stored report PDFs",
         "Result worksheets",
         "Worksheet readings",
+        "Open result revisions",
+        "Approved result revisions",
     )
     checked = json.loads(path.read_text(encoding="utf-8"))
     if (
@@ -257,9 +259,11 @@ def render_notes(
         lines.extend(
             [
                 "After restore and again after migration, PostgreSQL rejected an update and a",
-                "deletion on each of six baseline records. The checks covered an audit event,",
+                "deletion on each of eight baseline records. The checks covered an audit event,",
                 "a custody event, an issued report version, a stored report PDF,",
-                "a result worksheet and one of its original readings.",
+                "a result worksheet and one of its original readings. PostgreSQL also protected",
+                "the observation text on an open result revision and the review note on an",
+                "approved result revision. It rejected deletion of both revisions.",
             ]
         )
     if verified_counts and "electronic deliverable exports" in verified_counts:

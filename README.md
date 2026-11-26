@@ -187,7 +187,9 @@ into an empty PostgreSQL database. It checks laboratory history and downloads on
 restored copy before and after applying the candidate migrations. At both stages, PostgreSQL must
 reject updates and deletions on a baseline audit event, custody event, issued report version
 and stored report PDF. It must also reject changes and deletions on a result worksheet and
-one of the original readings used in its calculation. Receipt checks cover
+one of the original readings used in its calculation. The rehearsal checks two result revisions:
+PostgreSQL must reject a change to the observation text on an open revision, a change to the
+review note on an approved revision, and deletion of either revision. Receipt checks cover
 orders, samples and containers, including the history of a corrected sample ID and a custody
 transfer. For quality control (QC),
 the rehearsal checks that a failed observation, its corrective action and the corrected

@@ -19,7 +19,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import content_disposition_header
 from psycopg import sql
-from psycopg.errors import RaiseException
+from psycopg.errors import CheckViolation, RaiseException
 from weasyprint import HTML
 
 from accounts.models import User
@@ -529,8 +529,49 @@ def collections(draft):
     }
 
 
+def verify_history_row(
+    label,
+    target,
+    model,
+    change,
+    *,
+    error_type=RaiseException,
+    update_error=HISTORY_MUTATION_ERROR,
+    delete_error=HISTORY_MUTATION_ERROR,
+):
+    table = sql.Identifier(model._meta.db_table)
+    pk = sql.Identifier(model._meta.pk.column)
+    update = sql.SQL("UPDATE {} SET {} WHERE {} = %s").format(table, sql.SQL(change), pk)
+    delete = sql.SQL("DELETE FROM {} WHERE {} = %s").format(table, pk)
+    for operation, statement, message in (
+        ("UPDATE", update, update_error),
+        ("DELETE", delete, delete_error),
+    ):
+        probe = f"History protection failed for {label} row {target} ({operation})"
+        try:
+            with transaction.atomic(), connection.cursor() as cursor:
+                cursor.execute(statement, [target])
+                affected = cursor.rowcount
+                # Roll back a statement that succeeds because the protection is missing.
+                transaction.set_rollback(True)
+        except DatabaseError as exc:
+            # The atomic block has rolled back to a usable connection. Require the
+            # expected trigger rejection, including its error type and exact message.
+            cause = exc.__cause__
+            if not isinstance(cause, error_type) or cause.diag.message_primary != message:
+                sqlstate = getattr(cause, "sqlstate", None) or "unknown"
+                raise SystemExit(
+                    f"{probe}: unexpected database error (SQLSTATE {sqlstate}). "
+                    f"Expected '{message}'."
+                ) from None
+        else:
+            raise SystemExit(
+                f"{probe}: statement completed (row count {affected}). Expected '{message}'."
+            )
+
+
 def verify_history_protections(manifest):
-    """Probe one preserved row per table. The caller has already verified every baseline ID."""
+    """Probe preserved rows. The caller has already verified every baseline ID."""
     worksheet_reading = (
         WorksheetReading.objects.filter(
             pk__in=manifest["worksheet readings"]["rows"],
@@ -542,7 +583,16 @@ def verify_history_protections(manifest):
     )
     require(worksheet_reading is not None, "The baseline needs a worksheet with a linked reading.")
     worksheet_id, reading_id = worksheet_reading
+    revisions = ResultRevision.objects.filter(pk__in=manifest["result revisions"]["rows"])
+    revision_ids = revisions.order_by("pk").values_list("pk", flat=True)
+    open_id = revision_ids.filter(
+        status__in=(ResultRevision.Status.DRAFT, ResultRevision.Status.SUBMITTED)
+    ).first()
+    approved_id = revision_ids.filter(status=ResultRevision.Status.APPROVED).first()
+    require(open_id is not None, "The baseline needs a draft or submitted result revision.")
+    require(approved_id is not None, "The baseline needs an approved result revision.")
     append_to_reason = "reason = reason || ' [upgrade rehearsal probe]'"
+    change_supplied_text = "supplied_text = CASE supplied_text WHEN '1' THEN '2' ELSE '1' END"
     verified = []
     for label, target, model, change in (
         ("Audit events", min(manifest["audit events"]["rows"]), AuditEvent, append_to_reason),
@@ -569,39 +619,34 @@ def verify_history_protections(manifest):
             "Worksheet readings",
             reading_id,
             WorksheetReading,
-            "supplied_text = CASE supplied_text WHEN '1' THEN '2' ELSE '1' END",
+            change_supplied_text,
         ),
     ):
-        table = sql.Identifier(model._meta.db_table)
-        pk = sql.Identifier(model._meta.pk.column)
-        update = sql.SQL("UPDATE {} SET {} WHERE {} = %s").format(table, sql.SQL(change), pk)
-        delete = sql.SQL("DELETE FROM {} WHERE {} = %s").format(table, pk)
-        for operation, statement in (("UPDATE", update), ("DELETE", delete)):
-            probe = f"History protection failed for {label} row {target} ({operation})"
-            try:
-                with transaction.atomic(), connection.cursor() as cursor:
-                    cursor.execute(statement, [target])
-                    affected = cursor.rowcount
-                    # Roll back a statement that succeeds because the protection is missing.
-                    transaction.set_rollback(True)
-            except DatabaseError as exc:
-                # The atomic block has rolled back to a usable connection. Only the
-                # rejection from prevent_record_mutation() counts as a passing probe.
-                cause = exc.__cause__
-                if (
-                    not isinstance(cause, RaiseException)
-                    or cause.diag.message_primary != HISTORY_MUTATION_ERROR
-                ):
-                    sqlstate = getattr(cause, "sqlstate", None) or "unknown"
-                    raise SystemExit(
-                        f"{probe}: unexpected database error (SQLSTATE {sqlstate}). "
-                        f"Expected '{HISTORY_MUTATION_ERROR}'."
-                    ) from None
-            else:
-                raise SystemExit(
-                    f"{probe}: statement completed (row count {affected}). "
-                    f"Expected '{HISTORY_MUTATION_ERROR}'."
-                )
+        verify_history_row(label, target, model, change)
+        verified.append(label)
+    for label, target, change, update_error in (
+        (
+            "Open result revisions",
+            open_id,
+            change_supplied_text,
+            "Result observations cannot be changed",
+        ),
+        (
+            "Approved result revisions",
+            approved_id,
+            "review_note = review_note || ' [upgrade rehearsal probe]'",
+            "Reviewed result revisions cannot be changed",
+        ),
+    ):
+        verify_history_row(
+            label,
+            target,
+            ResultRevision,
+            change,
+            error_type=CheckViolation,
+            update_error=update_error,
+            delete_error="Result revisions cannot be deleted",
+        )
         verified.append(label)
     return verified
 
@@ -998,7 +1043,7 @@ def main():
         if history_path:
             with Path(history_path).open("x", encoding="utf-8") as out:
                 json.dump(verified_history, out)
-            print("PostgreSQL rejected both UPDATE and DELETE for each protected history table.")
+            print("PostgreSQL rejected both UPDATE and DELETE for each protected history category.")
         print("Verified the recorded baseline data and downloads.")
 
 

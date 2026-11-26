@@ -374,7 +374,9 @@ A separate table lists the files the candidate checked on the migrated copy with
 The published report confirms that PostgreSQL rejected updates and deletions on a baseline
 audit event, custody event, issued report version and stored report PDF at both stages.
 It also confirms that a result worksheet and one of the readings used in its calculation
-each rejected an edit and a deletion.
+each rejected an edit and a deletion. For an open result revision it checks that the original
+observation text cannot be changed. For an approved revision it checks that the review note
+cannot be changed. Deletion of either revision must also fail.
 The rehearsal runs those checks only on its disposable restored copy.
 The synthetic source database stays at its original schema throughout.
 Orders, samples and containers have separate counts. The receipt check follows the original

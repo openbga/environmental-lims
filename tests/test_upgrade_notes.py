@@ -293,6 +293,8 @@ def test_reports_history_protections_only_with_complete_evidence_at_both_stages(
         "Issued report versions",
         "Result worksheets",
         "Worksheet readings",
+        "Open result revisions",
+        "Approved result revisions",
     ]
     restored = tmp_path / "restored.json"
     upgraded = tmp_path / "upgraded.json"
@@ -311,8 +313,15 @@ def test_reports_history_protections_only_with_complete_evidence_at_both_stages(
     assert result.returncode == 0, result.stderr
     assert "After restore and again after migration, PostgreSQL rejected an update" in result.stdout
     assert "a result worksheet and one of its original readings" in result.stdout
+    assert "the observation text on an open result revision" in result.stdout
+    assert "It rejected deletion of both revisions." in result.stdout
     for path in (restored, upgraded):
-        for incomplete in (categories[:-2], [*categories[:-1], categories[0]]):
+        for incomplete in (
+            categories[:-2],
+            categories[:-1],
+            [*categories[:-2], categories[-1]],
+            [*categories[:-1], categories[0]],
+        ):
             path.write_text(json.dumps(incomplete), encoding="utf-8")
             result = notes()
             assert result.returncode != 0

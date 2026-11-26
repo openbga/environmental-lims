@@ -16,6 +16,7 @@ from analytical.models import (
     QCMeasurement,
     QCSample,
     ResultKind,
+    ResultRevision,
     ResultWorksheet,
     WorksheetReading,
 )
@@ -208,6 +209,13 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
             (WorksheetReading, "worksheet readings"),
         )
     }
+    baseline_revisions = ResultRevision.objects.order_by("pk")
+    open_revision = baseline_revisions.filter(
+        status__in=(ResultRevision.Status.DRAFT, ResultRevision.Status.SUBMITTED)
+    ).first()
+    approved_revision = baseline_revisions.filter(status=ResultRevision.Status.APPROVED).first()
+    assert open_revision is not None and approved_revision is not None
+    revision_table = ResultRevision._meta.db_table
     probes = []
 
     def observe_probe(execute, statement, params, many, context):
@@ -215,7 +223,7 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
             words = statement.as_string().split()
             if words[0] in {"UPDATE", "DELETE"}:
                 table = words[1 if words[0] == "UPDATE" else 2].strip('"')
-                if table in history_tables:
+                if table in history_tables or table == revision_table:
                     probes.append((table, words[0], str(params[0])))
         return execute(statement, params, many, context)
 
@@ -243,10 +251,18 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
             kind=ResultKind.DETECTED,
             value=Decimal("1.000"),
         )
+        for pk, original_revision in ((-1, open_revision), (-2, approved_revision)):
+            candidate = {
+                field.attname: getattr(original_revision, field.attname)
+                for field in ResultRevision._meta.concrete_fields
+                if not field.primary_key
+            }
+            candidate.update(number=100 - pk, correction_reason="Synthetic candidate-only revision")
+            ResultRevision.objects.create(pk=pk, **candidate)
         with connection.execute_wrapper(observe_probe):
             run("verify")
         transaction.set_rollback(True)
-    assert len(probes) == 12
+    assert len(probes) == 16
     targets = {}
     for table, baseline_ids in history_tables.items():
         update, delete = [(action, pk) for name, action, pk in probes if name == table]
@@ -255,6 +271,15 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
         targets[table] = update[1]
     worksheet = ResultWorksheet.objects.get(pk=targets[ResultWorksheet._meta.db_table])
     reading = worksheet.readings.get(pk=targets[WorksheetReading._meta.db_table])
+    assert [(action, pk) for table, action, pk in probes if table == revision_table] == [
+        (action, str(record.pk))
+        for record in (open_revision, approved_revision)
+        for action in ("UPDATE", "DELETE")
+    ]
+    assert all(
+        str(record.pk) in manifest["result revisions"]["rows"]
+        for record in (open_revision, approved_revision)
+    )
     assert json.loads(history_path.read_text(encoding="utf-8")) == [
         "Audit events",
         "Custody events",
@@ -262,6 +287,8 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
         "Stored report PDFs",
         "Result worksheets",
         "Worksheet readings",
+        "Open result revisions",
+        "Approved result revisions",
     ]
     assert edd_responses == [
         (export.version.report.project.client_id, 200),
@@ -369,6 +396,75 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
             record.refresh_from_db()
             assert getattr(record, column) == original_value
             transaction.set_rollback(True)
+
+    check_history = prepared["verify_history_protections"]
+    revision_checks = (
+        (open_revision, "Open result revisions", "supplied_text"),
+        (approved_revision, "Approved result revisions", "review_note"),
+    )
+    for record, label, column in revision_checks:
+        table = sql.Identifier(revision_table)
+        field = sql.Identifier(column)
+        target = sql.Literal(record.pk)
+        original_value = getattr(record, column)
+        with transaction.atomic(), connection.cursor() as cursor:
+            cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
+            cursor.execute(
+                "ALTER TABLE analytical_resultrevision DISABLE TRIGGER result_revision_immutable"
+            )
+            cursor.execute(
+                sql.SQL(
+                    "CREATE TRIGGER rehearsal_other_revisions BEFORE UPDATE OR DELETE ON {} "
+                    "FOR EACH ROW WHEN (OLD.id <> {}) EXECUTE FUNCTION protect_result_revision()"
+                ).format(table, target)
+            )
+            with pytest.raises(SystemExit, match=rf"{label} .* \(UPDATE\).*row count 1"):
+                run("verify")
+            record.refresh_from_db()
+            assert getattr(record, column) == original_value
+
+            # This preserves only the update guard and fires only for a changed value.
+            cursor.execute(
+                sql.SQL(
+                    "CREATE TRIGGER rehearsal_update_only BEFORE UPDATE OF {field} ON {table} "
+                    "FOR EACH ROW WHEN (OLD.id = {target} AND OLD.{field} IS DISTINCT FROM "
+                    "NEW.{field}) EXECUTE FUNCTION protect_result_revision()"
+                ).format(table=table, target=target, field=field)
+            )
+            with pytest.raises(SystemExit, match=rf"{label} .* \(DELETE\).*row count 1"):
+                check_history(manifest)
+            record.refresh_from_db()
+            assert getattr(record, column) == original_value
+            transaction.set_rollback(True)
+
+    # Both the SQLSTATE and the exact primary message must identify the observation guard.
+    with transaction.atomic(), connection.cursor() as cursor:
+        cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
+        cursor.execute(
+            "ALTER TABLE analytical_resultrevision DISABLE TRIGGER result_revision_immutable"
+        )
+        cursor.execute(
+            "CREATE FUNCTION pg_temp.rehearsal_reject() RETURNS trigger LANGUAGE plpgsql AS $$ "
+            "BEGIN RAISE EXCEPTION USING ERRCODE = TG_ARGV[0], MESSAGE = TG_ARGV[1]; END; $$"
+        )
+        for sqlstate, message in (
+            ("23514", "Synthetic unrelated check violation"),
+            ("P0001", "Result observations cannot be changed"),
+        ):
+            cursor.execute(
+                sql.SQL(
+                    "CREATE TRIGGER rehearsal_wrong_rejection BEFORE UPDATE "
+                    "ON analytical_resultrevision FOR EACH ROW "
+                    "EXECUTE FUNCTION pg_temp.rehearsal_reject({}, {})"
+                ).format(sql.Literal(sqlstate), sql.Literal(message))
+            )
+            with pytest.raises(
+                SystemExit,
+                match=rf"Open result revisions .* \(UPDATE\).*SQLSTATE {sqlstate}",
+            ):
+                check_history(manifest)
+            cursor.execute("DROP TRIGGER rehearsal_wrong_rejection ON analytical_resultrevision")
+        transaction.set_rollback(True)
     assert not failed_history_path.exists()
     assert not failed_counts_path.exists()
 
