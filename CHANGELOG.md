@@ -220,6 +220,14 @@ The same list is shown in the application under What's new.
 
   > Run python manage.py verify_stored_files on the restored database. For opening and status entries recorded before this change, compare against the file inventory saved with the backup to detect a missing attachment.
 
+- **Changed:** Verify result revision history after a restore (2026-11-26, Installation and upgrades)
+
+  The upgrade report now confirms that PostgreSQL protected the observation text on an open result revision and the review note on an approved revision. It also confirms that both revisions rejected deletion after restore and again after migration.
+
+  Technical notes:
+
+  > The rehearsal checks revisions from the backed-up synthetic installation. Both stages run on the disposable restored database.
+
 - **Changed:** Check restored reports against their release history (2026-11-25, Backup and restore)
 
   After restoring a backup, deployers can check that each issued report PDF and its frozen results match the original release or amendment event. The check also identifies an event whose issued version is missing.

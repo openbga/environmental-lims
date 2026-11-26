@@ -151,7 +151,9 @@ application job publishes upgrade notes in the workflow run summary after preser
 download checks pass. On the disposable restored copy, the rehearsal also attempts to update
 and delete an audit event, a custody event, an issued report version, a
 stored report PDF, a result worksheet and one of that worksheet’s readings.
-Each attempt must raise the history protection error before and after migration. The same Markdown file is available as an artifact named
+It attempts to change the observation text on a draft or submitted result revision, change
+the review note on an approved revision, and delete each revision. Each attempt must raise
+the PostgreSQL history error for that operation before and after migration. The same Markdown file is available as an artifact named
 `upgrade-rehearsal-<attempt>`. It lists baseline record counts for both stages. A separate table shows the number of files
 checked in each category on the migrated copy, including zero counts.
 The notes identify both checkout commits, the candidate’s forward migration
