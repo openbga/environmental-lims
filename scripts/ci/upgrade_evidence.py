@@ -531,25 +531,47 @@ def collections(draft):
 
 def verify_history_protections(manifest):
     """Probe one preserved row per table. The caller has already verified every baseline ID."""
+    worksheet_reading = (
+        WorksheetReading.objects.filter(
+            pk__in=manifest["worksheet readings"]["rows"],
+            worksheet_id__in=manifest["result worksheets"]["rows"],
+        )
+        .order_by("worksheet_id", "pk")
+        .values_list("worksheet_id", "pk")
+        .first()
+    )
+    require(worksheet_reading is not None, "The baseline needs a worksheet with a linked reading.")
+    worksheet_id, reading_id = worksheet_reading
     append_to_reason = "reason = reason || ' [upgrade rehearsal probe]'"
     verified = []
-    for label, collection, model, change in (
-        ("Audit events", "audit events", AuditEvent, append_to_reason),
-        ("Custody events", "custody events", CustodyEvent, append_to_reason),
+    for label, target, model, change in (
+        ("Audit events", min(manifest["audit events"]["rows"]), AuditEvent, append_to_reason),
+        ("Custody events", min(manifest["custody events"]["rows"]), CustodyEvent, append_to_reason),
         (
             "Issued report versions",
-            "issued report versions",
+            min(manifest["issued report versions"]["rows"]),
             ReportVersion,
             "released_at = released_at + interval '1 second'",
         ),
         (
             "Stored report PDFs",
-            "issued report files",
+            min(manifest["issued report files"]["rows"]),
             ReportFile,
             "pdf = pdf || decode('00', 'hex')",
         ),
+        (
+            "Result worksheets",
+            worksheet_id,
+            ResultWorksheet,
+            "formula = formula || ' [upgrade rehearsal probe]'",
+        ),
+        (
+            "Worksheet readings",
+            reading_id,
+            WorksheetReading,
+            "supplied_text = CASE supplied_text WHEN '1' THEN '2' ELSE '1' END",
+        ),
     ):
-        target = min(manifest[collection]["rows"])
         table = sql.Identifier(model._meta.db_table)
         pk = sql.Identifier(model._meta.pk.column)
         update = sql.SQL("UPDATE {} SET {} WHERE {} = %s").format(table, sql.SQL(change), pk)

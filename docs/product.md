@@ -140,7 +140,9 @@ and nonconformance event attachments must retain their contents, metadata and re
 At both stages a staff reviewer must receive the original files and a signed-in client must
 be refused access. At each stage PostgreSQL must
 also reject updates and deletions on a baseline audit event, custody event, issued report
-version and stored report PDF. The rehearsal tests these protections on the disposable copy.
+version and stored report PDF. A result worksheet and one of its original readings must also
+retain their database protections against edits and deletion. The rehearsal tests these
+protections on the disposable copy.
 
 Since 2026-11-19, the successful rehearsal provides upgrade notes for
 the two commits it tested. Deployers can inspect the migrations, changes to locked package

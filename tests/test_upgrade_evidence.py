@@ -1,5 +1,6 @@
 import json
 import runpy
+from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
 
@@ -10,7 +11,14 @@ from django.test import Client
 from django.urls import reverse
 from psycopg import sql
 
-from analytical.models import QCCorrectiveAction, QCMeasurement, QCSample
+from analytical.models import (
+    QCCorrectiveAction,
+    QCMeasurement,
+    QCSample,
+    ResultKind,
+    ResultWorksheet,
+    WorksheetReading,
+)
 from core.models import AuditEvent, LabLogo
 from laboratory.models import (
     Equipment,
@@ -196,6 +204,8 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
             (CustodyEvent, "custody events"),
             (ReportVersion, "issued report versions"),
             (ReportFile, "issued report files"),
+            (ResultWorksheet, "result worksheets"),
+            (WorksheetReading, "worksheet readings"),
         )
     }
     probes = []
@@ -222,19 +232,36 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
         AuditEvent.objects.create(
             pk=UUID(int=0), actor=receipt.actor, action="synthetic.candidate_event"
         )
+        WorksheetReading.objects.create(
+            pk=0,
+            worksheet=ResultWorksheet.objects.order_by("pk").first(),
+            position=100,
+            key="candidate-only",
+            label="Synthetic candidate reading",
+            unit="g",
+            supplied_text="1.000",
+            kind=ResultKind.DETECTED,
+            value=Decimal("1.000"),
+        )
         with connection.execute_wrapper(observe_probe):
             run("verify")
         transaction.set_rollback(True)
-    assert len(probes) == 8
+    assert len(probes) == 12
+    targets = {}
     for table, baseline_ids in history_tables.items():
         update, delete = [(action, pk) for name, action, pk in probes if name == table]
         assert (update[0], delete[0]) == ("UPDATE", "DELETE")
         assert update[1] == delete[1] and update[1] in baseline_ids
+        targets[table] = update[1]
+    worksheet = ResultWorksheet.objects.get(pk=targets[ResultWorksheet._meta.db_table])
+    reading = worksheet.readings.get(pk=targets[WorksheetReading._meta.db_table])
     assert json.loads(history_path.read_text(encoding="utf-8")) == [
         "Audit events",
         "Custody events",
         "Issued report versions",
         "Stored report PDFs",
+        "Result worksheets",
+        "Worksheet readings",
     ]
     assert edd_responses == [
         (export.version.report.project.client_id, 200),
@@ -299,6 +326,49 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
         version_pk = min(manifest["issued report versions"]["rows"])
         assert ReportVersion.objects.filter(pk=version_pk).exists()
         transaction.set_rollback(True)
+
+    for record, label, guard, column, delete_failure in (
+        (
+            worksheet,
+            "Result worksheets",
+            "result_worksheet_immutable",
+            "formula",
+            "SQLSTATE 23503",
+        ),
+        (
+            reading,
+            "Worksheet readings",
+            "worksheet_reading_immutable",
+            "supplied_text",
+            "row count 1",
+        ),
+    ):
+        table = sql.Identifier(record._meta.db_table)
+        field = sql.Identifier(column)
+        original_value = getattr(record, column)
+        with transaction.atomic(), connection.cursor() as cursor:
+            cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
+            cursor.execute(
+                sql.SQL("ALTER TABLE {} DISABLE TRIGGER {}").format(table, sql.Identifier(guard))
+            )
+            with pytest.raises(SystemExit, match=rf"{label} .* \(UPDATE\).*row count 1"):
+                run("verify")
+            record.refresh_from_db()
+            assert getattr(record, column) == original_value
+
+            # Only a changed formula or original observation reaches this update-only guard.
+            cursor.execute(
+                sql.SQL(
+                    "CREATE TRIGGER rehearsal_update_only BEFORE UPDATE OF {field} ON {table} "
+                    "FOR EACH ROW WHEN (OLD.{field} IS DISTINCT FROM NEW.{field}) "
+                    "EXECUTE FUNCTION prevent_record_mutation()"
+                ).format(table=table, field=field)
+            )
+            with pytest.raises(SystemExit, match=rf"{label} .* \(DELETE\).*{delete_failure}"):
+                run("verify")
+            record.refresh_from_db()
+            assert getattr(record, column) == original_value
+            transaction.set_rollback(True)
     assert not failed_history_path.exists()
     assert not failed_counts_path.exists()
 

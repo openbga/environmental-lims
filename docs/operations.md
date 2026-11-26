@@ -373,6 +373,8 @@ A separate table lists the files the candidate checked on the migrated copy with
 `verify_stored_files`. A zero identifies a file category absent from that rehearsal.
 The published report confirms that PostgreSQL rejected updates and deletions on a baseline
 audit event, custody event, issued report version and stored report PDF at both stages.
+It also confirms that a result worksheet and one of the readings used in its calculation
+each rejected an edit and a deletion.
 The rehearsal runs those checks only on its disposable restored copy.
 The synthetic source database stays at its original schema throughout.
 Orders, samples and containers have separate counts. The receipt check follows the original
