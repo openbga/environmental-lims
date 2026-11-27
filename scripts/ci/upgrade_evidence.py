@@ -35,7 +35,8 @@ from analytical.models import (
     WorksheetReading,
 )
 from analytical.qc import FAIL, PASS, BatchQC, evaluate_stored
-from catalog.models import TestDefinition
+from catalog.models import Analyte, Method, TestDefinition
+from catalog.services import create_method_version, save_test_definition
 from commercial import invoices
 from commercial.management.commands.seed_commercial_demo import PRICE_LIST
 from commercial.models import InvoiceDraft, InvoiceDraftLine, PriceList
@@ -59,6 +60,8 @@ from reporting.services import create_report, release_report
 
 FEE_DESCRIPTION = "Synthetic upgrade verification fee"
 QC_SAMPLE_LABEL = "Synthetic upgrade LCS"
+REPLACEMENT_LIMIT = Decimal("0.12345678")
+REPLACEMENT_VERSION = "demo-upgrade-2"
 SUBCONTRACT_REFERENCE = "SYN-UPGRADE-EXTERNAL"
 ORIGINAL_CLIENT_SAMPLE_ID = "SYN-EXT-01"
 CORRECTED_CLIENT_SAMPLE_ID = "SYN-EXT-001"
@@ -341,6 +344,70 @@ def prepare_laboratory_attachments():
     )
 
 
+def prepare_method_replacement():
+    admin = User.objects.get(username="demo_admin")
+    original = TestDefinition.objects.select_related("method").get(
+        method__code="DEMO-METALS-AQ",
+        method__version="demo-1",
+        analyte__name="Lead",
+        matrix="water",
+    )
+    replacement = create_method_version(
+        actor=admin,
+        previous=original.method,
+        version=REPLACEMENT_VERSION,
+        title="Synthetic revised aqueous metals method",
+        source="Synthetic upgrade rehearsal",
+        copy_tests=True,
+        retire_previous=True,
+        reason="Synthetic method revision after approval of existing results.",
+    )
+    copied = replacement.testdefinition_set.get(
+        analyte_id=original.analyte_id, matrix=original.matrix
+    )
+    copied.reporting_limit = REPLACEMENT_LIMIT
+    save_test_definition(
+        actor=admin,
+        instance=copied,
+        reason="Synthetic reporting limit for the replacement version.",
+    )
+
+
+def require_method_history():
+    original = TestDefinition.objects.filter(
+        method__code="DEMO-METALS-AQ",
+        method__version="demo-1",
+        method__is_active=False,
+        analyte__name="Lead",
+        matrix="water",
+    ).first()
+    require(
+        original is not None
+        and original.reporting_limit is not None
+        and original.reporting_limit != REPLACEMENT_LIMIT
+        and ResultRevision.objects.filter(
+            status=ResultRevision.Status.APPROVED,
+            definition=original,
+            result__requested_test__definition=original,
+            method_version="demo-1",
+            method_code="DEMO-METALS-AQ",
+            unit=original.unit,
+            method_reporting_limit=original.reporting_limit,
+        ).exists()
+        and TestDefinition.objects.filter(
+            method__code="DEMO-METALS-AQ",
+            method__version=REPLACEMENT_VERSION,
+            method__is_active=True,
+            analyte_id=original.analyte_id,
+            matrix=original.matrix,
+            unit=original.unit,
+            reporting_limit=REPLACEMENT_LIMIT,
+        ).exists(),
+        "The baseline needs an approved result on the retired method and a replacement "
+        "definition with its own reporting limit.",
+    )
+
+
 @transaction.atomic
 def prepare():
     """Create synthetic history and stored files with baseline services."""
@@ -366,10 +433,11 @@ def prepare():
     prepare_subcontract_history(order.project, actor)
     prepare_edd_export(order.project, actor)
     prepare_laboratory_attachments()
+    prepare_method_replacement()
     print(
         "Prepared a synthetic invoice draft, QC reanalysis, receipt correction, "
         "custody transfer, amended subcontract report, exploratory EDD ZIP and "
-        "laboratory attachments."
+        "laboratory attachments and a replacement method version."
     )
 
 
@@ -505,6 +573,9 @@ def collections(draft):
         "containers": Container.objects.all(),
         "custody events": CustodyEvent.objects.all(),
         "audit events": AuditEvent.objects.all(),
+        "method versions": Method.objects.all(),
+        "analytes": Analyte.objects.all(),
+        "test definitions": TestDefinition.objects.all(),
         "requested tests": RequestedTest.objects.all(),
         "results": Result.objects.all(),
         "result revisions": ResultRevision.objects.all(),
@@ -993,6 +1064,7 @@ def main():
     querysets = collections(draft)
 
     if mode == "capture":
+        require_method_history()
         require_receipt_history()
         require_qc_history()
         subcontract_sources()

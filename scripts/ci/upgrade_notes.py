@@ -243,6 +243,20 @@ def render_notes(
         "Both matched their stored bytes, and each issued version cited its reviewed result.",
         "The original and amended client PDF downloads matched their stored bytes.",
     ]
+    catalog_and_results = {
+        "method versions",
+        "analytes",
+        "test definitions",
+        "requested tests",
+        "results",
+        "result revisions",
+    }
+    if verified_counts and catalog_and_results <= verified_counts.keys():
+        lines.append(
+            "The method versions, analytes and test definitions matched the baseline. "
+            "An approved result still used the retired method version and its original test "
+            "definition. The replacement version retained its own reporting limit."
+        )
     if verified_counts and ATTACHMENT_CATEGORIES.keys() <= verified_counts.keys():
         lines.append(
             "A staff reviewer downloaded the original equipment, training and nonconformance "

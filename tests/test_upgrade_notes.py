@@ -222,6 +222,38 @@ def test_reports_counts_after_restore_and_upgrade(tmp_path):
     )
 
 
+def test_reports_method_replacement_only_with_catalog_evidence(tmp_path):
+    candidate = tmp_path / "candidate"
+    checkout(candidate, "example-project")
+    plan = tmp_path / "plan.json"
+    plan.write_text("[]", encoding="utf-8")
+    restored = tmp_path / "restored.json"
+    verified = tmp_path / "verified.json"
+    evidence = {
+        "method versions": 2,
+        "analytes": 1,
+        "test definitions": 2,
+        "requested tests": 1,
+        "results": 1,
+        "result revisions": 1,
+    }
+    for missing in (*evidence, None):
+        counts = {name: count for name, count in evidence.items() if name != missing}
+        for path in (restored, verified):
+            path.write_text(json.dumps(counts), encoding="utf-8")
+        result = run_notes(
+            candidate,
+            candidate,
+            plan,
+            "--restored-counts",
+            str(restored),
+            "--verified-counts",
+            str(verified),
+        )
+        assert result.returncode == 0, result.stderr
+        assert ("retired method version" in result.stdout) == (missing is None)
+
+
 def test_reports_laboratory_attachments_and_checks_file_coverage(tmp_path, stored_file_counts):
     candidate = tmp_path / "candidate"
     checkout(candidate, "example-project")

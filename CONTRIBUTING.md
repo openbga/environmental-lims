@@ -130,7 +130,10 @@ The candidate then migrates that copy, checks stored file integrity with
 `verify_stored_files`, and repeats the same checks on the existing records,
 including exact results and invoice charges. It compares all baseline orders, samples and
 containers and follows one sample from its original receipt through an ID correction and a
-custody transfer. The rehearsal also compares QC samples, all their
+custody transfer. After approving synthetic results, the baseline retires their method version
+and copies its tests to a replacement version. One copied test receives a different reporting
+limit. CI compares the catalog records and the links from the existing results at both stages.
+The rehearsal also compares QC samples, all their
 measurement revisions and recorded corrective actions. Its synthetic correction retains a link
 to the original failed observation, which remains the target of the corrective action. For a
 subcontracted test, staff retrieve the external laboratory’s original and corrected source

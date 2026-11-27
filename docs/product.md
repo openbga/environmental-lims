@@ -124,7 +124,10 @@ records and downloads on the restored copy before the candidate migrates it. The
 upgrade report identifies both stages and requires matching counts across them.
 The candidate must preserve custody and audit events, result
 revisions and worksheet readings, the prepared invoice draft and its charges, and issued
-report snapshots and files. Receipt checks cover every baseline order, sample and container.
+report snapshots and files. The method catalog must retain each baseline method version,
+analyte and test definition, including its matrix, unit and exact reporting limit. An approved
+result must still lead through its requested test to the original definition when a newer
+method version carries a different limit. Receipt checks cover every baseline order, sample and container.
 After a client sample ID correction and a custody transfer, the sample must retain its corrected
 ID and current location. The original receipt, correction and transfer must remain traceable
 to that sample. It must also preserve QC samples and their observation history,
