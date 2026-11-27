@@ -223,7 +223,12 @@ scan must leave no completed comparison report.
 For a logical backup taken while staff are working,
 a deployer can create a database archive and its verified version 1 file inventory in
 one command. Both must describe the same committed state. The destination must be new,
-and a failed dump or scan must leave no completed pair. For separately managed dumps,
+and a failed dump or scan must leave no completed pair. The backup also captures counts
+of audit events, custody events, result revisions, report versions, report files and issued
+invoices from that snapshot. For each group except report files it records the greatest
+primary key. On the restored copy a deployer can compare these figures before upgrading.
+Any difference must identify the affected group and fail the comparison.
+For separately managed dumps,
 the source inventory can also read an exported PostgreSQL snapshot. Files
 committed after that snapshot are excluded from both. An unavailable snapshot must cause
 the check to fail before it produces an inventory.

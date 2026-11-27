@@ -165,7 +165,8 @@ revised technical notes from the candidate’s changelog entries.
 
 CI also runs the candidate’s `backup_with_inventory` against that migrated synthetic
 database, restores its archive into a third empty database and compares the saved file
-inventory with the restored files. Local tests for the archive use PostgreSQL 17
+inventory with the restored files. It also compares the six recovery record groups against
+the summary captured with the archive. Local tests for the archive use PostgreSQL 17
 `pg_dump` and `pg_restore` on `PATH`.
 
 The other CI checks include the browser journeys and a container smoke test that

@@ -103,7 +103,7 @@ jobs:
           .venv/bin/python manage.py verify_stored_files --format json > "$RUNNER_TEMP/stored-file-counts.json"
           UPGRADE_EVIDENCE_MODE=verify .venv/bin/python manage.py shell --no-imports < scripts/ci/upgrade_evidence.py
 
-      - name: Restore a paired backup and compare its file inventory
+      - name: Restore a paired backup and compare its files and record counts
         env:
           DATABASE_URL: postgresql://roots:roots@127.0.0.1:5432/roots_upgrade
           PGHOST: 127.0.0.1
@@ -117,6 +117,8 @@ jobs:
             --dbname=roots_paired_restore "$backup_dir/database.dump"
           DATABASE_URL=postgresql://roots:roots@127.0.0.1:5432/roots_paired_restore \
             .venv/bin/python manage.py verify_stored_files --compare-manifest "$backup_dir/source-files.json"
+          DATABASE_URL=postgresql://roots:roots@127.0.0.1:5432/roots_paired_restore \
+            .venv/bin/python manage.py verify_backup_records --compare "$backup_dir/source-records.json"
 
       - name: Publish notes for the rehearsed upgrade
         run: |

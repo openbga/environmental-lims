@@ -14,11 +14,12 @@ from tempfile import TemporaryFile
 import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.db import connection
+from django.db import connection, transaction
 from psycopg import Connection
 from psycopg.conninfo import make_conninfo
 from psycopg.pq import ConnStatus, PGconn
 
+from core.audit import record_event
 from core.management.commands import backup_with_inventory
 from core.models import LabLogo
 
@@ -118,11 +119,16 @@ def test_backup_pairs_dump_and_inventory_at_export_time(staff, tmp_path, monkeyp
     later_filename = "synthetic-after-snapshot.png"
     before = _live_inventory()
     assert before["categories"]["Laboratory logos"]["count"] == 1
+    record_output = StringIO()
+    call_command("verify_backup_records", stdout=record_output)
+    records_before = json.loads(record_output.getvalue())
     export_snapshot = backup_with_inventory._exported_snapshot
 
     def commit_later_logo():
         try:
-            _create_logo(uploader, later_filename)
+            with transaction.atomic():
+                later = _create_logo(uploader, later_filename)
+                record_event(actor=uploader, action="synthetic.logo.added", obj=later)
         finally:
             connection.close()
 
@@ -144,11 +150,19 @@ def test_backup_pairs_dump_and_inventory_at_export_time(staff, tmp_path, monkeyp
     call_command("backup_with_inventory", "--output", str(output))
 
     assert stat.S_IMODE(output.stat().st_mode) == 0o700
-    assert {path.name for path in output.iterdir()} == {"database.dump", "source-files.json"}
+    assert {path.name for path in output.iterdir()} == {
+        "database.dump",
+        "source-files.json",
+        "source-records.json",
+    }
     assert all(stat.S_IMODE(path.stat().st_mode) == 0o600 for path in output.iterdir())
     inventory = json.loads((output / "source-files.json").read_text(encoding="utf-8"))
     assert inventory["version"] == 1
     assert inventory == before
+    records = output / "source-records.json"
+    assert json.loads(records.read_text()) == records_before
+    with pytest.raises(CommandError, match="audit"):
+        call_command("verify_backup_records", "--compare", str(records))
 
     dump = output / "database.dump"
     with dump.open("rb") as archive:
@@ -211,7 +225,7 @@ def test_backup_resolves_parent_after_following_symlink(tmp_path, monkeypatch):
 
     physical_output = physical_parent / "backup"
     output_files = {path.name for path in physical_output.iterdir()}
-    assert output_files == {"database.dump", "source-files.json"}
+    assert output_files == {"database.dump", "source-files.json", "source-records.json"}
     assert list(lexical_output.iterdir()) == [original]
     assert original.read_bytes() == b"existing synthetic archive"
 
@@ -245,6 +259,23 @@ def test_backup_removes_partial_dump_without_exposing_diagnostics(tmp_path, monk
     attempted = tmp_path / "pg_dump.attempted"
     assert attempted.read_text(encoding="ascii") == "dump called"
     assert set(tmp_path.iterdir()) == {fake_dump, attempted, output}
+    assert list(output.iterdir()) == []
+    assert connection.get_autocommit()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_record_summary_failure_discards_both_partial_summaries(tmp_path, monkeypatch):
+    def fail_record_summary(name, *args, **kwargs):
+        if name == "verify_backup_records":
+            kwargs["stdout"].write("partial record summary")
+            raise CommandError("Could not read the recovery records")
+        return call_command(name, *args, **kwargs)
+
+    monkeypatch.setattr(backup_with_inventory, "call_command", fail_record_summary)
+    output = tmp_path / "backup"
+    with pytest.raises(CommandError, match="recovery records"):
+        call_command("backup_with_inventory", output=str(output))
+
     assert list(output.iterdir()) == []
     assert connection.get_autocommit()
 

@@ -243,8 +243,9 @@ digests and reports when a file failed verification. Only a match exits successf
 
 On a backup host with the source application and PostgreSQL 17 client tools installed, run
 `python manage.py backup_with_inventory --output /private/backups/new-directory`.
-It creates a private directory containing a custom-format database archive and its verified
-file inventory from the same snapshot. Staff can continue entering records during the backup.
+The archive, file inventory and record summary all use the same snapshot while staff continue
+working. After restoring, run `python manage.py verify_backup_records --compare /private/backups/new-directory/source-records.json`
+to check audit and custody events, result revisions, report versions and files, and issued invoices.
 See [Taking a backup with a matching file inventory](docs/operations.md#take-a-backup-with-a-matching-file-inventory).
 
 After installing, and after each upgrade, run

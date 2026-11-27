@@ -17,8 +17,10 @@ from psycopg.pq import TransactionStatus
 
 _DUMP = "database.dump"
 _INVENTORY = "source-files.json"
+_RECORDS = "source-records.json"
 _DUMP_PARTIAL = ".database.dump.partial"
 _INVENTORY_PARTIAL = ".source-files.json.partial"
+_RECORDS_PARTIAL = ".source-records.json.partial"
 
 
 @contextmanager
@@ -176,7 +178,9 @@ def _create_file(name, mode, directory):
 
 
 class Command(BaseCommand):
-    help = "Save a PostgreSQL dump and a version 1 stored-file inventory from the same snapshot."
+    help = (
+        "Save a PostgreSQL dump, stored-file inventory and record summary from the same snapshot."
+    )
     requires_system_checks = []
 
     def add_arguments(self, parser):
@@ -189,25 +193,27 @@ class Command(BaseCommand):
             created = []
             try:
                 with _exported_snapshot() as snapshot:
-                    with _create_file(_INVENTORY_PARTIAL, "w", directory) as inventory:
-                        created.append(_INVENTORY_PARTIAL)
-                        # The verifier uses the already established transaction for this scan.
-                        call_command(
-                            "verify_stored_files",
-                            "--format",
-                            "manifest",
-                            stdout=inventory,
-                            stderr=self.stderr,
-                        )
-                        inventory.flush()
-                        os.fsync(inventory.fileno())
+                    # Both commands read the same transaction that supplies pg_dump's snapshot.
+                    for partial, command in (
+                        (_INVENTORY_PARTIAL, ("verify_stored_files", "--format", "manifest")),
+                        (_RECORDS_PARTIAL, ("verify_backup_records",)),
+                    ):
+                        with _create_file(partial, "w", directory) as output:
+                            created.append(partial)
+                            call_command(*command, stdout=output, stderr=self.stderr)
+                            output.flush()
+                            os.fsync(output.fileno())
                     with _create_file(_DUMP_PARTIAL, "w+b", directory) as dump:
                         created.append(_DUMP_PARTIAL)
                         _dump_database(snapshot, dump)
                         os.fsync(dump.fileno())
 
                 # Hard links keep an existing destination intact. The manifest appears last.
-                for partial, final in ((_DUMP_PARTIAL, _DUMP), (_INVENTORY_PARTIAL, _INVENTORY)):
+                for partial, final in (
+                    (_DUMP_PARTIAL, _DUMP),
+                    (_RECORDS_PARTIAL, _RECORDS),
+                    (_INVENTORY_PARTIAL, _INVENTORY),
+                ):
                     os.link(partial, final, src_dir_fd=directory, dst_dir_fd=directory)
                     created.append(final)
                     os.unlink(partial, dir_fd=directory)
