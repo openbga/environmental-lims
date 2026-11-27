@@ -191,7 +191,9 @@ one of the original readings used in its calculation. The rehearsal checks two r
 PostgreSQL must reject a change to the observation text on an open revision, a change to the
 review note on an approved revision, and deletion of either revision. Receipt checks cover
 orders, samples and containers, including the history of a corrected sample ID and a custody
-transfer. For quality control (QC),
+transfer. The rehearsal also compares every baseline method version, analyte and test definition.
+An approved result must still use its original definition after the method is retired and the
+replacement version receives a different reporting limit. For quality control (QC),
 the rehearsal checks that a failed observation, its corrective action and the corrected
 observation retain their values and links. For subcontracted work, it checks the external
 laboratory’s original and corrected source PDFs and the transcription cited by each issued

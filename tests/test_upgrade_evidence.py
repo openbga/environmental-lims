@@ -20,6 +20,7 @@ from analytical.models import (
     ResultWorksheet,
     WorksheetReading,
 )
+from catalog.models import Analyte, Method, TestDefinition
 from core.models import AuditEvent, LabLogo
 from laboratory.models import (
     Equipment,
@@ -51,6 +52,22 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
         return runpy.run_path(str(script))
 
     prepared = run("prepare")
+    lead_tests = TestDefinition.objects.select_related("method").filter(
+        method__code="DEMO-METALS-AQ", analyte__name="Lead", matrix="water"
+    )
+    original_test = lead_tests.get(method__version="demo-1", method__is_active=False)
+    replacement_test = lead_tests.get(method__version="demo-upgrade-2", method__is_active=True)
+    assert original_test.unit == replacement_test.unit
+    assert replacement_test.reporting_limit == Decimal("0.12345678")
+    assert original_test.reporting_limit != replacement_test.reporting_limit
+    assert ResultRevision.objects.filter(
+        status=ResultRevision.Status.APPROVED,
+        result__requested_test__definition=original_test,
+        definition=original_test,
+        method_version=original_test.method.version,
+        unit=original_test.unit,
+        method_reporting_limit=original_test.reporting_limit,
+    ).exists()
     action = QCCorrectiveAction.objects.get(
         qc_sample__label=prepared["QC_SAMPLE_LABEL"],
         disposition=QCCorrectiveAction.Disposition.REANALYZE,
@@ -129,6 +146,9 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
     assert not history_path.exists()
     manifest = json.loads(evidence_path.read_text(encoding="utf-8"))
     for name, model in (
+        ("method versions", Method),
+        ("analytes", Analyte),
+        ("test definitions", TestDefinition),
         ("orders", Order),
         ("samples", Sample),
         ("containers", Container),
@@ -468,9 +488,14 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
     assert not failed_history_path.exists()
     assert not failed_counts_path.exists()
 
-    # A migration can change receiving records without touching their append-only history.
+    # A migration can change catalog or receiving records without touching their history.
     other_sample = Sample.objects.exclude(pk=sample.pk).first()
     for name, records, changes in (
+        (
+            "test definitions",
+            TestDefinition.objects.filter(pk=original_test.pk),
+            {"reporting_limit": original_test.reporting_limit + Decimal("0.00000001")},
+        ),
         ("orders", Order.objects.filter(pk=sample.order_id), {"instructions": "Changed"}),
         (
             "samples",
@@ -484,6 +509,8 @@ def test_upgrade_evidence_preserves_issued_files_and_laboratory_history(monkeypa
             with pytest.raises(SystemExit, match=rf"{name}: 0 missing, 0 added, and 1 changed"):
                 run("verify")
             transaction.set_rollback(True)
+    assert not failed_counts_path.exists()
+    assert not failed_history_path.exists()
 
     source_url = reverse("receipt:subcontract-source-download", args=[corrected.pk])
     note_url = reverse("laboratory:evidence", args=["nonconformance", note.pk])

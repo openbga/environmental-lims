@@ -6,7 +6,7 @@ What was added or changed in OpenBGA Environmental LIMS, newest first. Changes a
 grouped by the calendar month they were merged in and ranked from high to low impact.
 The same list is shown in the application under What's new.
 
-## November 2026 (2026-11-11 to 2026-11-26)
+## November 2026 (2026-11-11 to 2026-11-27)
 
 ### High impact
 
@@ -179,6 +179,14 @@ The same list is shown in the application under What's new.
   > No migration. New optional settings, documented in `docs/operations.md` and `.env.example`: `CONTENT_SECURITY_POLICY` (replaces the default policy), `MAX_REQUEST_BODY_BYTES` (12 MiB by default), `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS` and `ALLAUTH_TRUSTED_CLIENT_IP_HEADER` (set it only where the platform supplies a client-address header that clients cannot forge). A deployment that adds its own scripts or embeds content may need to adjust the policy.
 
 ### Medium impact
+
+- **Changed:** Check the method catalog after restore and upgrade (2026-11-27)
+
+  The upgrade rehearsal report now lists the method versions, analytes and test definitions preserved at each stage. It checks that an approved result still uses the original test definition after a replacement method changes the reporting limit.
+
+  Technical notes:
+
+  > The verified records table in the downloadable upgrade notes includes a count for each of the three catalog categories after restore and after migration.
 
 - **Changed:** Check historical report logos after a restore (2026-11-26, Backup and restore)
 
