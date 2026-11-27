@@ -216,7 +216,10 @@ and their contents. This comparison detects a missing record even when every rem
 file passes its own integrity check. A deployer can supply a saved version 1 inventory
 to the restore check and use its exit status in a recovery script. A comparison must
 identify differences in the restored application’s file categories, including a substitution
-that preserves its file count. A different category set must fail comparison.
+that preserves its file count. A different category set must fail comparison. Recovery
+scripts can request a JSON comparison. It must distinguish a verified match, differences
+between two verified inventories, and a scan that found damaged files. An interrupted
+scan must leave no completed comparison report.
 For a logical backup taken while staff are working,
 the source inventory can read the same exported PostgreSQL snapshot as the dump. Files
 committed after that snapshot are excluded from both. An unavailable snapshot must cause

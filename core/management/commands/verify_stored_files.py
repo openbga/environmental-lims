@@ -1003,7 +1003,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--compare-manifest",
             metavar="PATH",
-            help="Check the restored files against a saved version 1 inventory (text output).",
+            help="Check restored files against a saved version 1 inventory (text or JSON output).",
         )
         parser.add_argument(
             "--snapshot",
@@ -1017,19 +1017,14 @@ class Command(BaseCommand):
         reference_path = options["compare_manifest"]
         saved = None
         if reference_path is not None:
-            if output_format != "text":
-                raise CommandError("--compare-manifest requires --format text.")
+            if output_format not in ("text", "json"):
+                raise CommandError("--compare-manifest requires --format text or json.")
             saved = load_manifest_categories(reference_path)
         scan_format = "manifest" if saved is not None else output_format
         summary, total_checked, total_failures = self._scan_snapshot(snapshot, scan_format)
 
         if saved is not None:
-            if total_failures:
-                raise CommandError("Stored file verification failed before inventory comparison.")
-            differences = list(inventory_differences(saved, summary))
-            if differences:
-                raise CommandError("\n".join(["Stored file inventory differs.", *differences]))
-            self.stdout.write(f"Stored file inventory matches. Files checked: {total_checked}.")
+            self._report_comparison(saved, summary, total_checked, total_failures, output_format)
         elif output_format == "manifest":
             if not total_failures:
                 self.stdout.write(
@@ -1042,6 +1037,30 @@ class Command(BaseCommand):
             self.stdout.write(f"Total: checked={total_checked} failures={total_failures}")
         if total_failures:
             raise CommandError("Stored file verification failed.")
+
+    def _report_comparison(self, saved, restored, checked, failures, output_format):
+        # A scan with invalid files has no complete inventory to compare.
+        differences = [] if failures else list(inventory_differences(saved, restored))
+        if output_format == "json":
+            status = "different" if differences else "match"
+            self.stdout.write(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "status": "verification_failed" if failures else status,
+                        "checked": checked,
+                        "failures": failures,
+                        "differences": None if failures else [detail for _, detail in differences],
+                    }
+                )
+            )
+        if failures:
+            raise CommandError("Stored file verification failed before inventory comparison.")
+        if differences:
+            messages = [message for message, _ in differences]
+            raise CommandError("\n".join(["Stored file inventory differs.", *messages]))
+        if output_format == "text":
+            self.stdout.write(f"Stored file inventory matches. Files checked: {checked}.")
 
     def _scan_snapshot(self, snapshot, output_format):
         # pg_export_snapshot() returns two eight-digit hex fields and a decimal counter.

@@ -237,8 +237,12 @@ file inventory saved with the backup.
 Add `--format json` to save a machine-readable summary. To detect a file and its record
 disappearing together, save a file inventory with `--format manifest` when you take the backup
 and pass it to `--compare-manifest source-files.json` on the restored database before upgrading.
-Use the application version that produced the inventory. A difference exits with an error. To keep accepting writes during a logical backup, give
-`pg_dump` and the source inventory command the same exported PostgreSQL snapshot.
+Use the application version that produced the inventory. Add `--format json` to save a
+comparison report for a recovery script. It identifies categories with changed counts or
+digests and reports when a file failed verification. Only a match exits successfully.
+
+To keep accepting writes during a logical backup, give `pg_dump` and the source inventory
+command the same exported PostgreSQL snapshot.
 See [Taking a backup with a matching file inventory](docs/operations.md#take-a-backup-with-a-matching-file-inventory).
 
 After installing, and after each upgrade, run

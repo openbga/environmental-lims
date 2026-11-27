@@ -49,16 +49,33 @@ def load_manifest_categories(path):
 
 
 def inventory_differences(saved, restored):
-    # Only print category names supplied by the running application.
+    """Yield each text diagnostic and its machine-readable details from the same check."""
+    # Only report category names supplied by the running application.
     for category, actual in restored.items():
         if category not in saved:
-            yield f"{category}: missing from saved inventory."
-        elif saved[category]["count"] != actual["count"]:
             yield (
-                f"{category}: saved count {saved[category]['count']}, "
-                f"restored count {actual['count']}."
+                f"{category}: missing from saved inventory.",
+                {"reason": "missing_from_saved", "category": category},
+            )
+            continue
+        saved_count, restored_count = saved[category]["count"], actual["count"]
+        if saved_count != restored_count:
+            yield (
+                f"{category}: saved count {saved_count}, restored count {restored_count}.",
+                {
+                    "reason": "category_count",
+                    "category": category,
+                    "saved_count": saved_count,
+                    "restored_count": restored_count,
+                },
             )
         elif saved[category]["sha256"] != actual["sha256"]:
-            yield f"{category}: SHA-256 digest differs at the same count ({actual['count']})."
-    if saved.keys() - restored.keys():
-        yield "The saved inventory contains categories absent from this application version."
+            yield (
+                f"{category}: SHA-256 digest differs at the same count ({restored_count}).",
+                {"reason": "category_digest", "category": category, "count": restored_count},
+            )
+    if extra := saved.keys() - restored.keys():
+        yield (
+            "The saved inventory contains categories absent from this application version.",
+            {"reason": "unknown_saved_categories", "count": len(extra)},
+        )
