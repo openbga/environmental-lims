@@ -11,6 +11,9 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import connection, transaction
+from django.db.migrations import Migration
+from django.db.migrations.loader import MigrationLoader
+from django.db.migrations.recorder import MigrationRecorder
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from psycopg import sql
@@ -54,6 +57,7 @@ CATEGORIES = (
 MANIFEST_FORMAT = ("--format", "manifest")
 OUTPUT_FORMATS = [(), ("--format", "json"), MANIFEST_FORMAT]
 OUTPUT_FORMAT_IDS = ["text", "json", "manifest"]
+UNKNOWN_MIGRATION = ("core", "9999_synthetic_future_migration")
 
 pytestmark = pytest.mark.django_db
 
@@ -2678,6 +2682,102 @@ def _manifest_comparison_failure(reference, *args):
     return f"{error.value}\n{stderr.getvalue()}"
 
 
+def _assert_migration_preflight_failure(*args, unapplied=0, unknown=0):
+    stdout, stderr = StringIO(), StringIO()
+    with CaptureQueriesContext(connection) as captured:
+        with pytest.raises(CommandError) as error:
+            call_command("verify_stored_files", *args, stdout=stdout, stderr=stderr)
+
+    assert f"{unapplied} unapplied, {unknown} unknown" in str(error.value).lower()
+    assert stdout.getvalue() == ""
+    assert all('FROM "reporting_reportversion"' not in query["sql"] for query in captured)
+
+
+@pytest.mark.parametrize(
+    "output_args",
+    [*OUTPUT_FORMATS, ("--compare-manifest",)],
+    ids=[*OUTPUT_FORMAT_IDS, "compare"],
+)
+@pytest.mark.parametrize(
+    ("remove_known", "add_unknown"),
+    [
+        pytest.param(False, True, id="unknown"),
+        pytest.param(True, False, id="unapplied"),
+        pytest.param(True, True, id="same-count"),
+    ],
+)
+def test_migration_preflight_rejects_mismatched_history(
+    equipment_event_factory, tmp_path, output_args, remove_known, add_unknown
+):
+    equipment_event_factory()
+    if output_args == ("--compare-manifest",):
+        output_args += (str(_write_reference_manifest(tmp_path)),)
+
+    recorder = MigrationRecorder(connection)
+    applied = recorder.applied_migrations().keys()
+    if remove_known:
+        graph = MigrationLoader(connection).graph
+        terminal = next(
+            key
+            for key, node in sorted(graph.node_map.items())
+            if not node.children and key in applied
+        )
+        recorder.record_unapplied(*terminal)
+    if add_unknown:
+        recorder.record_applied(*UNKNOWN_MIGRATION)
+    mismatched = recorder.applied_migrations().keys()
+    if remove_known and add_unknown:
+        assert len(mismatched) == len(applied)
+
+    _assert_migration_preflight_failure(
+        *output_args, unapplied=int(remove_known), unknown=int(add_unknown)
+    )
+
+    assert recorder.applied_migrations().keys() == mismatched
+
+
+def test_migration_preflight_rejects_missing_ancestor_of_applied_migrations():
+    recorder = MigrationRecorder(connection)
+    loader = MigrationLoader(connection)
+    ancestor = next(
+        key
+        for key, node in sorted(loader.graph.node_map.items())
+        if node.children and key in loader.applied_migrations
+    )
+    recorder.record_unapplied(*ancestor)
+
+    _assert_migration_preflight_failure(*MANIFEST_FORMAT, unapplied=1)
+
+
+@pytest.mark.parametrize("original_count", [0, 1, 2], ids=["none", "partial", "complete"])
+@pytest.mark.parametrize("squash_marker", [False, True], ids=["without-marker", "with-marker"])
+def test_migration_preflight_checks_original_records_for_a_squash(
+    monkeypatch, original_count, squash_marker
+):
+    reference = _verification_output(*MANIFEST_FORMAT)
+    squash = Migration("9898_synthetic_squashed_9899", "core")
+    squash.replaces = [("core", "9898_synthetic_first"), ("core", "9899_synthetic_second")]
+    squash_key = (squash.app_label, squash.name)
+    load_disk = MigrationLoader.load_disk
+
+    def load_with_squash(loader):
+        load_disk(loader)
+        loader.disk_migrations[squash_key] = squash
+
+    monkeypatch.setattr(MigrationLoader, "load_disk", load_with_squash)
+    recorder = MigrationRecorder(connection)
+    for original in squash.replaces[:original_count]:
+        recorder.record_applied(*original)
+    if squash_marker:
+        recorder.record_applied(*squash_key)
+
+    missing = len(squash.replaces) - original_count
+    if missing:
+        _assert_migration_preflight_failure(*MANIFEST_FORMAT, unapplied=missing)
+    else:
+        assert _verification_output(*MANIFEST_FORMAT) == reference
+
+
 def test_compare_manifest_matches_verified_inventory(equipment_event_factory, tmp_path):
     equipment_event_factory()
     reference = _write_reference_manifest(tmp_path)
@@ -2799,6 +2899,24 @@ def _exported_snapshot():
         yield snapshot
     finally:
         exporter.close()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_migration_preflight_uses_the_exported_snapshot():
+    recorder = MigrationRecorder(connection)
+    reference = _verification_output(*MANIFEST_FORMAT)
+    try:
+        with _exported_snapshot() as snapshot:
+            recorder.record_applied(*UNKNOWN_MIGRATION)
+            assert _verification_output(*MANIFEST_FORMAT, "--snapshot", snapshot) == reference
+        _assert_migration_preflight_failure(*MANIFEST_FORMAT, unknown=1)
+
+        with _exported_snapshot() as snapshot:
+            recorder.record_unapplied(*UNKNOWN_MIGRATION)
+            _assert_migration_preflight_failure(*MANIFEST_FORMAT, "--snapshot", snapshot, unknown=1)
+        assert _verification_output(*MANIFEST_FORMAT) == reference
+    finally:
+        recorder.record_unapplied(*UNKNOWN_MIGRATION)
 
 
 @pytest.mark.django_db(transaction=True)

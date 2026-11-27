@@ -9,6 +9,8 @@ from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
 from django.db import Error as DjangoDatabaseError
 from django.db import connection, transaction
+from django.db.migrations.loader import MigrationLoader
+from django.db.migrations.recorder import MigrationRecorder
 from django.db.models import (
     BinaryField,
     Case,
@@ -966,6 +968,28 @@ def _check_import_sources():
         yield AuditEvent._meta.label, pk, None, None, ["missing ImportSourceFile"]
 
 
+def _check_migration_history():
+    # Django records the individual migrations when it applies a squash. An installation
+    # that already applied all the originals may not have the squash's own marker yet.
+    loader = MigrationLoader(connection, load=False)
+    loader.load_disk()
+    known = set(loader.disk_migrations)
+    squash_markers = set()
+    for key, migration in loader.disk_migrations.items():
+        if migration.replaces:
+            known.update(migration.replaces)
+            squash_markers.add(key)
+
+    applied = MigrationRecorder(connection).applied_migrations().keys()
+    unapplied = known - squash_markers - applied
+    unknown = applied - known
+    if unapplied or unknown:
+        raise CommandError(
+            f"Migration history mismatch: {len(unapplied)} unapplied, {len(unknown)} unknown. "
+            "Check the database and use the application version that created the backup."
+        )
+
+
 class Command(BaseCommand):
     help = "Verify database-stored files, report content and associated audit history."
 
@@ -1062,6 +1086,7 @@ class Command(BaseCommand):
             raise CommandError("A PostgreSQL error interrupted stored file verification.") from None
 
     def _scan(self, output_format):
+        _check_migration_history()
         categories = [
             ("Report PDFs", _check_reports()),
             ("Issued invoice PDFs", _check_invoices()),
