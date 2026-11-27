@@ -355,15 +355,23 @@ def test_qc_prints_one_table_per_batch(world, people):
     assert qc_part.count('class="qc-group"') == 2
 
 
-STREAM = rb"stream\r?\n(.*?)\r?\nendstream"
+def pdf_font_names(pdf):
+    objects = [pdf]
+    # pydyf writes the compressed stream's byte length at the end of its dictionary.
+    # A payload can end in CR immediately before the writer's LF separator.
+    header = rb"/Filter\s*/FlateDecode\s*/Length\s+(\d+)\s*>>\s*stream\r?\n"
+    for match in re.finditer(header, pdf):
+        start = match.end()
+        objects.append(zlib.decompress(pdf[start : start + int(match[1])]))
+    return set(re.findall(rb"/BaseFont\s*/[A-Z]{6}\+([\w-]+)", b"\n".join(objects)))
 
 
-def inflate(data):
-    """A Flate stream's bytes (font dictionaries may sit in compressed object streams)."""
-    try:
-        return zlib.decompress(data)
-    except zlib.error:
-        return b""
+def test_font_check_reads_the_last_byte_of_the_compressed_stream():
+    payload = zlib.compress(b"00399 0 <</BaseFont /ABCDEF+Overpass>>")
+    assert payload.endswith(b"\r")
+    header = f"<</Type /ObjStm/N 1/First 8/Filter /FlateDecode/Length {len(payload)}>>".encode()
+    stream = b"\n".join([header, b"stream", payload, b"endstream"])
+    assert pdf_font_names(stream) == {b"Overpass"}
 
 
 def test_real_pdf_embeds_the_vendored_overpass(world, people):
@@ -372,8 +380,7 @@ def test_real_pdf_embeds_the_vendored_overpass(world, people):
     del snapshot["content"]["lab"]["logo"]  # not stored in this test
     pdf = report_pdf.render_pdf(snapshot)
     assert pdf.startswith(b"%PDF")
-    objects = pdf + b"".join(inflate(m) for m in re.findall(STREAM, pdf, re.S))
-    fonts = set(re.findall(rb"/BaseFont\s*/[A-Z]{6}\+([\w-]+)", objects))
+    fonts = pdf_font_names(pdf)
     assert {b"Overpass", b"Overpass-Semi-Bold", b"Overpass-Bold"} <= fonts, fonts
 
 
