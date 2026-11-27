@@ -157,12 +157,14 @@ the baseline predates changelog entries, all candidate technical notes are avail
 reference. A deployer can also check the files in a restored database from the command line.
 Every issued report version and every issued or voided invoice must retain its PDF.
 For each invoice, the number and PDF checksum must agree with the single issue event
-recorded for its draft, including after the invoice is voided. The issuing staff member
+recorded for its draft, including after the invoice is voided. The original issue event
+must also give the exact issue time stored on the invoice. The issuing staff member
 must match both the event actor and the issuer recorded in the event. An issue event
 whose target no longer identifies a draft with an issued invoice must fail verification.
 A retained invoice must belong to an issued or voided draft. A voided draft must have
 exactly one void event recording the change from issued to voided, the original invoice
-number and PDF checksum, the person who voided it and the reason. A void event on an
+number and PDF checksum, the person who voided it and the reason. The invoice identity
+recorded before and after the void must preserve its original issuer and issue time. A void event on an
 invoice still marked issued, or one left without its target, must fail verification.
 Each electronic data deliverable (EDD) ZIP must have exactly one export event. Its ZIP
 checksum, report number, version number and report content checksum must agree with

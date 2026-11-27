@@ -171,11 +171,12 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
    mismatch. If an event survives without its version, the command reports the audit event
    ID. The `Report PDFs` count includes each version once and each orphan event once.
    For an invoice, the command checks that its draft has exactly one issue event and that
-   the recorded invoice number and PDF checksum match. The issuer on the invoice must match
+   the recorded invoice number, issue time (to the microsecond) and PDF checksum match.
+   The issuer on the invoice must match
    both the staff member who performed the issue action and the issuer recorded in its details.
    A voided invoice must still match its original issue event. Its void event must show
-   the transition from issued to voided. The invoice number and PDF checksum must match
-   before and after the void. The staff member, reason and time of the void must agree
+   the transition from issued to voided. The invoice number, PDF checksum, original issuer
+   and original issue time must match before and after the void. The staff member, reason and time of the void must agree
    with the restored draft at the precision recorded in the audit event. An invoice still
    marked issued must have no void event.
    Under `Issued invoice PDFs`, use the invoice ID to investigate a status or history
