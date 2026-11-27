@@ -75,24 +75,25 @@ backup_dir="/path/to/private/backups/roots-$(date -u +%Y%m%dT%H%M%SZ)"
 python manage.py backup_with_inventory --output "$backup_dir"
 ```
 
-A successful run creates `database.dump` (a custom-format archive) and `source-files.json`
-(the version 1 inventory) from one PostgreSQL snapshot. Check the exit status, then encrypt
-and retain both files together. An interrupted run can leave a private directory with
-partial output. Only accept the pair after the command succeeds. Retry with a fresh path.
+A successful run creates `database.dump` (a custom-format archive), `source-files.json`
+(the verified file inventory) and `source-records.json` (the recovery record summary)
+from one PostgreSQL snapshot. Check the exit status, then encrypt and retain all three
+files together. An interrupted run can leave a private directory with partial output.
+Retry with a fresh path.
 
-To verify the pair, [create an empty restore database](#restore-into-an-isolated-database)
+To verify the backup, [create an empty restore database](#restore-into-an-isolated-database)
 and set `TARGET_URL` to its connection string. Run the source application against that copy.
 
 ```sh
 pg_restore --dbname="${TARGET_URL:?Set TARGET_URL to the empty restore database}" \
   --single-transaction --exit-on-error --no-owner --no-privileges "$backup_dir/database.dump" &&
-  DATABASE_URL="$TARGET_URL" python manage.py verify_stored_files --compare-manifest "$backup_dir/source-files.json"
+  DATABASE_URL="$TARGET_URL" python manage.py verify_stored_files --compare-manifest "$backup_dir/source-files.json" &&
+  DATABASE_URL="$TARGET_URL" python manage.py verify_backup_records --compare "$backup_dir/source-records.json"
 ```
 
-#### Parallel dumps or additional source counts
+#### Parallel directory-format dumps
 
-To take a parallel directory-format dump, or to capture the [source record counts](#verify-the-restore)
-in the same transaction, use the following two-terminal procedure. Supply the same
+To take a parallel directory-format dump, use the following two-terminal procedure. Supply the same
 password-free `SOURCE_URL` in both terminals.
 
 In the first terminal, run `psql -X --dbname="$SOURCE_URL"` and export a snapshot:
@@ -158,7 +159,18 @@ pause is necessary to compare a separately captured inventory or summary. The re
 database can also be checked on its own. Run the restore checks with the source application
 version, `DEBUG=false` and `DATABASE_URL` pointing to the restored database.
 
-Save this source summary beside the dump:
+Backups made with the current `backup_with_inventory` command include this summary in
+`source-records.json`. Compare it on the restored database with `verify_backup_records --compare`
+as shown above. A nonzero exit indicates a difference or an error. The comparison names any
+group whose count or greatest identifier changed. Matching these figures can still miss
+edits to individual rows, so also perform the file and history checks below.
+
+For a separately managed backup with writes paused, save the JSON with
+`python manage.py verify_backup_records > source-records.json` on the source. For a
+manually exported snapshot, run the following query inside the exporting transaction.
+For older backups, compare any saved SQL figures with this query on the restored copy.
+An older paired backup with only a dump and file inventory still supports the file
+comparison. Comparing historical counts requires figures saved from the original snapshot.
 
 ```sql
 select 'audit', count(*), max(id::text) from core_auditevent
@@ -170,7 +182,7 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
 ```
 
 1. `python manage.py migrate --check` exits successfully (no unapplied migrations).
-2. The same summary on the restored database equals the saved source summary.
+2. The restored record summary matches the source summary saved with the backup.
 3. Immutability triggers match the source (run on both and diff the output):
    `select tgrelid::regclass, tgname from pg_trigger where not tgisinternal and tgname like '%immutable%' order by 1, 2`
 4. Run `python manage.py verify_stored_files` on the restored database. This read-only check
