@@ -35,8 +35,11 @@ jobs:
           version: "0.13.7"
       - name: Retry package downloads on transient mirror errors
         run: printf '%s\n' 'Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/80-retries
-      - name: Install PDF runtime libraries
-        run: sudo apt-get update && sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core
+      - name: Install PDF libraries and PostgreSQL 17 backup tools
+        run: |
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
       - run: uv sync --locked
       - run: uv run ruff check . && uv run ruff format --check .
       - run: uv run python manage.py check
@@ -99,6 +102,21 @@ jobs:
           .venv/bin/python manage.py migrate --check
           .venv/bin/python manage.py verify_stored_files --format json > "$RUNNER_TEMP/stored-file-counts.json"
           UPGRADE_EVIDENCE_MODE=verify .venv/bin/python manage.py shell --no-imports < scripts/ci/upgrade_evidence.py
+
+      - name: Restore a paired backup and compare its file inventory
+        env:
+          DATABASE_URL: postgresql://roots:roots@127.0.0.1:5432/roots_upgrade
+          PGHOST: 127.0.0.1
+          PGUSER: roots
+          PGPASSWORD: roots
+        run: |
+          backup_dir="$RUNNER_TEMP/paired-backup"
+          .venv/bin/python manage.py backup_with_inventory --output "$backup_dir"
+          createdb roots_paired_restore
+          pg_restore --single-transaction --exit-on-error --no-owner --no-privileges \
+            --dbname=roots_paired_restore "$backup_dir/database.dump"
+          DATABASE_URL=postgresql://roots:roots@127.0.0.1:5432/roots_paired_restore \
+            .venv/bin/python manage.py verify_stored_files --compare-manifest "$backup_dir/source-files.json"
 
       - name: Publish notes for the rehearsed upgrade
         run: |

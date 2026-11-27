@@ -180,6 +180,14 @@ The same list is shown in the application under What's new.
 
 ### Medium impact
 
+- **Added:** Back up the database and its file inventory together (2026-11-27, Backup and recovery)
+
+  Deployers can create a database backup and a matching inventory of verified files with one command while staff continue working. After restoring the archive, compare the files with the saved inventory.
+
+  Technical notes:
+
+  > On a backup host with PostgreSQL 17 client tools, run `python manage.py backup_with_inventory --output /path/to/new-directory` in the source application environment. Keep `database.dump` and `source-files.json` together. On the restored database, run `python manage.py verify_stored_files --compare-manifest /path/to/new-directory/source-files.json`.
+
 - **Changed:** Check the method catalog after restore and upgrade (2026-11-27)
 
   The upgrade rehearsal report now lists the method versions, analytes and test definitions preserved at each stage. It checks that an approved result still uses the original test definition after a replacement method changes the reporting limit.
