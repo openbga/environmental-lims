@@ -221,7 +221,10 @@ scripts can request a JSON comparison. It must distinguish a verified match, dif
 between two verified inventories, and a scan that found damaged files. An interrupted
 scan must leave no completed comparison report.
 For a logical backup taken while staff are working,
-the source inventory can read the same exported PostgreSQL snapshot as the dump. Files
+a deployer can create a database archive and its verified version 1 file inventory in
+one command. Both must describe the same committed state. The destination must be new,
+and a failed dump or scan must leave no completed pair. For separately managed dumps,
+the source inventory can also read an exported PostgreSQL snapshot. Files
 committed after that snapshot are excluded from both. An unavailable snapshot must cause
 the check to fail before it produces an inventory.
 Publishing the first tagged release and its maintainer-reviewed notes remains on

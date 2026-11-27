@@ -241,8 +241,10 @@ Use the application version that produced the inventory. Add `--format json` to 
 comparison report for a recovery script. It identifies categories with changed counts or
 digests and reports when a file failed verification. Only a match exits successfully.
 
-To keep accepting writes during a logical backup, give `pg_dump` and the source inventory
-command the same exported PostgreSQL snapshot.
+On a backup host with the source application and PostgreSQL 17 client tools installed, run
+`python manage.py backup_with_inventory --output /private/backups/new-directory`.
+It creates a private directory containing a custom-format database archive and its verified
+file inventory from the same snapshot. Staff can continue entering records during the backup.
 See [Taking a backup with a matching file inventory](docs/operations.md#take-a-backup-with-a-matching-file-inventory).
 
 After installing, and after each upgrade, run

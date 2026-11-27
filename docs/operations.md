@@ -64,9 +64,36 @@ verification summary (see below) beside it so a later restore can be compared.
 
 ### Take a backup with a matching file inventory
 
-Use the same password-free `SOURCE_URL` in both terminals, with your usual PostgreSQL
-password file. Staff can continue entering records. Run the backup between deployments
-so the source schema stays stable.
+On a Linux or macOS backup host, install the source application and put PostgreSQL 17
+`pg_dump` on `PATH`. The web image does not include PostgreSQL client tools. Point
+`DATABASE_URL` at the source database. Use your usual PostgreSQL password file.
+Choose a new directory inside an existing private backup location outside the checkout.
+Run between deployments so the schema stays stable. Staff can continue entering records.
+
+```sh
+backup_dir="/path/to/private/backups/roots-$(date -u +%Y%m%dT%H%M%SZ)"
+python manage.py backup_with_inventory --output "$backup_dir"
+```
+
+A successful run creates `database.dump` (a custom-format archive) and `source-files.json`
+(the version 1 inventory) from one PostgreSQL snapshot. Check the exit status, then encrypt
+and retain both files together. An interrupted run can leave a private directory with
+partial output. Only accept the pair after the command succeeds. Retry with a fresh path.
+
+To verify the pair, [create an empty restore database](#restore-into-an-isolated-database)
+and set `TARGET_URL` to its connection string. Run the source application against that copy.
+
+```sh
+pg_restore --dbname="${TARGET_URL:?Set TARGET_URL to the empty restore database}" \
+  --single-transaction --exit-on-error --no-owner --no-privileges "$backup_dir/database.dump" &&
+  DATABASE_URL="$TARGET_URL" python manage.py verify_stored_files --compare-manifest "$backup_dir/source-files.json"
+```
+
+#### Parallel dumps or additional source counts
+
+To take a parallel directory-format dump, or to capture the [source record counts](#verify-the-restore)
+in the same transaction, use the following two-terminal procedure. Supply the same
+password-free `SOURCE_URL` in both terminals.
 
 In the first terminal, run `psql -X --dbname="$SOURCE_URL"` and export a snapshot:
 

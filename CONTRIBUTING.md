@@ -163,7 +163,12 @@ The notes identify both checkout commits, the candidate’s forward migration
 plan on the populated database, changes to package versions between revisions of `uv.lock`, and new or
 revised technical notes from the candidate’s changelog entries.
 
-CI also runs the checks above, the browser journeys, and a container smoke test that
+CI also runs the candidate’s `backup_with_inventory` against that migrated synthetic
+database, restores its archive into a third empty database and compares the saved file
+inventory with the restored files. Local tests for the archive use PostgreSQL 17
+`pg_dump` and `pg_restore` on `PATH`.
+
+The other CI checks include the browser journeys and a container smoke test that
 builds the Docker image, migrates a disposable PostgreSQL database, renders a PDF, runs the
 acceptance scripts inside the image and starts Gunicorn for health, readiness, sign-in and static
 checks. These checks never publish or deploy.
