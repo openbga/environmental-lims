@@ -206,7 +206,9 @@ electronic deliverables, laboratory logos, original result import files and atta
 laboratory evidence must match their recorded hashes and any recorded byte counts. The check reports discrepancies by
 record ID and leaves the restored records intact. A standalone check must read every file
 category and its audit history at one point in time, including when staff commit files
-while it runs. Deployers can save the counts in JSON. The upgrade rehearsal report records how many stored files
+while it runs. The same snapshot must contain every migration the application requires and
+no recorded migration unknown to that version. A mismatch must stop verification before
+the command reports counts or compares inventories. Deployers can save the counts in JSON. The upgrade rehearsal report records how many stored files
 passed the candidate check in each category, including categories with zero files.
 Deployers can save a file inventory alongside a backup and compare it with the restored
 copy. Each category has a count and a digest that identifies the set of file records

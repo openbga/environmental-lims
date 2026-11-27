@@ -188,6 +188,14 @@ The same list is shown in the application under What's new.
 
   > The verified records table in the downloadable upgrade notes includes a count for each of the three catalog categories after restore and after migration.
 
+- **Fixed:** Detect migration mismatches before verifying restored files (2026-11-27)
+
+  The stored-file check now stops if the restored database has missing or unknown migrations. Use the application version that created the backup to check its files.
+
+  Technical notes:
+
+  > verify_stored_files reads migration history from the same PostgreSQL snapshot as the files, including when you supply --snapshot. A mismatch exits nonzero with the counts of unapplied and unknown migrations. All output modes stop before scanning files.
+
 - **Changed:** Check historical report logos after a restore (2026-11-26, Backup and restore)
 
   Deployers can identify an issued report whose original laboratory logo is missing or has different image details after a restore. The check also covers superseded report versions.

@@ -213,7 +213,9 @@ report links to the candidate’s changelog entries, recovery instructions and a
 
 After restoring a backup, run `python manage.py verify_stored_files` against the restored
 database to check stored documents, attachments and original result import files. The command
-checks all categories as of its first database read. Files committed during the scan appear on
+checks the database’s migration history before scanning files. Missing or unknown migrations
+stop the check. Use the application version that created the backup to verify a restore.
+The command checks all categories as of its first database read. Files committed during the scan appear on
 the next run. For each
 issued report version, the command checks the PDF and frozen results against the original
 release or amendment event. If the version names a laboratory logo, the original image must

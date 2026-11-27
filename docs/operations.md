@@ -147,7 +147,11 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
 3. Immutability triggers match the source (run on both and diff the output):
    `select tgrelid::regclass, tgname from pg_trigger where not tgisinternal and tgname like '%immutable%' order by 1, 2`
 4. Run `python manage.py verify_stored_files` on the restored database. This read-only check
-   compares stored bytes with their recorded SHA-256 and, where available, byte count. A
+   first compares the recorded migrations with those known to the running application. If it
+   reports unapplied or unknown migrations, check the database connection and the application
+   version used for the backup before retrying. A mismatch stops the scan before it produces
+   file counts or an inventory. The migration check uses the same snapshot as the file scan.
+   The command compares stored bytes with their recorded SHA-256 and, where available, byte count. A
    standalone run reads every category and its audit records from one PostgreSQL snapshot.
    Files committed after the first read appear on the next run. To match an inventory to a
    concurrent backup, use the [shared snapshot procedure](#take-a-backup-with-a-matching-file-inventory).
