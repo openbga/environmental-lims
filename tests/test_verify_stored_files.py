@@ -10,7 +10,7 @@ import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.db import connection, transaction
+from django.db import DatabaseError, connection, transaction
 from django.db.migrations import Migration
 from django.db.migrations.loader import MigrationLoader
 from django.db.migrations.recorder import MigrationRecorder
@@ -21,6 +21,7 @@ from psycopg import sql
 from analytical.models import Batch, ImportSourceFile
 from commercial import invoices
 from commercial.models import InvoiceDraft, IssuedInvoice, PriceList, PriceListItem
+from core.management.commands.verify_stored_files import Command
 from core.models import AuditEvent, Lab, LabLogo
 from laboratory import equipment, nonconformance, training
 from laboratory.models import (
@@ -55,7 +56,8 @@ CATEGORIES = (
     "Import source files",
 )
 MANIFEST_FORMAT = ("--format", "manifest")
-OUTPUT_FORMATS = [(), ("--format", "json"), MANIFEST_FORMAT]
+JSON_FORMAT = ("--format", "json")
+OUTPUT_FORMATS = [(), JSON_FORMAT, MANIFEST_FORMAT]
 OUTPUT_FORMAT_IDS = ["text", "json", "manifest"]
 UNKNOWN_MIGRATION = ("core", "9999_synthetic_future_migration")
 
@@ -2659,6 +2661,19 @@ def test_manifest_detects_changes_with_the_same_file_count(
     diagnostics = _manifest_comparison_failure(reference)
     assert "Equipment event evidence" in diagnostics
     assert EVIDENCE_NAME not in diagnostics
+    _manifest_comparison_failure(
+        reference,
+        *JSON_FORMAT,
+        expected={
+            "version": 1,
+            "status": "different",
+            "checked": 1,
+            "failures": 0,
+            "differences": [
+                {"reason": "category_digest", "category": "Equipment event evidence", "count": 1},
+            ],
+        },
+    )
 
 
 def _write_reference_manifest(tmp_path):
@@ -2667,7 +2682,7 @@ def _write_reference_manifest(tmp_path):
     return reference
 
 
-def _manifest_comparison_failure(reference, *args):
+def _manifest_comparison_failure(reference, *args, expected=None):
     stdout, stderr = StringIO(), StringIO()
     with pytest.raises(CommandError) as error:
         call_command(
@@ -2678,7 +2693,11 @@ def _manifest_comparison_failure(reference, *args):
             stdout=stdout,
             stderr=stderr,
         )
-    assert stdout.getvalue() == ""
+    assert error.value.returncode != 0
+    if expected is None:
+        assert stdout.getvalue() == ""
+    else:
+        assert json.loads(stdout.getvalue()) == expected
     return f"{error.value}\n{stderr.getvalue()}"
 
 
@@ -2695,8 +2714,8 @@ def _assert_migration_preflight_failure(*args, unapplied=0, unknown=0):
 
 @pytest.mark.parametrize(
     "output_args",
-    [*OUTPUT_FORMATS, ("--compare-manifest",)],
-    ids=[*OUTPUT_FORMAT_IDS, "compare"],
+    [*OUTPUT_FORMATS, ("--compare-manifest",), (*JSON_FORMAT, "--compare-manifest")],
+    ids=[*OUTPUT_FORMAT_IDS, "compare-text", "compare-json"],
 )
 @pytest.mark.parametrize(
     ("remove_known", "add_unknown"),
@@ -2710,7 +2729,7 @@ def test_migration_preflight_rejects_mismatched_history(
     equipment_event_factory, tmp_path, output_args, remove_known, add_unknown
 ):
     equipment_event_factory()
-    if output_args == ("--compare-manifest",):
+    if "--compare-manifest" in output_args:
         output_args += (str(_write_reference_manifest(tmp_path)),)
 
     recorder = MigrationRecorder(connection)
@@ -2783,6 +2802,14 @@ def test_compare_manifest_matches_verified_inventory(equipment_event_factory, tm
     reference = _write_reference_manifest(tmp_path)
 
     assert "match" in _verification_output("--compare-manifest", str(reference)).lower()
+    output = _verification_output("--compare-manifest", str(reference), *JSON_FORMAT)
+    assert json.loads(output) == {
+        "version": 1,
+        "status": "match",
+        "checked": 1,
+        "failures": 0,
+        "differences": [],
+    }
 
 
 def test_compare_manifest_detects_missing_file_even_when_verification_passes(staff, tmp_path):
@@ -2795,6 +2822,24 @@ def test_compare_manifest_detects_missing_file_even_when_verification_passes(sta
 
     assert "Total: checked=0 failures=0" in _verification_output()
     assert "Laboratory logos" in _manifest_comparison_failure(reference)
+    _manifest_comparison_failure(
+        reference,
+        *JSON_FORMAT,
+        expected={
+            "version": 1,
+            "status": "different",
+            "checked": 0,
+            "failures": 0,
+            "differences": [
+                {
+                    "reason": "category_count",
+                    "category": "Laboratory logos",
+                    "saved_count": 1,
+                    "restored_count": 0,
+                },
+            ],
+        },
+    )
 
 
 def test_compare_manifest_fails_for_invalid_stored_file(staff, tmp_path):
@@ -2810,13 +2855,44 @@ def test_compare_manifest_fails_for_invalid_stored_file(staff, tmp_path):
     assert "synthetic image" not in diagnostics
 
 
-@pytest.mark.parametrize("output_format", ["json", "manifest"])
-def test_compare_manifest_rejects_other_output_formats(tmp_path, output_format):
+@pytest.mark.django_db(transaction=True)
+def test_compare_manifest_json_cli_reports_verification_failure(staff, tmp_path):
+    uploader = staff("restore-logo-uploader", "admin")
+    logo = _lab_logo(uploader)
+    logo.save()
+    _lab_logo(uploader, data=PNG + b" another synthetic image").save()
+    reference = _write_reference_manifest(tmp_path)
+    with _restore_with_history_defect(LabLogo, "lab_logo_immutable"):
+        LabLogo.objects.filter(pk=logo.pk).update(image=PNG[:-1] + b"x")
+
+    stdout, stderr = StringIO(), StringIO()
+    with pytest.raises(SystemExit) as error:
+        Command(stdout=stdout, stderr=stderr).run_from_argv(
+            ["manage.py", "verify_stored_files", "--compare-manifest", str(reference), *JSON_FORMAT]
+        )
+
+    assert error.value.code != 0
+    assert json.loads(stdout.getvalue()) == {
+        "version": 1,
+        "status": "verification_failed",
+        "checked": 2,
+        "failures": 1,
+        "differences": None,
+    }
+    assert f"core.LabLogo pk={logo.pk}: SHA-256 mismatch" in stderr.getvalue().splitlines()
+    assert "synthetic image" not in stderr.getvalue()
+
+
+def test_compare_manifest_rejects_manifest_output(tmp_path):
     reference = _write_reference_manifest(tmp_path)
 
-    diagnostics = _manifest_comparison_failure(reference, "--format", output_format)
+    diagnostics = _manifest_comparison_failure(reference, *MANIFEST_FORMAT)
     assert "--compare-manifest" in diagnostics
     assert "--format" in diagnostics
+
+    # Keyword arguments to call_command bypass argparse's format choices.
+    with pytest.raises(CommandError, match="--compare-manifest requires --format text or json"):
+        call_command("verify_stored_files", compare_manifest=str(reference), format="unknown")
 
 
 @pytest.mark.parametrize("category_change", ["missing", "extra"])
@@ -2826,14 +2902,30 @@ def test_compare_manifest_requires_the_exact_category_set(tmp_path, category_cha
     category = "Laboratory logos"
     if category_change == "missing":
         del manifest["categories"][category]
+        difference = {"reason": "missing_from_saved", "category": category}
     else:
         manifest["categories"][EVIDENCE_NAME] = manifest["categories"][category]
+        manifest["categories"]["Another synthetic filename.pdf"] = manifest["categories"][category]
+        difference = {"reason": "unknown_saved_categories", "count": 2}
     reference.write_text(json.dumps(manifest), encoding="utf-8")
 
     diagnostics = _manifest_comparison_failure(reference)
     assert EVIDENCE_NAME not in diagnostics
     if category_change == "missing":
         assert category in diagnostics
+    diagnostics = _manifest_comparison_failure(
+        reference,
+        *JSON_FORMAT,
+        expected={
+            "version": 1,
+            "status": "different",
+            "checked": 0,
+            "failures": 0,
+            "differences": [difference],
+        },
+    )
+    assert EVIDENCE_NAME not in diagnostics
+    assert "Another synthetic filename.pdf" not in diagnostics
 
 
 def test_compare_manifest_rejects_duplicate_keys_in_valid_inventory(tmp_path):
@@ -2879,12 +2971,34 @@ def test_compare_manifest_rejects_invalid_category_entries(tmp_path, field, valu
     "contents",
     [None, b"\xff", b'{"synthetic private content"', b"[]", b'{"version": 1, "categories": []}'],
 )
-def test_compare_manifest_rejects_unreadable_or_malformed_file(tmp_path, contents):
+@pytest.mark.parametrize("output_format", [(), JSON_FORMAT], ids=["text", "json"])
+def test_compare_manifest_rejects_unreadable_or_malformed_file(tmp_path, contents, output_format):
     reference = tmp_path / "source.json"
     if contents is not None:
         reference.write_bytes(contents)
 
-    assert "synthetic private content" not in _manifest_comparison_failure(reference)
+    assert "synthetic private content" not in _manifest_comparison_failure(
+        reference, *output_format
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_compare_manifest_json_emits_no_result_when_scan_is_interrupted(
+    equipment_event_factory, tmp_path
+):
+    equipment_event_factory()
+    reference = _write_reference_manifest(tmp_path)
+
+    def interrupt_final_category(execute, query, params, many, context):
+        if 'FROM "analytical_importsourcefile"' in query:
+            raise DatabaseError("synthetic private database diagnostics")
+        return execute(query, params, many, context)
+
+    with connection.execute_wrapper(interrupt_final_category):
+        diagnostics = _manifest_comparison_failure(reference, *JSON_FORMAT)
+
+    assert "PostgreSQL error interrupted stored file verification" in diagnostics
+    assert "synthetic private database diagnostics" not in diagnostics
 
 
 @contextmanager

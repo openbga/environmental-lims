@@ -246,6 +246,31 @@ union all select 'issued_invoices', count(*), max(id)::text from commercial_issu
    saved inventory includes categories the application does not recognize, check that
    the two application versions match. If stored
    file verification itself fails, use the affected record IDs printed on standard error.
+
+   To save the comparison for a recovery script, run:
+
+   ```sh
+   python manage.py verify_stored_files --compare-manifest source-files.json --format json > comparison.json
+   ```
+
+   Check the exit status and keep standard error for record IDs or a preflight error.
+   A completed scan writes one version 1 JSON object. `checked` counts records scanned
+   and `failures` counts records that failed integrity checks.
+
+   | `status` | Exit | `differences` |
+   | --- | --- | --- |
+   | `match` | Zero | Empty list. Every category matched. |
+   | `different` | Nonzero | List of differences found after all files passed verification. |
+   | `verification_failed` | Nonzero | `null`. At least one record failed verification, so no inventory comparison was possible. |
+
+   Each difference has a `reason`. For `category_count`, the report gives the `category`,
+   `saved_count` and `restored_count`. For `category_digest`, it gives the `category` and
+   the common `count`. A category missing from the saved inventory has reason
+   `missing_from_saved` and its `category` name. `unknown_saved_categories` gives the
+   `count` of unrecognized categories without printing names from the input file.
+   An unreadable or invalid inventory, a migration mismatch, or an interrupted scan
+   exits with an error before writing a JSON report.
+
    On an older application version that only supports inventory generation, generate
    `restored-files.json` with `--format manifest` and compare it to `source-files.json`
    with `diff -u` after verifying that generation succeeded.
