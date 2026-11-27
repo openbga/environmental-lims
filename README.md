@@ -217,8 +217,8 @@ issued report version, the command checks the PDF and frozen results against the
 release or amendment event. If the version names a laboratory logo, the original image must
 still be present with the image type and dimensions recorded at issue, even after the
 laboratory changes its logo. The command also flags an event whose issued version is missing. For issued
-and voided invoices, it checks the PDF, invoice number and issuer against the original
-issue event. It checks a voided invoice against the void event, including who voided it
+and voided invoices, it checks the PDF, invoice number, issuer and issue time against the original
+issue event. A void must preserve that issue time and issuer, and record who voided the invoice
 and why. A surviving issue or void event can also identify an invoice lost along with its draft.
 For an electronic data deliverable, it checks that the original export event identifies
 the same ZIP and issued report version. For subcontracted tests, it checks each original

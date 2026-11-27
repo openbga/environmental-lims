@@ -236,6 +236,14 @@ The same list is shown in the application under What's new.
 
   > The rehearsal checks revisions from the backed-up synthetic installation. Both stages run on the disposable restored database.
 
+- **Fixed:** Verify the original issue time of restored invoices (2026-11-26, Draft invoices)
+
+  The restore check now flags an invoice whose issue time differs from its audit record. For a voided invoice, it also checks that the void history still identifies the original issuer and issue time.
+
+  Technical notes:
+
+  > Run python manage.py verify_stored_files on the restored database. Under Issued invoice PDFs, an invoice fails verification if its recorded issue time differs from the original issue event, or if either side of the void event gives a different issue time or issuer.
+
 - **Changed:** Check restored reports against their release history (2026-11-25, Backup and restore)
 
   After restoring a backup, deployers can check that each issued report PDF and its frozen results match the original release or amendment event. The check also identifies an event whose issued version is missing.

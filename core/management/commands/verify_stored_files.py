@@ -1,5 +1,6 @@
 import json
 import re
+from datetime import UTC, datetime
 from hashlib import sha256
 from itertools import groupby
 from operator import attrgetter
@@ -35,6 +36,7 @@ from django.db.models.functions import (
     JSONObject,
     Length,
     LPad,
+    Replace,
     Substr,
 )
 from psycopg import Error as PsycopgError
@@ -268,27 +270,31 @@ def _check_reports():
         )
 
 
-def _invoice_cancellation_timestamp():
-    # The draft snapshot uses DjangoJSONEncoder: UTC ends in Z, with a fraction
-    # truncated to milliseconds when the stored timestamp has any microseconds.
+def _invoice_utc_timestamp(field, pattern):
     timestamp = Func(
         Value("UTC"),
-        OuterRef("draft__cancelled_at"),
+        OuterRef(field),
         function="pg_catalog.timezone",
         output_field=DateTimeField(),
     )
+    return Func(timestamp, Value(pattern), function="pg_catalog.to_char", output_field=TextField())
+
+
+def _invoice_cancellation_timestamp():
+    # The draft snapshot uses DjangoJSONEncoder: UTC ends in Z, with a fraction
+    # truncated to milliseconds when the stored timestamp has any microseconds.
     return Func(
-        Func(
-            timestamp,
-            Value('YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
-            function="pg_catalog.to_char",
-            output_field=TextField(),
-        ),
+        _invoice_utc_timestamp("draft__cancelled_at", 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
         Value(r"\.000000Z$|(\.[0-9]{3})[0-9]{3}Z$"),
         Value(r"\1Z"),
         function="pg_catalog.regexp_replace",
         output_field=TextField(),
     )
+
+
+def _invoice_event_issuer(side):
+    # Compare JSON text so only the original integer representation matches.
+    return Cast(KeyTransform("issued_by", KeyTransform("issued_invoice", side)), TextField())
 
 
 def _check_invoices():
@@ -297,24 +303,28 @@ def _check_invoices():
     issue_events = AuditEvent.objects.filter(action="invoice_draft.issued")
     void_events = AuditEvent.objects.filter(action="invoice_draft.voided")
     draft_target = Q(object_type=draft_type, object_id=Cast(OuterRef("draft_id"), CharField()))
-    document = JSONObject(number=OuterRef("number"), sha256=OuterRef("sha256"))
+    # Invoice issue events use datetime.isoformat(), which omits an all-zero fraction.
+    issue_time = Replace(
+        _invoice_utc_timestamp("issued_at", 'YYYY-MM-DD"T"HH24:MI:SS.US"+00:00"'),
+        Value(".000000+00:00"),
+        Value("+00:00"),
+    )
+    document = JSONObject(
+        number=OuterRef("number"), sha256=OuterRef("sha256"), issued_at=issue_time
+    )
+    issuer = Cast(OuterRef("issued_by_id"), TextField())
     # The original issuance is unique for each draft, including drafts later voided.
     # Count all issuance events and compare just the relevant fields within PostgreSQL.
     matches_invoice = Q(
         actor_id=OuterRef("issued_by_id"),
-        audit_issuer=Cast(OuterRef("issued_by_id"), TextField()),
+        audit_issuer=issuer,
         after__contains=JSONObject(issued_invoice=document),
     )
     events = (
         issue_events.filter(draft_target)
         .order_by()
         .values("object_id")
-        # Compare JSON text so only the original integer representation matches.
-        .alias(
-            audit_issuer=Cast(
-                KeyTransform("issued_by", KeyTransform("issued_invoice", "after")), TextField()
-            ),
-        )
+        .alias(audit_issuer=_invoice_event_issuer("after"))
         .annotate(
             event_count=Count("pk"),
             matching_count=Count("pk", filter=matches_invoice),
@@ -324,12 +334,18 @@ def _check_invoices():
     draft_voids = void_events.filter(draft_target).order_by()
     matching_voids = (
         draft_voids.values("object_id")
-        .alias(audit_voider=Cast(KeyTransform("cancelled_by", "after"), TextField()))
+        .alias(
+            audit_voider=Cast(KeyTransform("cancelled_by", "after"), TextField()),
+            issuer_before=_invoice_event_issuer("before"),
+            issuer_after=_invoice_event_issuer("after"),
+        )
         .annotate(
             event_count=Count("pk"),
             matching_count=Count(
                 "pk",
                 filter=Q(
+                    issuer_before=issuer,
+                    issuer_after=issuer,
                     actor_id=OuterRef("draft__cancelled_by_id"),
                     reason=OuterRef("draft__cancel_reason"),
                     audit_voider=Cast(OuterRef("draft__cancelled_by_id"), TextField()),
@@ -347,6 +363,11 @@ def _check_invoices():
         )
         .filter(event_count=1, matching_count=1)
     )
+    # to_char omits the era and formats infinity as NULL. The issuing application
+    # can only have recorded an instant in Python's supported datetime range.
+    valid_issue_time = Q(
+        issued_at__range=(datetime.min.replace(tzinfo=UTC), datetime.max.replace(tzinfo=UTC))
+    )
     valid_status = Q(draft__status__in=issued_statuses)
     valid_void_history = (
         ~valid_status
@@ -358,7 +379,10 @@ def _check_invoices():
         "pdf",
         "sha256",
         metadata=(
-            (Exists(events), "missing, ambiguous, or mismatched invoice issuance event"),
+            (
+                valid_issue_time & Exists(events),
+                "missing, ambiguous, or mismatched invoice issuance event",
+            ),
             (valid_status, "invalid draft status for issued invoice"),
             (
                 valid_void_history,

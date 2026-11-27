@@ -207,6 +207,7 @@ def _record_invoice_issue(invoice, **overrides):
 
 @pytest.fixture
 def voided_invoice_record(invoice_record, staff):
+    invoice_record.issued_at = invoice_record.issued_at.replace(microsecond=1)
     invoice_record.save()
     _record_invoice_issue(invoice_record)
     invoice_record.draft = invoices.void_invoice(
@@ -1584,21 +1585,24 @@ def test_issued_and_voided_invoices_preserve_the_manifest(
     )
     monkeypatch.setattr(invoices, "render_pdf", lambda content: PDF)
 
-    def issue():
+    def issue(issued_at):
         draft = invoices.create_invoice_draft(
             actor=actor,
             order_id=order.pk,
             price_list_id=price_list.pk,
             expected_source_state=invoices.source_state(order, invoices.source_tests(order)),
         )
-        return invoices.issue_invoice(
-            actor=actor, draft_id=draft.pk, expected_revision=draft.revision
-        )
+        with monkeypatch.context() as clock:
+            clock.setattr(invoices.timezone, "now", lambda: issued_at)
+            return invoices.issue_invoice(
+                actor=actor, draft_id=draft.pk, expected_revision=draft.revision
+            )
 
-    original = issue()
+    issued_at = timezone.now().replace(microsecond=microsecond)
+    original = issue(issued_at)
     before_void = _verification_output(*MANIFEST_FORMAT)
     voider = staff("restore-voiding-manager", "project_manager")
-    cancelled_at = (timezone.now() + timedelta(seconds=1)).replace(microsecond=microsecond)
+    cancelled_at = issued_at + timedelta(seconds=1)
     with monkeypatch.context() as clock:
         clock.setattr(invoices.timezone, "now", lambda: cancelled_at)
         invoices.void_invoice(
@@ -1608,7 +1612,7 @@ def test_issued_and_voided_invoices_preserve_the_manifest(
             reason="Synthetic correction\nOriginal kept",
         )
     assert _verification_output(*MANIFEST_FORMAT) == before_void
-    replacement = issue()
+    replacement = issue(cancelled_at + timedelta(seconds=1))
 
     invoice_projections = []
 
@@ -1700,16 +1704,41 @@ def _void_target_problem(event):
     return f"core.AuditEvent pk={event.pk}: missing or invalid void invoice target"
 
 
-@pytest.mark.parametrize("change", ["pdf-and-digest", "number"])
+@pytest.mark.parametrize("change", ["pdf-and-digest", "number", "issued-at-microsecond"])
 def test_stored_invoice_must_match_the_original_issuance(invoice_record, change):
     invoice = invoice_record
     _record_invoice_issue(invoice)
     if change == "pdf-and-digest":
         invoice.pdf += b" synthetic replacement"
         invoice.sha256 = sha256(invoice.pdf).hexdigest()
-    else:
+    elif change == "number":
         invoice.number = "INV-REPLACEMENT"
+    else:
+        invoice.issued_at += timedelta(microseconds=1)
     invoice.save()
+
+    _assert_invoice_verification_failed(_invoice_issuance_problem(invoice))
+
+
+@pytest.mark.parametrize("restored_time", ["bce", "infinity"])
+def test_invoice_requires_a_representable_issue_timestamp(invoice_record, restored_time):
+    invoice = invoice_record
+    invoice.save()
+    event = _record_invoice_issue(invoice)
+    timestamp = f"{invoice.issued_at.isoformat()} BC" if restored_time == "bce" else "infinity"
+    if restored_time == "infinity":
+        event.after["issued_invoice"]["issued_at"] = None
+        with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+            AuditEvent.objects.filter(pk=event.pk).update(after=event.after)
+
+    with (
+        _restore_with_history_defect(IssuedInvoice, "issued_invoice_immutable"),
+        connection.cursor() as cursor,
+    ):
+        cursor.execute(
+            "UPDATE commercial_issuedinvoice SET issued_at = %s::timestamptz WHERE id = %s",
+            [timestamp, invoice.pk],
+        )
 
     _assert_invoice_verification_failed(_invoice_issuance_problem(invoice))
 
@@ -1747,7 +1776,11 @@ def test_invoice_requires_the_original_issue_actor(invoice_record, staff):
 def test_invoice_requires_the_original_nested_issuer(invoice_record, corruption):
     invoice_record.save()
     issuer_id = invoice_record.issued_by_id
-    document = {"number": invoice_record.number, "sha256": invoice_record.sha256}
+    document = {
+        "number": invoice_record.number,
+        "issued_at": invoice_record.issued_at.isoformat(),
+        "sha256": invoice_record.sha256,
+    }
     if corruption != "missing":
         document["issued_by"] = {
             "different": issuer_id + 1,
@@ -1757,6 +1790,59 @@ def test_invoice_requires_the_original_nested_issuer(invoice_record, corruption)
     _record_invoice_issue(invoice_record, after={"issued_invoice": document})
 
     _assert_invoice_verification_failed(_invoice_issuance_problem(invoice_record))
+
+
+@pytest.mark.parametrize(
+    ("location", "field", "corruption"),
+    [
+        ("original-issue", "issued_at", "missing"),
+        ("void-before", "issued_at", "missing"),
+        ("void-after", "issued_at", "missing"),
+        ("original-issue", "issued_at", "other-time"),
+        ("void-before", "issued_at", "other-time"),
+        ("void-after", "issued_at", "other-time"),
+        ("original-issue", "issued_at", "numeric-time"),
+        ("void-after", "issued_at", "malformed-time"),
+        ("original-issue", "issued_at", "truncated-time"),
+        ("void-before", "issued_at", "utc-z-time"),
+        ("void-before", "issued_by", "missing"),
+        ("void-after", "issued_by", "missing"),
+        ("void-before", "issued_by", "other-issuer"),
+        ("void-after", "issued_by", "other-issuer"),
+        ("void-before", "issued_by", "decimal-issuer"),
+        ("void-after", "issued_by", "decimal-issuer"),
+    ],
+)
+def test_invoice_audit_snapshot_preserves_original_attribution(
+    voided_invoice_record, location, field, corruption
+):
+    invoice, event = voided_invoice_record
+    if location == "original-issue":
+        event = AuditEvent.objects.get(action="invoice_draft.issued", object_id=event.object_id)
+        side = "after"
+        problem = _invoice_issuance_problem(invoice)
+    else:
+        side = location.removeprefix("void-")
+        problem = _invoice_void_problem(invoice)
+
+    snapshot = getattr(event, side)
+    document = snapshot["issued_invoice"]
+    original = document.pop(field)
+    replacements = {
+        "other-time": lambda value: value.replace(".000001", ".000002"),
+        "numeric-time": lambda _: 123456,
+        "malformed-time": lambda _: "synthetic invalid time",
+        "truncated-time": lambda value: value.replace(".000001", ".000"),
+        "utc-z-time": lambda value: value.replace("+00:00", "Z"),
+        "other-issuer": lambda value: value + 1,
+        "decimal-issuer": float,
+    }
+    if corruption != "missing":
+        document[field] = replacements[corruption](original)
+    with _restore_with_history_defect(AuditEvent, "audit_immutable"):
+        AuditEvent.objects.filter(pk=event.pk).update(**{side: snapshot})
+
+    _assert_invoice_verification_failed(problem)
 
 
 @pytest.mark.parametrize(
